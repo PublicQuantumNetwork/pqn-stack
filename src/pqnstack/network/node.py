@@ -3,25 +3,24 @@
 #
 # NCSA/Illinois Computes
 from abc import abstractmethod
+
 from pqnstack.base.network import NetworkElement
 from pqnstack.network.packet import Packet
-from typing import Dict
 
 
 class Node(NetworkElement):
-
-    def __init__(self, specs: Dict):
+    def __init__(self, specs: dict) -> None:
         super().__init__(specs)
         self.drivers = {}
         self.setup(specs)
 
-    def exec(self):
+    def exec(self) -> None:
         pass
 
-    def stop(self):
+    def stop(self) -> None:
         pass
 
-    def measure(self):
+    def measure(self) -> None:
         # Ensure the execution context is appropriate and orchestrate
         # the setup
         #
@@ -34,7 +33,7 @@ class Node(NetworkElement):
         self.collect()
 
     @abstractmethod
-    def setup(self, specs: Dict):
+    def setup(self, specs: dict):
         pass
 
     @abstractmethod
@@ -48,4 +47,3 @@ class Node(NetworkElement):
     @abstractmethod
     def collect(self) -> Packet:
         pass
-

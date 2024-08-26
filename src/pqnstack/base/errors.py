@@ -4,22 +4,22 @@
 # NCSA/Illinois Computes
 
 
-class DriverNotFound(Exception):
-    def __init__(self, driver, message="Device driver configuration not found"):
+class DriverNotFoundError(Exception):
+    def __init__(self, driver, message="Device driver configuration not found") -> None:
         self.driver = driver
         self.message = message
         super().__init__(self.message)
 
 
-class DriverFunctionNotImplemented(Exception):
-    def __init__(self, driver, message="One or more driver functions were not implemented"):
+class DriverFunctionNotImplementedError(Exception):
+    def __init__(self, driver, message="One or more driver functions were not implemented") -> None:
         self.driver = driver
         self.message = message
         super().__init__(self.message)
 
 
-class DriverFunctionUnknown(Exception):
-    def __init__(self, driver, message="Device driver function unknown"):
+class DriverFunctionUnknownError(Exception):
+    def __init__(self, driver, message="Device driver function unknown") -> None:
         self.driver = driver
         self.message = message
         super().__init__(self.message)

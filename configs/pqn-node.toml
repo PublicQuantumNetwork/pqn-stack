@@ -1,0 +1,26 @@
+version = 1
+
+name = "loomis"
+location = "Loomis/UIUC"
+addr = "0"
+
+[drivers.time-tagger]
+dtype = "TIMETAGR"
+name = "IDQTimeTagger"
+desc = "Time tagger @ Loomis"
+provides = [
+  "set_delay",
+  "single_counts",
+  "coincidence_counts",
+  "tsco_numbers",
+  "histogram",
+  "channel_acquis",
+]
+
+[drivers.time-tagger.params]
+cmd_wait = 1
+tsco_iters = 25
+hist_channels = 5
+hist_min_val = 0
+hist_max_val = 100
+hist_bin_width = 10

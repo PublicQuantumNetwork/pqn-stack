@@ -3,18 +3,16 @@
 #
 # NCSA/Illinois Computes
 
+
 from pqnstack.base.driver import DeviceDriver
-from typing import Dict
 
 
 class WavePlate(DeviceDriver):
-
-    def __init__(self, specs: Dict):
+    def __init__(self, specs: dict):
         super.__init__(specs)
 
-    def setup(self, specs: Dict):
+    def setup(self, specs: dict):
         pass
 
     def exec(self, seq: str):
         pass
-

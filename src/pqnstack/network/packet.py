@@ -4,10 +4,10 @@
 # NCSA/Illinois Computes
 #
 #
-from dataclasses_json import dataclass_json
 from dataclasses import dataclass
-from typing import Tuple
 from enum import Enum
+
+from dataclasses_json import dataclass_json
 
 
 @dataclass_json
@@ -15,8 +15,8 @@ from enum import Enum
 class Packet:
     intent: str
     request: str
-    source: Tuple[int, int]
-    destination: Tuple[int, int]
+    source: tuple[int, int]
+    destination: tuple[int, int]
     hops: int
     payload: object
 

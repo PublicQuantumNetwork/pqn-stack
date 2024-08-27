@@ -3,44 +3,38 @@
 #
 # NCSA/Illinois Computes
 
-from abc import ABC, abstractmethod
-from typing import Dict
+from abc import ABC
+from abc import abstractmethod
 from enum import Enum
 
 
 class DeviceDriver(ABC):
-
-    def __init__(self, specs: Dict):
+    def __init__(self, specs: dict):
         # Self-documenting features
-        self.name = specs['name']
-        self.desc = specs['desc']
-        self.dtype = DeviceClass[specs['dtype']]
+        self.name = specs["name"]
+        self.desc = specs["desc"]
+        self.dtype = DeviceClass[specs["dtype"]]
         self.status = DeviceStatus.NOINIT
 
         # Executable functionalities
-        self.provides = specs['provides']
+        self.provides = specs["provides"]
         self.executable = {}
 
         # Tunable device parameters across multiple experiments
-        self.params = specs['params']
+        self.params = specs["params"]
 
         # Call the available implementation of `setup`
         self.setup(specs)
 
     def info(self, attr: str, **kwargs):
-        return {
-            'name': self.name,
-            'desc': self.desc,
-            'dtype': self.dtype.value,
-            'status': self.status.value
-        }
+        return {"name": self.name, "desc": self.desc, "dtype": self.dtype.value, "status": self.status.value}
 
     @abstractmethod
-    def setup(self, specs: Dict):
+    def setup(self, specs: dict):
         pass
 
     @abstractmethod
-    def exec(self, seq: str, **kwargs) -> Dict:
+    def exec(self, seq: str, **kwargs) -> dict:
         pass
 
 
@@ -52,8 +46,8 @@ class DeviceClass(Enum):
 
 
 class DeviceStatus(Enum):
-    NOINIT = 'not uninitialized'
-    FAIL = 'fail'
-    OFF = 'off'
-    IDLE = 'idle'
-    ON = 'on'
+    NOINIT = "not uninitialized"
+    FAIL = "fail"
+    OFF = "off"
+    IDLE = "idle"
+    ON = "on"

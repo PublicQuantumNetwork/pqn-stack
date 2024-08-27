@@ -15,7 +15,7 @@ dependencies = [
 ]
 requires-python = ">=3.12"
 readme = "README.md"
-license = "MIT"
+license = { text = "MIT" }
 
 
 [tool.pdm.dev-dependencies]

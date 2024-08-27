@@ -3,7 +3,7 @@
 #
 # NCSA/Illinois Computes
 
-from pqnstack.base.errors import DriverNotFound
+from pqnstack.base.errors import DriverNotFoundError
 from pqnstack.network.node import Node
 from pqnstack.network.packet import Packet
 from pqnstack.pqn.drivers.optics import WavePlate
@@ -18,13 +18,13 @@ class QuantumNode(Node):
     def setup(self, specs: dict):
         # Initialize time tagger device
         if "time-tagger" not in specs["drivers"].keys():
-            raise DriverNotFound("IDQ Time Tagger")
+            raise DriverNotFoundError("IDQ Time Tagger")
 
         self.drivers["time-tagger"] = IDQTimeTagger(specs["drivers"]["time-tagger"])
 
         # Initialize wave plate motor
         if "wave-plate" not in specs["drivers"].keys():
-            raise DriverNotFound("Wave plate")
+            raise DriverNotFoundError("Wave plate")
 
         self.drivers["wave-plate"] = WavePlate(specs["drivers"]["wave-plate"])
 

@@ -9,8 +9,8 @@ import zmq
 
 from pqnstack.base.driver import DeviceDriver
 from pqnstack.base.driver import DeviceStatus
-from pqnstack.base.errors import DriverFunctionNotImplemented
-from pqnstack.base.errors import DriverFunctionUnknown
+from pqnstack.base.errors import DriverFunctionNotImplementedError
+from pqnstack.base.errors import DriverFunctionUnknownError
 
 
 class IDQTimeTagger(DeviceDriver):
@@ -39,14 +39,14 @@ class IDQTimeTagger(DeviceDriver):
 
         # Check all implementations were provided
         if set(self.provides).symmetric_difference(self.executable.keys()) != set():
-            raise DriverFunctionNotImplemented("IDQTimeTagger")
+            raise DriverFunctionNotImplementedError("IDQTimeTagger")
 
         # Set device as on
         self.status = DeviceStatus.ON
 
     def exec(self, seq: str, **kwargs):
         if str not in self.executable.keys():
-            raise DriverFunctionUnknown("IDQTimeTagger")
+            raise DriverFunctionUnknownError("IDQTimeTagger")
 
         self.executable[seq](**kwargs)
 

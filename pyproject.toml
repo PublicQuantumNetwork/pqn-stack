@@ -23,7 +23,7 @@ dependencies = [
 ]
 
 [project.scripts]
-pqn = "pqnstack:main"
+pqn = "pqnstack.cli:invoke"
 
 
 [dependency-groups]

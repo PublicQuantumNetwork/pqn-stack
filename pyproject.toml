@@ -1,0 +1,18 @@
+[project]
+name = "pqn"
+version = "0.1.0"
+description = "Illinois Computes work on software stack for PQN."
+authors = [
+    { name = "Santiano Nunez-Corrales", email = "nunezco2@illinois.edu" },
+    { name = "Benjamin Nussbaum", email = "bn9@illinois.edu" },
+]
+dependencies = [
+    "numpy>=2.1.0",
+    "matplotlib>=3.9.2",
+    "pyfirmata2>=2.5.0",
+    "thorlabs-apt-device>=0.3.8",
+    "pyzmq>=26.2.0",
+]
+requires-python = ">=3.12"
+readme = "README.md"
+license = "MIT"

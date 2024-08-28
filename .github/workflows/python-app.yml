@@ -5,7 +5,7 @@ name: Checking Pull Request
 
 on:
   push:
-    branches: [ creating_github_actions ]
+    branches: [ $default-branch ]
   pull_request:
     branches: [ $default-branch ]
 
@@ -32,12 +32,12 @@ jobs:
     - name: Install dependencies
       run: |
         pdm sync
-#    - name: Lint with Ruff
-#      run: |
-#        pdm run ruff check
-#    - name: Type check with Mypy
-#      run: |
-#        pdm run mypy src/
+    - name: Lint with Ruff
+      run: |
+        pdm run ruff check
+    - name: Type check with Mypy
+      run: |
+        pdm run mypy src/
     - name: Test with pytest
       run: |
         pdm run pytest test/pytest

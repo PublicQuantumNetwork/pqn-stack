@@ -32,10 +32,12 @@ jobs:
     - name: Install dependencies
       run: |
         pdm sync
-
-    - name: Lint with Ruff
+#    - name: Lint with Ruff
+#      run: |
+#        pdm run ruff check
+    - name: Type check with Mypy
       run: |
-        pdm run ruff check
+        pdm run mypy src/
 #    - name: Test with pytest
 #      run: |
-#        pytest
+#        test/pytest

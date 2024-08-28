@@ -19,7 +19,11 @@ license = { text = "MIT" }
 
 
 [tool.pdm.dev-dependencies]
-dev = ["ruff>=0.6.2", "pytest-cov>=5.0.0"]
+dev = [
+    "ruff>=0.6.2",
+    "pytest-cov>=5.0.0",
+    "mypy>=1.11.2",
+]
 
 [tool.pdm.scripts]
 lint = "ruff check"

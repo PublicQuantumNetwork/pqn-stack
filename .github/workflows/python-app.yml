@@ -5,7 +5,7 @@ name: Python application
 
 on:
   push:
-    branches: [ $default-branch ]
+    branches: [ creating_github_actions ]
   pull_request:
     branches: [ $default-branch ]
 

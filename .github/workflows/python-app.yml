@@ -35,9 +35,9 @@ jobs:
 #    - name: Lint with Ruff
 #      run: |
 #        pdm run ruff check
-    - name: Type check with Mypy
-      run: |
-        pdm run mypy src/
-#    - name: Test with pytest
+#    - name: Type check with Mypy
 #      run: |
-#        test/pytest
+#        pdm run mypy src/
+    - name: Test with pytest
+      run: |
+        test/pytest

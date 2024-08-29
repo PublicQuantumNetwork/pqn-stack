@@ -18,7 +18,7 @@ class NetworkElementClass(Enum):
 
 
 class NetworkElement(ABC):
-    def __init__(self, specs: dict):
+    def __init__(self, specs: dict) -> None:
         self.__class = None
 
         # Call the overridden version of `config` for hardware specifics
@@ -40,23 +40,23 @@ class NetworkElement(ABC):
         # After housekeeping, go into idle mode
         self.idle()
 
-    def idle(self):
+    def idle(self) -> None:
         while True:
             packet = Packet.from_json(self.__socket.recv())
             self.dispatch(packet)
 
     @abstractmethod
-    def setup(self, specs: dict):
+    def setup(self, specs: dict) -> None:
         pass
 
     @abstractmethod
-    def exec(self):
+    def exec(self) -> dict:
         pass
 
     @abstractmethod
-    def stop(self):
+    def stop(self) -> None:
         pass
 
     @abstractmethod
-    def dispatch(self, packet: Packet):
+    def dispatch(self, packet: Packet) -> dict:
         pass

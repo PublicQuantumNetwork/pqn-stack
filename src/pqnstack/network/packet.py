@@ -20,10 +20,10 @@ class Packet:
     hops: int
     payload: object
 
-    def signature(self):
+    def signature(self) -> tuple[str, str]:
         return self.intent, self.request
 
-    def routing(self):
+    def routing(self) -> tuple[tuple[int, int], tuple[int, int]]:
         return self.source, self.destination
 
 

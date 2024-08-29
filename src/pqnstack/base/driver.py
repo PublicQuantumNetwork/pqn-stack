@@ -9,7 +9,7 @@ from enum import Enum
 
 
 class DeviceDriver(ABC):
-    def __init__(self, specs: dict):
+    def __init__(self, specs: dict) -> None:
         # Self-documenting features
         self.name = specs["name"]
         self.desc = specs["desc"]
@@ -26,11 +26,11 @@ class DeviceDriver(ABC):
         # Call the available implementation of `setup`
         self.setup(specs)
 
-    def info(self, attr: str, **kwargs):
+    def info(self, attr: str, **kwargs) -> dict:
         return {"name": self.name, "desc": self.desc, "dtype": self.dtype.value, "status": self.status.value}
 
     @abstractmethod
-    def setup(self, specs: dict):
+    def setup(self, specs: dict) -> None:
         pass
 
     @abstractmethod

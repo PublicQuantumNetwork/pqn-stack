@@ -4,6 +4,7 @@
 # NCSA/Illinois Computes
 import math
 import time
+from typing import Any
 
 import zmq
 
@@ -14,7 +15,7 @@ from pqnstack.base.errors import DriverFunctionUnknownError
 
 
 class IDQTimeTagger(DeviceDriver):
-    def __init__(self, specs: dict):
+    def __init__(self, specs: dict) -> None:
         # Data structures unique to this class
         self.tc = None
         self.tc_ip = None
@@ -23,7 +24,7 @@ class IDQTimeTagger(DeviceDriver):
         # Init parent class
         super.__init__(specs)
 
-    def setup(self, specs: dict):
+    def setup(self, specs: dict) -> None:
         # Connect to the time tagger
         context = zmq.Context()
         self.tc = context.socket(zmq.REQ)
@@ -39,33 +40,35 @@ class IDQTimeTagger(DeviceDriver):
 
         # Check all implementations were provided
         if set(self.provides).symmetric_difference(self.executable.keys()) != set():
-            raise DriverFunctionNotImplementedError("IDQTimeTagger")
+            msg = "IDQTimeTagger"
+            raise DriverFunctionNotImplementedError(msg)
 
         # Set device as on
         self.status = DeviceStatus.ON
 
-    def exec(self, seq: str, **kwargs):
-        if str not in self.executable.keys():
-            raise DriverFunctionUnknownError("IDQTimeTagger")
+    def exec(self, seq: str, **kwargs) -> dict:
+        if str not in self.executable:
+            msg = "IDQTimeTagger"
+            raise DriverFunctionUnknownError(msg)
 
         self.executable[seq](**kwargs)
 
     # Hardware level implementation of executable functions
     # =====================================================
 
-    def __hw_command(self, cmd: str):
+    def __hw_command(self, cmd: str) -> str:
         self.tc.send_string(cmd)
         return self.tc.recv().decode("utf-8")
 
-    def __set_delay(self, **kwargs):
+    def __set_delay(self, **kwargs) -> None:
         command = f"INPU{kwargs['channel']}:DELAY {kwargs['delay']}"
         self.__hw_command(command)
 
-    def __single_counts(self, **kwargs):
+    def __single_counts(self, **kwargs) -> int:
         command = f"INPU{kwargs['channel']}:COUN?"
         return int(self.__hw_command(command))
 
-    def __coincidence_counts(self, **kwargs):
+    def __coincidence_counts(self, **kwargs) -> int:
         command = (
             f"TSCO6:LINK {kwargs['channel1']}; TSCO6:LINK {kwargs['channel2']}; TSCO6:COUN:INTE "
             f"{kwargs['interval']}"
@@ -74,7 +77,7 @@ class IDQTimeTagger(DeviceDriver):
         command = "TSCO6:COUN?"
         return int(self.__hw_command(command))
 
-    def __tsco_numbers(self, **kwargs):
+    def __tsco_numbers(self, **kwargs) -> list:
         tsco_nums = []
         command = f"TSCO6:LINK {kwargs['channel1']}; TSCO6:LINK {kwargs['channel2']}; TSCO6:COUN:INTE 1000"
         self.__hw_command(command)
@@ -91,7 +94,8 @@ class IDQTimeTagger(DeviceDriver):
 
         return tsco_nums
 
-    def __histogram(self, **kwargs):
+    # FIXME: Not sure what the return type for this method should be.
+    def __histogram(self, **kwargs) -> Any:
         # Set histogram properties in multiples of 100 ps
         min_val_rounded = round(self.params["hist_min_val"] / 100) * 100
         bin_width_rounded = round(self.params["hist_bin_width"] / 100) * 100
@@ -115,6 +119,7 @@ class IDQTimeTagger(DeviceDriver):
         # Return resulting histogram
         return self.__hw_command("HIST1:DATA?")
 
-    def __channel_acquis(self, **kwargs):
+    # FIXME: Not sure what the return type for this method should be.
+    def __channel_acquis(self, **kwargs) -> Any:
         command = f"INPU{kwargs['channel']}:COUN:INTE {kwargs['value']}"
         return self.__hw_command(command)

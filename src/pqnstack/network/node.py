@@ -9,22 +9,23 @@ from pqnstack.network.packet import Packet
 
 
 class Node(NetworkElement):
-    def __init__(self, specs: dict):
+    def __init__(self, specs: dict) -> None:
         super().__init__(specs)
         self.drivers = {}
         self.setup(specs)
 
-    def exec(self):
+    def exec(self) -> dict:
         pass
 
-    def stop(self):
+    def stop(self) -> None:
         pass
 
-    def measure(self):
-        # Ensure the execution context is appropriate and orchestrate
-        # the setup
-        #
-        # Output: list of actual data
+    def measure(self) -> list:
+        """
+        Ensure the execution context is appropriate and orchestrate the setup.
+
+        :return: list of actual data
+        """
         self.call()
 
         self.filter()
@@ -32,16 +33,18 @@ class Node(NetworkElement):
         # Produce a packet
         self.collect()
 
+        return []
+
     @abstractmethod
-    def setup(self, specs: dict):
+    def setup(self, specs: dict) -> None:
         pass
 
     @abstractmethod
-    def call(self):
+    def call(self) -> dict:
         pass
 
     @abstractmethod
-    def filter(self):
+    def filter(self) -> None:
         pass
 
     @abstractmethod

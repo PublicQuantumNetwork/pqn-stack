@@ -5,9 +5,10 @@ name: Checking Pull Request
 
 on:
   push:
-    branches: [ $default-branch ]
+    branches: [ $default-branch, using_pdm_actions ]
   pull_request:
     branches: [ $default-branch ]
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: read
@@ -19,25 +20,15 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: Set up Python 3.12
-      uses: actions/setup-python@v3
+    - name: Setup PDM
+      uses: pdm-project/setup-python@v4
       with:
-        python-version: "3.12"
-    - name: Install pdm
-      run: |
-        curl -sSLO https://pdm-project.org/install-pdm.py
-        curl -sSL https://pdm-project.org/install-pdm.py.sha256 | shasum -a 256 -c -
-        python3 install-pdm.py
-        export PATH=$HOME/.local/bin:$PATH
+        python-version: 3.12
     - name: Install dependencies
-      run: |
-        pdm sync
+      run: pdm install
     - name: Lint with Ruff
-      run: |
-        pdm run ruff check
+      run: pdm run ruff check
     - name: Type check with Mypy
-      run: |
-        pdm run mypy src/
+      run: pdm run mypy src/
     - name: Test with pytest
-      run: |
-        pdm run pytest test/pytest
+      run: pdm run pytest test/pytest

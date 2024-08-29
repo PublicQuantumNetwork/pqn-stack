@@ -21,7 +21,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Setup PDM
-      uses: pdm-project/setup-python@v4
+      uses: pdm-project/setup-pdm@v4
       with:
         python-version: 3.12
     - name: Install dependencies

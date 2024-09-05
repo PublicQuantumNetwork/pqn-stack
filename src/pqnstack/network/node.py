@@ -2,9 +2,7 @@
 # Public Quantum Network
 #
 # NCSA/Illinois Computes
-from typing import Optional
 from abc import abstractmethod
-
 
 from pqnstack.base.driver import DeviceDriver
 from pqnstack.base.network import NetworkElement
@@ -17,7 +15,7 @@ class Node(NetworkElement):
         self.drivers: dict[str, DeviceDriver] = {}
         self.setup(specs)
 
-    def exec(self) -> Optional[dict]:
+    def exec(self) -> None | dict:
         pass
 
     def stop(self) -> None:
@@ -43,7 +41,7 @@ class Node(NetworkElement):
         pass
 
     @abstractmethod
-    def call(self) -> Optional[dict]:
+    def call(self) -> None | dict:
         pass
 
     @abstractmethod

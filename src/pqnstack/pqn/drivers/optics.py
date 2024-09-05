@@ -3,8 +3,6 @@
 #
 # NCSA/Illinois Computes
 
-from typing import Optional
-
 from pqnstack.base.driver import DeviceDriver
 
 
@@ -15,5 +13,5 @@ class WavePlate(DeviceDriver):
     def setup(self, specs: dict) -> None:
         pass
 
-    def exec(self, seq: str, **kwargs) -> Optional[dict]:
+    def exec(self, seq: str, **kwargs) -> None | dict:
         pass

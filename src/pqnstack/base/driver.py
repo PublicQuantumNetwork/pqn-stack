@@ -5,9 +5,8 @@
 
 from abc import ABC
 from abc import abstractmethod
+from collections.abc import Callable
 from enum import Enum
-from typing import Callable
-from typing import Optional
 
 
 class DeviceDriver(ABC):
@@ -36,7 +35,7 @@ class DeviceDriver(ABC):
         pass
 
     @abstractmethod
-    def exec(self, seq: str, **kwargs) -> Optional[dict]:
+    def exec(self, seq: str, **kwargs) -> None | dict:
         pass
 
 

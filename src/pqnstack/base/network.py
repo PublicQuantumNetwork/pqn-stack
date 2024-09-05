@@ -5,7 +5,6 @@
 from abc import ABC
 from abc import abstractmethod
 from enum import Enum
-from typing import Optional
 
 import zmq
 
@@ -20,7 +19,7 @@ class NetworkElementClass(Enum):
 
 class NetworkElement(ABC):
     def __init__(self, specs: dict) -> None:
-        self.__class: Optional[NetworkElementClass] = None
+        self.__class: None | NetworkElementClass = None
 
         # Call the overridden version of `setup` for hardware specifics
         self.setup(specs)
@@ -51,7 +50,7 @@ class NetworkElement(ABC):
         pass
 
     @abstractmethod
-    def exec(self) -> Optional[dict]:
+    def exec(self) -> None | dict:
         pass
 
     @abstractmethod
@@ -59,5 +58,5 @@ class NetworkElement(ABC):
         pass
 
     @abstractmethod
-    def dispatch(self, packet: Packet) -> Optional[dict]:
+    def dispatch(self, packet: Packet) -> None | dict:
         pass

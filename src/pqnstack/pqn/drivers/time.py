@@ -5,7 +5,6 @@
 import math
 import time
 from typing import Any
-from typing import Optional
 
 import zmq
 from zmq import Socket
@@ -19,7 +18,7 @@ from pqnstack.base.errors import DriverFunctionUnknownError
 class IDQTimeTagger(DeviceDriver):
     def __init__(self, specs: dict) -> None:
         # Data structures unique to this class
-        self.tc: Optional[Socket[bytes]] = None
+        self.tc: None | Socket[bytes] = None
         self.tc_ip = None
         self.tc_port = None
 
@@ -48,7 +47,7 @@ class IDQTimeTagger(DeviceDriver):
         # Set device as on
         self.status = DeviceStatus.ON
 
-    def exec(self, seq: str, **kwargs) -> Optional[dict]:
+    def exec(self, seq: str, **kwargs) -> None | dict:
         if str not in self.executable:
             msg = "IDQTimeTagger"
             raise DriverFunctionUnknownError(self, msg)

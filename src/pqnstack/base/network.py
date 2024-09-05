@@ -5,6 +5,7 @@
 from abc import ABC
 from abc import abstractmethod
 from enum import Enum
+from typing import Optional
 
 import zmq
 
@@ -19,10 +20,10 @@ class NetworkElementClass(Enum):
 
 class NetworkElement(ABC):
     def __init__(self, specs: dict) -> None:
-        self.__class = None
+        self.__class: Optional[NetworkElementClass] = None
 
-        # Call the overridden version of `config` for hardware specifics
-        self.config(specs)
+        # Call the overridden version of `setup` for hardware specifics
+        self.setup(specs)
 
         # Routing must be taken care of for any network-enabled unit
         self.__router_ip = specs["router-ip"]
@@ -50,7 +51,7 @@ class NetworkElement(ABC):
         pass
 
     @abstractmethod
-    def exec(self) -> dict:
+    def exec(self) -> Optional[dict]:
         pass
 
     @abstractmethod
@@ -58,5 +59,5 @@ class NetworkElement(ABC):
         pass
 
     @abstractmethod
-    def dispatch(self, packet: Packet) -> dict:
+    def dispatch(self, packet: Packet) -> Optional[dict]:
         pass

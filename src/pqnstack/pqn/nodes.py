@@ -30,7 +30,7 @@ class QuantumNode(Node):
 
         self.drivers["wave-plate"] = WavePlate(specs["drivers"]["wave-plate"])
 
-    def call(self) -> list:
+    def call(self) -> dict:
         """
         Call drivers in sequence.
 
@@ -40,8 +40,9 @@ class QuantumNode(Node):
         Return wave plate to the starting position (clean up!).
         Produce a list of measurements with respective bases.
         """
+        return {}
 
-    def filter(self) -> list:
+    def filter(self) -> None:
         """
         Filter the data.
 
@@ -52,3 +53,5 @@ class QuantumNode(Node):
 
     def collect(self) -> Packet:
         """Now, generate a packet we can send to the network."""
+        # FIXME: This is a placeholder packet
+        return Packet("", "", (-1, -1), (-1, -1), -1, -1)

@@ -7,12 +7,11 @@
 from dataclasses import dataclass
 from enum import Enum
 
-from dataclasses_json import dataclass_json
+from dataclasses_json import DataClassJsonMixin
 
 
-@dataclass_json
 @dataclass
-class Packet:
+class Packet(DataClassJsonMixin):
     intent: str
     request: str
     source: tuple[int, int]

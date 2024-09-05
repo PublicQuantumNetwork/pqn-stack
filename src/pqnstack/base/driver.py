@@ -6,6 +6,8 @@
 from abc import ABC
 from abc import abstractmethod
 from enum import Enum
+from typing import Callable
+from typing import Optional
 
 
 class DeviceDriver(ABC):
@@ -18,7 +20,7 @@ class DeviceDriver(ABC):
 
         # Executable functionalities
         self.provides = specs["provides"]
-        self.executable = {}
+        self.executable: dict[str, Callable] = {}
 
         # Tunable device parameters across multiple experiments
         self.params = specs["params"]
@@ -34,7 +36,7 @@ class DeviceDriver(ABC):
         pass
 
     @abstractmethod
-    def exec(self, seq: str, **kwargs) -> dict:
+    def exec(self, seq: str, **kwargs) -> Optional[dict]:
         pass
 
 

@@ -5,8 +5,10 @@
 import math
 import time
 from typing import Any
+from typing import Optional
 
 import zmq
+from zmq import Socket
 
 from pqnstack.base.driver import DeviceDriver
 from pqnstack.base.driver import DeviceStatus
@@ -17,12 +19,12 @@ from pqnstack.base.errors import DriverFunctionUnknownError
 class IDQTimeTagger(DeviceDriver):
     def __init__(self, specs: dict) -> None:
         # Data structures unique to this class
-        self.tc = None
+        self.tc: Optional[Socket[bytes]] = None
         self.tc_ip = None
         self.tc_port = None
 
         # Init parent class
-        super.__init__(specs)
+        super().__init__(specs)
 
     def setup(self, specs: dict) -> None:
         # Connect to the time tagger
@@ -41,22 +43,23 @@ class IDQTimeTagger(DeviceDriver):
         # Check all implementations were provided
         if set(self.provides).symmetric_difference(self.executable.keys()) != set():
             msg = "IDQTimeTagger"
-            raise DriverFunctionNotImplementedError(msg)
+            raise DriverFunctionNotImplementedError(self, msg)
 
         # Set device as on
         self.status = DeviceStatus.ON
 
-    def exec(self, seq: str, **kwargs) -> dict:
+    def exec(self, seq: str, **kwargs) -> Optional[dict]:
         if str not in self.executable:
             msg = "IDQTimeTagger"
-            raise DriverFunctionUnknownError(msg)
+            raise DriverFunctionUnknownError(self, msg)
 
-        self.executable[seq](**kwargs)
+        return self.executable[seq](**kwargs)
 
     # Hardware level implementation of executable functions
     # =====================================================
 
     def __hw_command(self, cmd: str) -> str:
+        assert self.tc is not None
         self.tc.send_string(cmd)
         return self.tc.recv().decode("utf-8")
 

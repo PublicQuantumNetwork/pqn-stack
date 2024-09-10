@@ -5,8 +5,32 @@
 
 from abc import ABC
 from abc import abstractmethod
+from dataclasses import dataclass
 from collections.abc import Callable
 from enum import Enum
+
+
+class DeviceClass(Enum):
+    SENSOR = 1
+    MOTOR = 2
+    TEMPCTRL = 3
+    TIMETAGR = 4
+
+
+class DeviceStatus(Enum):
+    NOINIT = "not uninitialized"
+    FAIL = "fail"
+    OFF = "off"
+    IDLE = "idle"
+    ON = "on"
+
+
+@dataclass
+class DeviceInfo:
+    name: str
+    desc: str
+    dtype: DeviceClass
+    status: DeviceStatus
 
 
 class DeviceDriver(ABC):
@@ -28,7 +52,7 @@ class DeviceDriver(ABC):
         self.setup(specs)
 
     def info(self, attr: str, **kwargs) -> dict:
-        return {"name": self.name, "desc": self.desc, "dtype": self.dtype.value, "status": self.status.value}
+        DeviceInfo(name=self.name, desc=self.desc, dtype=self.dtype, status=self.status)
 
     @abstractmethod
     def setup(self, specs: dict) -> None:
@@ -37,18 +61,3 @@ class DeviceDriver(ABC):
     @abstractmethod
     def exec(self, seq: str, **kwargs) -> None | dict:
         pass
-
-
-class DeviceClass(Enum):
-    SENSOR = 1
-    MOTOR = 2
-    TEMPCTRL = 3
-    TIMETAGR = 4
-
-
-class DeviceStatus(Enum):
-    NOINIT = "not uninitialized"
-    FAIL = "fail"
-    OFF = "off"
-    IDLE = "idle"
-    ON = "on"

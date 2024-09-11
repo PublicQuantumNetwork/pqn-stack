@@ -7,16 +7,20 @@ from abc import ABC
 from abc import abstractmethod
 from dataclasses import dataclass
 from collections.abc import Callable
-from enum import Enum
+from enum import Enum, auto
 
 
 class DeviceClass(Enum):
-    SENSOR = 1
-    MOTOR = 2
-    TEMPCTRL = 3
-    TIMETAGR = 4
+    SENSOR = auto()
+    MOTOR = auto()
+    TEMPCTRL = auto()
+    TIMETAGR = auto()
+    TESTING = auto()
 
 
+# FIXME: What is the exact difference between on and idle?
+#  I know there is a semantic difference and how we thing of those terms,
+#  but in practice in the code, is there a real difference?
 class DeviceStatus(Enum):
     NOINIT = "not uninitialized"
     FAIL = "fail"
@@ -25,6 +29,8 @@ class DeviceStatus(Enum):
     ON = "on"
 
 
+# TODO: Add address here. I cannot imagine having a device without an address.
+#  Might not always be an ip address but it must have some sort of adress
 @dataclass
 class DeviceInfo:
     name: str
@@ -38,7 +44,17 @@ class DeviceDriver(ABC):
         # Self-documenting features
         self.name = specs["name"]
         self.desc = specs["desc"]
-        self.dtype = DeviceClass[specs["dtype"]]
+
+        # FIXME: dtype handling is very ugly right now.
+        dtype = specs["dtype"]
+        if isinstance(dtype, DeviceClass):
+            self.dtype = dtype
+        else:
+            if dtype not in DeviceClass.__members__:
+                msg = f"Invalid device class: {dtype}"
+                raise ValueError(msg)
+            self.dtype = DeviceClass[specs["dtype"]]
+
         self.status = DeviceStatus.NOINIT
 
         # Executable functionalities
@@ -60,4 +76,8 @@ class DeviceDriver(ABC):
 
     @abstractmethod
     def exec(self, seq: str, **kwargs) -> None | dict:
+        pass
+
+    @abstractmethod
+    def close(self, **kwargs) -> None:
         pass

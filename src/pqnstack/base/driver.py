@@ -3,11 +3,28 @@
 #
 # NCSA/Illinois Computes
 
+import logging
 from abc import ABC
+from typing import Any
 from abc import abstractmethod
 from dataclasses import dataclass
 from collections.abc import Callable
 from enum import Enum, auto
+
+
+logger = logging.getLogger(__name__)
+
+
+class Parameter(property):
+
+    def __get__(self, instance, owner) -> Any:
+        ret = super().__get__(instance, owner)
+        logger.debug(f"Getting {self} from {instance} -> {ret}")
+        return ret
+
+    def __set__(self, instance, value) -> None:
+        logger.debug(f"Setting {self} in {instance} to {value}")
+        super().__set__(instance, value)
 
 
 class DeviceClass(Enum):
@@ -67,6 +84,15 @@ class DeviceDriver(ABC):
         # Call the available implementation of `setup`
         self.setup(specs)
 
+    def get_all_params_names(self) -> list[str]:
+        names = []
+        for param_name in dir(self):
+            param = getattr(type(self), param_name, None)
+            print(f'param: {param}')
+            if isinstance(param, Parameter):
+                names.append(param_name)
+        return names
+
     def info(self, attr: str, **kwargs) -> dict:
         DeviceInfo(name=self.name, desc=self.desc, dtype=self.dtype, status=self.status)
 
@@ -78,6 +104,3 @@ class DeviceDriver(ABC):
     def exec(self, seq: str, **kwargs) -> None | dict:
         pass
 
-    @abstractmethod
-    def close(self, **kwargs) -> None:
-        pass

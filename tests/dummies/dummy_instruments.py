@@ -3,7 +3,7 @@
 #
 # NCSA/Illinois Computes
 
-from pqnstack.base.driver import DeviceDriver, DeviceInfo, DeviceClass, DeviceStatus
+from pqnstack.base.driver import DeviceDriver, DeviceInfo, DeviceClass, DeviceStatus, Parameter
 
 
 class DummyCommunicator:
@@ -89,25 +89,25 @@ class DummyDriver(DeviceDriver):
         self.device = DummyCommunicator(specs["address"])
         self.device.connect()
 
-    @property
+    @Parameter
     def dummy_int(self) -> int:
-        return self.device.send_command(f"get_dummy_int")
+        return int(self.device.send_command(f"get_dummy_int:"))
 
     @dummy_int.setter
     def dummy_int(self, value: int) -> None:
         self.device.send_command(f"set_dummy_int:{value}")
 
-    @property
+    @Parameter
     def dummy_str(self) -> str:
-        return self.device.send_command(f"get_dummy_str")
+        return self.device.send_command(f"get_dummy_str:")
 
     @dummy_str.setter
     def dummy_str(self, value: str) -> None:
         self.device.send_command(f"set_dummy_str:{value}")
 
-    @property
+    @Parameter
     def dummy_bool(self) -> bool:
-        return self.device.send_command(f"get_dummy_bool")
+        return bool(self.device.send_command(f"get_dummy_bool:"))
 
     @dummy_bool.setter
     def dummy_bool(self, value: bool) -> None:

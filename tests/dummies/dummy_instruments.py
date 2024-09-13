@@ -3,7 +3,7 @@
 #
 # NCSA/Illinois Computes
 
-from pqnstack.base.driver import DeviceDriver, DeviceInfo, DeviceClass, DeviceStatus, Parameter
+from pqnstack.base.driver import DeviceDriver, DeviceInfo, DeviceClass, DeviceStatus, Parameter, Operation
 
 
 class DummyCommunicator:
@@ -55,7 +55,7 @@ class DummyCommunicator:
                     self._cookie_counter += int(value)
                 self._cookie_str = f"I have eaten {self._cookie_counter} cookies."
             case "how_many_cookies":
-                return self._cookie_str
+                return self._cookie_counter
             case "connected":
                 return str(self._connected)
             case _:
@@ -113,8 +113,23 @@ class DummyDriver(DeviceDriver):
     def dummy_bool(self, value: bool) -> None:
         self.device.send_command(f"set_dummy_bool:{value}")
 
-    def __feed_cookie_monster(self, cookies: int) -> None:
+    @Parameter
+    def n_cookies(self) -> int:
+        return int(self.device.send_command("how_many_cookies:"))
+
+    @Operation
+    def feed_cookie_monster(self, cookies: int) -> None:
         self.device.send_command(f"eat_cookie:{cookies}")
+
+    @Operation
+    def remove_excess_cookies(self) -> None:
+        """
+        Checks if the monster has eaten more than 10 cookies and removes the excess.
+
+        Used for testing Operations with no arguments.
+        """
+        if self.device.send_command("how_many_cookies:") > 10:
+            self.device.send_command("eat_cookie:-10")
 
     def exec(self, seq: str, **kwargs) -> None | dict:
         pass

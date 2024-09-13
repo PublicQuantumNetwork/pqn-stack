@@ -105,6 +105,13 @@ class Operation:
         return self.__class__(self.func.__get__(obj, objtype))
 
 
+class InvalidDriverError(Exception):
+    """Not in errors file because DeviceDriver needs it and it leads to infinite imports."""
+    def __init__(self, message: str = "") -> None:
+        self.message = message
+        super().__init__(self.message)
+
+
 class DeviceClass(Enum):
     SENSOR = auto()
     MOTOR = auto()
@@ -134,48 +141,71 @@ class DeviceInfo:
     status: DeviceStatus
 
 
-# TODO: We should log when operations begin and end.
 # TODO: Add communication abstraction layer and how does that look?
 class DeviceDriver(ABC):
     """
-    TODO: Create a validator for driver implementation that verify that the rules and assumptions are followed. 
-    Drivers can have 4 types of members (python members):
-        1. Allowed functions defined in the DeviceDriver class. At the moment that is: 
-            - info
-            - setup
-            - exec
-            - TODO: cleanup
-            - property params
-            - property operations
+    Drivers can have 4 types of members (python members, this includes class variables):
+        1. ALLOWED_MEMBERS:
         2. Parameter objects. Functions that are decorated with @Parameter.
         3. Operation objects. Functions that are decorated with @Operation.
         4. Private members. These are internal functions that are not exposed to the user. 
         
     If the child driver does not follow these rules, the driver will raise an exception at initialization not letting the user use the driver.
     """
+
+    # FIXME: This is a placeholder. We should generate this automatically from this specific class.
+    ALLOWED_MEMBERS = ["name", "desc", "status", "info", "setup", "exec", "close", "params", "dtype", "operations", "ALLOWED_MEMBERS"]
+
     def __init__(self, specs: dict) -> None:
         # Self-documenting features
         self.name = specs["name"]
         self.desc = specs["desc"]
 
-        # FIXME: dtype handling is very ugly right now.
-        dtype = specs["dtype"]
-        if isinstance(dtype, DeviceClass):
-            self.dtype = dtype
-        else:
-            if dtype not in DeviceClass.__members__:
-                msg = f"Invalid device class: {dtype}"
-                raise ValueError(msg)
-            self.dtype = DeviceClass[specs["dtype"]]
-
         self.status = DeviceStatus.NOINIT
 
+        # FIXME: Clean this up
         # Executable functionalities
-        self.provides = specs["provides"]
-        self.executable: dict[str, Callable] = {}
+        # self.provides = specs["provides"]
+        # self.executable: dict[str, Callable] = {}
 
         # Call the available implementation of `setup`
         self.setup(specs)
+
+        # Validates class implementation
+        self._validate_class()
+
+    def _validate_class(self):
+        # Checks that the implemented clas classifies itself
+        if not isinstance(self.dtype, DeviceClass):
+            # Checking for common case where the @property decorator is missing.
+            if isinstance(self.dtype, Callable):
+                msg = "It seems that you forgot the @property decorator when defining dtype."
+                raise InvalidDriverError(msg)
+            msg = f"dtype needs to return a DeviceClass instance not {type(self.dtype)}"
+            raise InvalidDriverError(msg)
+
+        # __class__ members checks for the members of the class istelf, leaving the Parameter and Operation type for
+        # objects but leaving instance variables (any variable declared in the __init__) out. We can check if an
+        # instance member is in the class member to see if they are Parameter or Operations
+        class_members = {name: member for name, member in inspect.getmembers(self.__class__)}
+        instance_members = {name: member for name, member in inspect.getmembers(self)}
+
+        for name, member in instance_members.items():
+            # Checks for built-in members
+            if not (name.startswith("__") and name.endswith("__")):
+                # Checks if member is private
+                if not name.startswith("_") or name.startswith("__"):
+                    # Checks if member is allowed
+                    if name not in self.ALLOWED_MEMBERS:
+                        if name in class_members:
+                            # Checks if member is a Parameter or Operation
+                            class_member = class_members[name]
+                            if not isinstance(class_member, (Parameter, Operation)):
+                                msg = f'Invalid member "{name}", read docstring of DeviceDriver for the rules.'
+                                raise InvalidDriverError(msg)
+                        else:
+                            msg = f'Invalid member "{name}", read docstring of DeviceDriver for the rules.'
+                            raise InvalidDriverError(msg)
 
     @property
     def params(self) -> list[str]:
@@ -193,6 +223,11 @@ class DeviceDriver(ABC):
                 operations.append(member[0])
         return operations
 
+    @property
+    @abstractmethod
+    def dtype(self) -> DeviceClass:
+        pass
+
     def info(self, attr: str, **kwargs) -> dict:
         DeviceInfo(name=self.name, desc=self.desc, dtype=self.dtype, status=self.status)
 
@@ -204,3 +239,6 @@ class DeviceDriver(ABC):
     def exec(self, seq: str, **kwargs) -> None | dict:
         pass
 
+    @abstractmethod
+    def close(self, **kwargs: Any) -> None:
+        pass

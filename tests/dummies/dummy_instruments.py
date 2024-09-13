@@ -3,6 +3,8 @@
 #
 # NCSA/Illinois Computes
 
+from dataclasses import dataclass
+
 from pqnstack.base.driver import DeviceDriver, DeviceInfo, DeviceClass, DeviceStatus, Parameter, Operation
 
 
@@ -65,61 +67,64 @@ class DummyCommunicator:
         self._connected = False
 
 
+@dataclass
 class DummyInfo(DeviceInfo):
     address: str
     dummy_int: int
     dummy_str: str
     dummy_bool: bool
+    n_cookies: int
 
 
 class DummyDriver(DeviceDriver):
 
     # FIXME: Why do we need a setup and init? Can't we just use the init?
     def __init__(self, specs: dict) -> None:
-        self.device: DummyCommunicator | None = None
+        self._device: DummyCommunicator | None = None
 
-        if "dtype" in specs:
-            print("dtype set by driver itself, argument will be ignored.")
-
-        # FIXME: Once the basic driver accepts individual arguments, we can simply pass dtype
-        specs["dtype"] = DeviceClass.TESTING
+        self.some_variable = "This is a public variable"
         super().__init__(specs)
+        self.status = DeviceStatus.IDLE
 
     def setup(self, specs: dict) -> None:
-        self.device = DummyCommunicator(specs["address"])
-        self.device.connect()
+        self._device = DummyCommunicator(specs["address"])
+        self._device.connect()
+
+    @property
+    def dtype(self) -> DeviceClass:
+        return DeviceClass.TESTING
 
     @Parameter
     def dummy_int(self) -> int:
-        return int(self.device.send_command(f"get_dummy_int:"))
+        return int(self._device.send_command(f"get_dummy_int:"))
 
     @dummy_int.setter
     def dummy_int(self, value: int) -> None:
-        self.device.send_command(f"set_dummy_int:{value}")
+        self._device.send_command(f"set_dummy_int:{value}")
 
     @Parameter
     def dummy_str(self) -> str:
-        return self.device.send_command(f"get_dummy_str:")
+        return self._device.send_command(f"get_dummy_str:")
 
     @dummy_str.setter
     def dummy_str(self, value: str) -> None:
-        self.device.send_command(f"set_dummy_str:{value}")
+        self._device.send_command(f"set_dummy_str:{value}")
 
     @Parameter
     def dummy_bool(self) -> bool:
-        return bool(self.device.send_command(f"get_dummy_bool:"))
+        return bool(self._device.send_command(f"get_dummy_bool:"))
 
     @dummy_bool.setter
     def dummy_bool(self, value: bool) -> None:
-        self.device.send_command(f"set_dummy_bool:{value}")
+        self._device.send_command(f"set_dummy_bool:{value}")
 
     @Parameter
     def n_cookies(self) -> int:
-        return int(self.device.send_command("how_many_cookies:"))
+        return int(self._device.send_command("how_many_cookies:"))
 
     @Operation
     def feed_cookie_monster(self, cookies: int) -> None:
-        self.device.send_command(f"eat_cookie:{cookies}")
+        self._device.send_command(f"eat_cookie:{cookies}")
 
     @Operation
     def remove_excess_cookies(self) -> None:
@@ -128,15 +133,26 @@ class DummyDriver(DeviceDriver):
 
         Used for testing Operations with no arguments.
         """
-        if self.device.send_command("how_many_cookies:") > 10:
-            self.device.send_command("eat_cookie:-10")
+        if self._device.send_command("how_many_cookies:") > 10:
+            self._device.send_command("eat_cookie:-10")
 
     def exec(self, seq: str, **kwargs) -> None | dict:
         pass
 
-    def info(self, attr: str, **kwargs) -> dict:
-        pass
+    def info(self, attr: str = None, **kwargs) -> DummyInfo:
+        return DummyInfo(
+            name=self.name,
+            desc=self.desc,
+            dtype=self.dtype,
+            status=self.status,
+            address=self._device.address,
+            dummy_int=self.dummy_int,
+            dummy_str=self.dummy_str,
+            dummy_bool=self.dummy_bool,
+            n_cookies=self.n_cookies)
 
     def close(self) -> None:
-        self.device.disconnect()
+        self._device.disconnect()
 
+    # def something(self) -> None:
+    #     print("Hello I am a function", self)

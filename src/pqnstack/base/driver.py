@@ -4,26 +4,61 @@
 # NCSA/Illinois Computes
 
 import logging
+import inspect
 from abc import ABC
 from typing import Any
 from abc import abstractmethod
 from dataclasses import dataclass
 from collections.abc import Callable
 from enum import Enum, auto
-
+from typing import get_type_hints
 
 logger = logging.getLogger(__name__)
 
 
+# TODO: Add value validator. We should probably be checking if the value is within the expected range.
 class Parameter(property):
+    """
+    Inherits from property. Lets us automatically detect the parameters a driver has, adds logging and type checking.
+    If the setter is called with a wrong type, it will raise a TypeError.
+    
+    Example:
+    ```
+    class MyDriver(DeviceDriver):
+        ...
+        
+        @Parameter
+        def my_param(self) -> int:
+            return self.ask("get_my_param_from_device")
+            
+        @my_param.setter
+        def my_param(self, value: int) -> None:
+            self.write("set_my_param_from_device", value)
+    ```
+    """
 
-    def __get__(self, instance, owner) -> Any:
+    def __get__(self, instance: Any, owner: type | None = None) -> Any:
         ret = super().__get__(instance, owner)
-        logger.debug(f"Getting {self} from {instance} -> {ret}")
+        # This functions might be called by normal python functioning without using a parameter, 
+        # when this happens instance is None and can crash the logging. 
+        if instance is not None:
+            logger.info(f"Getting {self.fget.__name__} from {instance.name} -> {ret}")
         return ret
 
-    def __set__(self, instance, value) -> None:
-        logger.debug(f"Setting {self} in {instance} to {value}")
+    def __set__(self, instance: Any, value: Any) -> None:
+        # This functions might be called by normal python functioning without using a parameter, 
+        # when this happens instance is None and can crash the logging. 
+        if instance is not None:
+            setter = self.fset
+            if setter:
+                hints = get_type_hints(setter)
+                expected_type = hints.get('value')
+                if expected_type and not isinstance(value, expected_type):
+                    msg = f"Expected {expected_type} but got {type(value)}"
+                    raise TypeError(msg)
+            
+            logger.info(f"Setting {self.fget.__name__} in {instance.name} to {value}")
+
         super().__set__(instance, value)
 
 
@@ -56,6 +91,7 @@ class DeviceInfo:
     status: DeviceStatus
 
 
+# TODO: We should log when operations begin and end.
 class DeviceDriver(ABC):
     def __init__(self, specs: dict) -> None:
         # Self-documenting features
@@ -78,19 +114,15 @@ class DeviceDriver(ABC):
         self.provides = specs["provides"]
         self.executable: dict[str, Callable] = {}
 
-        # Tunable device parameters across multiple experiments
-        self.params = specs["params"]
-
         # Call the available implementation of `setup`
         self.setup(specs)
 
-    def get_all_params_names(self) -> list[str]:
+    @property
+    def params(self) -> list[str]:
         names = []
-        for param_name in dir(self):
-            param = getattr(type(self), param_name, None)
-            print(f'param: {param}')
-            if isinstance(param, Parameter):
-                names.append(param_name)
+        for member in inspect.getmembers(self.__class__):
+            if isinstance(member[1], Parameter):
+                names.append(member[0])
         return names
 
     def info(self, attr: str, **kwargs) -> dict:

@@ -12,8 +12,10 @@ from abc import abstractmethod
 from dataclasses import dataclass
 from collections.abc import Callable
 from functools import wraps
-from enum import Enum, auto
+from enum import Enum, StrEnum, auto
 from typing import get_type_hints
+
+from pqnstack.base.errors import InvalidDriverError
 
 logger = logging.getLogger(__name__)
 
@@ -105,13 +107,6 @@ class Operation:
         return self.__class__(self.func.__get__(obj, objtype))
 
 
-class InvalidDriverError(Exception):
-    """Not in errors file because DeviceDriver needs it and it leads to infinite imports."""
-    def __init__(self, message: str = "") -> None:
-        self.message = message
-        super().__init__(self.message)
-
-
 class DeviceClass(Enum):
     SENSOR = auto()
     MOTOR = auto()
@@ -120,15 +115,11 @@ class DeviceClass(Enum):
     TESTING = auto()
 
 
-# FIXME: What is the exact difference between on and idle?
-#  I know there is a semantic difference and how we thing of those terms,
-#  but in practice in the code, is there a real difference?
-class DeviceStatus(Enum):
-    NOINIT = "not uninitialized"
-    FAIL = "fail"
-    OFF = "off"
-    IDLE = "idle"
-    ON = "on"
+class DeviceStatus(StrEnum):
+    OFF = auto()
+    READY = auto()
+    BUSY = auto()
+    FAIL = auto()
 
 
 # TODO: Add address here. I cannot imagine having a device without an address.
@@ -162,11 +153,6 @@ class DeviceDriver(ABC):
         self.desc = specs["desc"]
 
         self.status = DeviceStatus.NOINIT
-
-        # FIXME: Clean this up
-        # Executable functionalities
-        # self.provides = specs["provides"]
-        # self.executable: dict[str, Callable] = {}
 
         # Call the available implementation of `setup`
         self.setup(specs)

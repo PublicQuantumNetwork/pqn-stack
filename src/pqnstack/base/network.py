@@ -4,17 +4,10 @@
 # NCSA/Illinois Computes
 from abc import ABC
 from abc import abstractmethod
-from enum import Enum
 
 import zmq
 
-from pqnstack.network.packet import Packet
-
-
-class NetworkElementClass(Enum):
-    ROUTER = 0
-    NODE = 1
-    TELEMETRY = 2
+from pqnstack.network.packet import Packet, NetworkElementClass
 
 
 class NetworkElement(ABC):

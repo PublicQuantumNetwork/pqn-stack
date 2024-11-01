@@ -5,32 +5,55 @@
 #
 #
 from dataclasses import dataclass
-from enum import Enum
+from enum import Enum, auto
 
-from dataclasses_json import DataClassJsonMixin
+
+class NetworkElementClass(Enum):
+    ROUTER = auto()
+    NODE = auto()
+    CLIENT = auto()
+    TELEMETRY = auto()
+
+
+class PacketIntent(Enum):
+    DATA = auto()
+    OPERATION = auto()
+    CONTROL = auto()
+    REGISTRATION = auto()
+    REGISTRATION_ACK = auto()
+    ROUTING = auto() 
+    PING = auto()  # Ping equivalent.
 
 
 @dataclass
-class Packet(DataClassJsonMixin):
-    intent: str
+class Packet:
+    intent: PacketIntent
     request: str
-    source: tuple[int, int]
-    destination: tuple[int, int]
+    source: str
+    destination: str
     hops: int
     payload: object
+    version: int = 1
 
-    def signature(self) -> tuple[str, str]:
-        return self.intent, self.request
+    def signature(self) -> tuple[str, str, str]:
+        return self.intent.name, self.request, str(self.payload)
 
     def routing(self) -> tuple[tuple[int, int], tuple[int, int]]:
         return self.source, self.destination
 
 
-class PacketIntent(Enum):
-    DATA = 1
-    CTRL = 2
-    RTNG = 3
-
-
 class PacketRequest(Enum):
     MSR = 1
+
+
+class RegistrationPacket(Packet):
+
+    def __init__(self, source, destination, element_type: NetworkElementClass, hops) -> None:
+        super().__init__(intent=PacketIntent.REGISTRATION,
+                         source=source,
+                         request="REGISTER",
+                         destination=destination,
+                         hops=hops,
+                         payload=element_type)
+
+

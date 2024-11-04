@@ -16,11 +16,12 @@ logger = logging.getLogger(__name__)
 
 
 class Node2:
-    def __init__(self, name, host="localhost", port=5555, start_at_init=True):
+    def __init__(self, name, host="localhost", port=5555, router_name: str = "router1", start_at_init=True):
         self.name = name
         self.host = host
         self.port = port
         self.address = f"tcp://{host}:{port}"
+        self.router_name = router_name
 
         self.context = None
         self.socket = None  # Has the instance of the socket talking to the router.
@@ -39,14 +40,14 @@ class Node2:
         try:
             self.socket.connect(self.address)
             reg_packet = create_registration_packet(source=self.name,
-                                                    destination=self.address,
+                                                    destination=self.router_name,
                                                     payload=NetworkElementClass.NODE,
                                                     hops=0)
             self.socket.send(pickle.dumps(reg_packet))
             _, pickled_packet = self.socket.recv_multipart()
             packet = pickle.loads(pickled_packet)
             if packet.intent != PacketIntent.REGISTRATION_ACK:
-                raise RuntimeError("Registration failed.")
+                raise RuntimeError(f"Registration failed. Packet: {packet}")
             logger.info(f"Node {self.name} is connected to router at {self.address}")
             self.running = True
         # TODO: Handle connection error properly.

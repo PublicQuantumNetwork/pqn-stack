@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 class ClientBase:
 
-    def __init__(self, name="", host="127.0.0.1", port=5555, timeout=5000, start_at_init=True):
+    def __init__(self, name="", host="127.0.0.1", port=5555, router_name="router1", timeout=5000):
 
         if name == "":
             name = "".join(random.choices(string.ascii_uppercase + string.ascii_lowercase + string.digits, k=6))
@@ -21,6 +21,7 @@ class ClientBase:
         self.host = host
         self.port = port
         self.address = f"tcp://{host}:{port}"
+        self.router_name = router_name
 
         self.timeout = timeout
 
@@ -28,8 +29,7 @@ class ClientBase:
         self.context = None
         self.socket = None
 
-        if start_at_init:
-            self.connect()
+        self.connect()
 
     def __enter__(self):
         if not self.connected:
@@ -49,7 +49,7 @@ class ClientBase:
         self.connected = True
 
         reg_packet = create_registration_packet(source=self.name,
-                                                destination=self.address,
+                                                destination=self.router_name,
                                                 payload=NetworkElementClass.CLIENT,
                                                 hops=0)
         ret = self.ask(reg_packet)

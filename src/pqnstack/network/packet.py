@@ -45,10 +45,6 @@ class Packet:
         return self.source, self.destination
 
 
-class PacketRequest(Enum):
-    MSR = 1
-
-
 def create_registration_packet(**kwargs) -> Packet:
     if "payload" not in kwargs:
         msg = "payload argument not present when creating registration packet."

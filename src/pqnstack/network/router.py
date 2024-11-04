@@ -70,9 +70,8 @@ class Router2:
                 match packet.intent:
                     case PacketIntent.REGISTRATION:
                         if packet.destination != self.name:
-                            
-                            pass
-
+                            self.handle_packet_error(identity_binary, f"Router {self.name} is not the destination")
+                            continue
                         match packet.payload:
                             case NetworkElementClass.NODE:
                                 self.nodes[packet.source] = identity_binary
@@ -90,8 +89,7 @@ class Router2:
                                             hops=0,
                                             request="ACKNOWLEDGE",
                                             payload=None)
-                        self.socket.send_multipart([identity_binary, b"", pickle.dumps(ack_packet)])
-                        logger.info(f"Sent registration acknowledgment to {identity_binary}")
+                        self._send(identity_binary, ack_packet)
 
                     case PacketIntent.ROUTING:
                         logger.info(f'Got routing packet from {identity_binary}')
@@ -107,20 +105,18 @@ class Router2:
                             forward_packet.hops += 1
                             # FIXME: What happens if get a message from something else than the node I expect the
                             #  message.
-                            self.socket.send_multipart([self.nodes[packet.destination],
-                                                        b"",
-                                                        pickle.dumps(forward_packet)])
+                            self._send(self.nodes[packet.destination], forward_packet)
                             logger.info(f"Sent packet to {packet.destination}, awaiting reply")
                             identity_binary, reply_packet = self.listen()
                             logger.info(f"Received reply from {identity_binary}: {reply_packet}. Responding to "
                                         f"original sender")
                             reply_packet.hops += 1
-                            self.socket.send_multipart([self.clients[reply_packet.destination],
-                                                        b"",
-                                                        pickle.dumps(reply_packet)])
+                            self._send(self.clients[reply_packet.destination], reply_packet)
 
                         else:
                             logger.info(f"Packet destination is not a node will ask other routers in system")
+                            # FIXME: This is temporary and should be replaced with the routing algorithm.
+                            self.handle_packet_error(identity_binary, "Routing not implemented yet.")
 
         finally:
             self.socket.close()
@@ -141,8 +137,22 @@ class Router2:
         logger.info(f"Received packet from {identity_binary}: {packet}")
         return identity_binary, packet
 
+    def _send(self, destination: bytes, packet: Packet):
+        logger.info(f"Sending packet to {packet.destination} | Packet: {packet}")
+        self.socket.send_multipart([destination,
+                                    b"",
+                                    pickle.dumps(packet)])
+        logger.info(f"Packet sent to {packet.destination}")
+
     # TODO: This should reply with a standard, error in your packet message to whoever sent the packet instead of
     #  just logging.
-    @staticmethod  # Static for now, this will change once we have a proper implementation
-    def handle_packet_error(logging_message):
-        logger.error(logging_message)
+    def handle_packet_error(self, destination: bytes, message: str):
+        logger.error(message)
+        error_packet = Packet(intent=PacketIntent.ERROR,
+                              request="ERROR",
+                              source=self.name,
+                              destination=destination.decode("utf-8"),
+                              hops=0,
+                              payload=message)
+        self._send(destination, error_packet)
+

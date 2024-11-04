@@ -42,7 +42,7 @@ class IDQTimeTagger(DeviceDriver):
         # Check all implementations were provided
         if set(self.provides).symmetric_difference(self.executable.keys()) != set():
             msg = "IDQTimeTagger"
-            raise DriverFunctionNotImplementedError(msg)
+            raise DriverFunctionNotImplementedError(self, msg)
 
         # Set device as on
         self.status = DeviceStatus.ON
@@ -50,7 +50,7 @@ class IDQTimeTagger(DeviceDriver):
     def exec(self, seq: str, **kwargs) -> None | dict:
         if str not in self.executable:
             msg = "IDQTimeTagger"
-            raise DriverFunctionUnknownError(msg)
+            raise DriverFunctionUnknownError(self, msg)
 
         return self.executable[seq](**kwargs)
 

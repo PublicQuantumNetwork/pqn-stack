@@ -67,48 +67,60 @@ class Router2:
             while self.running:
 
                 identity_binary, packet = self.listen()
+                match packet.intent:
+                    case PacketIntent.REGISTRATION:
+                        if packet.destination != self.name:
+                            
+                            pass
 
-                if packet.intent == PacketIntent.REGISTRATION:
-                    if packet.request != "REGISTER":
-                        self.handle_packet_error(f"Invalid registration request {packet.request}")
-                        continue
-                    match packet.payload:
-                        case NetworkElementClass.NODE:
-                            self.nodes[packet.source] = identity_binary
-                            logger.info(f"Node {identity_binary} registered")
-                        case NetworkElementClass.CLIENT:
-                            self.clients[packet.source] = identity_binary
-                            logger.info(f"Client {identity_binary} registered")
-                        case NetworkElementClass.ROUTER:
-                            self.routers[packet.source] = identity_binary
-                            logger.info(f"Router {identity_binary} registered")
+                        match packet.payload:
+                            case NetworkElementClass.NODE:
+                                self.nodes[packet.source] = identity_binary
+                                logger.info(f"Node {identity_binary} registered")
+                            case NetworkElementClass.CLIENT:
+                                self.clients[packet.source] = identity_binary
+                                logger.info(f"Client {identity_binary} registered")
+                            case NetworkElementClass.ROUTER:
+                                self.routers[packet.source] = identity_binary
+                                logger.info(f"Router {identity_binary} registered")
 
-                    ack_packet = Packet(intent=PacketIntent.REGISTRATION_ACK,
-                                        source=self.name,
-                                        destination=identity_binary,
-                                        hops=0,
-                                        request="ACKNOWLEDGE",
-                                        payload=None)
-                    self.socket.send_multipart([identity_binary, b"", pickle.dumps(ack_packet)])
-                    logger.info(f"Sent registration acknowledgment to {identity_binary}")
-                    continue
-                if packet.destination == self.name:
-                    logger.info(f"Packet destination is self, dropping")
-                    continue
-                elif packet.destination in self.nodes:
-                    logger.info(f"Packet destination is a node called {packet.destination}, routing message there")
-                    forward_packet = copy.copy(packet)
-                    forward_packet.hops += 1
-                    # FIXME: What happens if get a message from something else than the node I expect the message.
-                    self.socket.send_multipart([self.nodes[packet.destination], b"", pickle.dumps(forward_packet)])
-                    logger.info(f"Sent packet to {packet.destination}, awaiting reply")
-                    identity_binary, reply_packet = self.listen()
-                    logger.info(f"Received reply from {identity_binary}: {reply_packet}. Responding to original sender")
-                    reply_packet.hops += 1
-                    self.socket.send_multipart([self.clients[reply_packet.destination], b"", pickle.dumps(reply_packet)])
+                        ack_packet = Packet(intent=PacketIntent.REGISTRATION_ACK,
+                                            source=self.name,
+                                            destination=identity_binary,
+                                            hops=0,
+                                            request="ACKNOWLEDGE",
+                                            payload=None)
+                        self.socket.send_multipart([identity_binary, b"", pickle.dumps(ack_packet)])
+                        logger.info(f"Sent registration acknowledgment to {identity_binary}")
 
-                else:
-                    logger.info(f"Packet destination is not a node will ask other routers in system")
+                    case PacketIntent.ROUTING:
+                        logger.info(f'Got routing packet from {identity_binary}')
+                    case _:
+
+                        if packet.destination == self.name:
+                            logger.info(f"Packet destination is self, dropping")
+                            
+                        elif packet.destination in self.nodes:
+                            logger.info(f"Packet destination is a node called {packet.destination}, routing message "
+                                        f"there")
+                            forward_packet = copy.copy(packet)
+                            forward_packet.hops += 1
+                            # FIXME: What happens if get a message from something else than the node I expect the
+                            #  message.
+                            self.socket.send_multipart([self.nodes[packet.destination],
+                                                        b"",
+                                                        pickle.dumps(forward_packet)])
+                            logger.info(f"Sent packet to {packet.destination}, awaiting reply")
+                            identity_binary, reply_packet = self.listen()
+                            logger.info(f"Received reply from {identity_binary}: {reply_packet}. Responding to "
+                                        f"original sender")
+                            reply_packet.hops += 1
+                            self.socket.send_multipart([self.clients[reply_packet.destination],
+                                                        b"",
+                                                        pickle.dumps(reply_packet)])
+
+                        else:
+                            logger.info(f"Packet destination is not a node will ask other routers in system")
 
         finally:
             self.socket.close()

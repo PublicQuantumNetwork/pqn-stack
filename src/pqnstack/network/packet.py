@@ -21,11 +21,12 @@ class PacketIntent(Enum):
     CONTROL = auto()
     REGISTRATION = auto()
     REGISTRATION_ACK = auto()
-    ROUTING = auto() 
-    PING = auto()  # Ping equivalent.
+    ROUTING = auto()  # These are used for discovering network topology automatically
+    PING = auto()
+    ERROR = auto()
 
 
-@dataclass
+@dataclass(kw_only=True)
 class Packet:
     intent: PacketIntent
     request: str
@@ -46,6 +47,7 @@ class PacketRequest(Enum):
     MSR = 1
 
 
+@dataclass()
 class RegistrationPacket(Packet):
 
     def __init__(self, source, destination, element_type: NetworkElementClass, hops) -> None:

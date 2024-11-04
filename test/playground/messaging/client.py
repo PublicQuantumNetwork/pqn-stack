@@ -6,6 +6,8 @@ from pqnstack.network.packet import PacketIntent
 
 logging.basicConfig(level=logging.INFO)
 
+logger = logging.getLogger(__name__)
+
 if __name__ == "__main__":
     c = ClientBase()
     ping_packet = Packet(intent=PacketIntent.PING,
@@ -15,5 +17,5 @@ if __name__ == "__main__":
                          hops=0,
                          payload=None)
     response = c.ask(ping_packet)
-    print(response)
-    print("done")
+    logger.info("Response: %s", response)
+    logger.info("Done")

@@ -5,7 +5,7 @@ import string
 import zmq
 import pickle
 
-from pqnstack.network.packet import Packet, RegistrationPacket, PacketIntent, NetworkElementClass
+from pqnstack.network.packet import Packet, create_registration_packet, PacketIntent, NetworkElementClass
 
 logger = logging.getLogger(__name__)
 
@@ -48,10 +48,10 @@ class ClientBase:
         self.socket.connect(self.address)
         self.connected = True
 
-        reg_packet = RegistrationPacket(source=self.name,
-                                        destination=self.address,
-                                        element_type=NetworkElementClass.CLIENT,
-                                        hops=0)
+        reg_packet = create_registration_packet(source=self.name,
+                                                destination=self.address,
+                                                payload=NetworkElementClass.CLIENT,
+                                                hops=0)
         ret = self.ask(reg_packet)
         if ret.intent != PacketIntent.REGISTRATION_ACK:
             raise RuntimeError("Registration failed.")

@@ -10,7 +10,7 @@ import zmq
 
 from pqnstack.base.driver import DeviceDriver
 from pqnstack.base.network import NetworkElement
-from pqnstack.network.packet import Packet, RegistrationPacket, PacketIntent, NetworkElementClass
+from pqnstack.network.packet import Packet, create_registration_packet, PacketIntent, NetworkElementClass
 
 logger = logging.getLogger(__name__)
 
@@ -38,10 +38,10 @@ class Node2:
 
         try:
             self.socket.connect(self.address)
-            reg_packet = RegistrationPacket(source=self.name,
-                                            destination=self.address,
-                                            element_type=NetworkElementClass.NODE,
-                                            hops=0)
+            reg_packet = create_registration_packet(source=self.name,
+                                                    destination=self.address,
+                                                    payload=NetworkElementClass.NODE,
+                                                    hops=0)
             self.socket.send(pickle.dumps(reg_packet))
             _, pickled_packet = self.socket.recv_multipart()
             packet = pickle.loads(pickled_packet)

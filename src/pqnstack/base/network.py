@@ -7,7 +7,8 @@ from abc import abstractmethod
 
 import zmq
 
-from pqnstack.network.packet import Packet, NetworkElementClass
+from pqnstack.network.packet import NetworkElementClass
+from pqnstack.network.packet import Packet
 
 
 class NetworkElement(ABC):
@@ -29,14 +30,6 @@ class NetworkElement(ABC):
             self.__socket.bind(f"tcp://*:{self.__router_port}")
         else:
             self.__socket.bind(f"tcp://{self.__router_ip}:{self.__router_port}")
-
-        # After housekeeping, go into idle mode
-        self.idle()
-
-    def idle(self) -> None:
-        while True:
-            packet = Packet.from_json(self.__socket.recv())
-            self.dispatch(packet)
 
     @abstractmethod
     def setup(self, specs: dict) -> None:

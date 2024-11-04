@@ -5,7 +5,8 @@
 #
 #
 from dataclasses import dataclass
-from enum import Enum, auto
+from enum import Enum
+from enum import auto
 
 from pqnstack.base.errors import PacketError
 
@@ -41,7 +42,7 @@ class Packet:
     def signature(self) -> tuple[str, str, str]:
         return self.intent.name, self.request, str(self.payload)
 
-    def routing(self) -> tuple[tuple[int, int], tuple[int, int]]:
+    def routing(self) -> tuple[str, str]:
         return self.source, self.destination
 
 

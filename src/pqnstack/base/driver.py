@@ -128,12 +128,88 @@ class DeviceStatus(StrEnum):
 class DeviceInfo:
     name: str
     desc: str
+    address: str  # Whatever unique identifier is used to communicate with the device.
     dtype: DeviceClass
     status: DeviceStatus
 
 
-# TODO: Add communication abstraction layer and how does that look?
+# TODO: Does this guy know about the class that this thing is being wrapped from? If not it might be worth making it.
+def log_operation(func):
+    """
+    Decorator for logging parameters and function calls.
+    Inspired from: https://ankitbko.github.io/blog/2021/04/logging-in-python/
+
+    :param func:
+    :return:
+    """
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = datetime.datetime.now()
+        logger.info(f"Starting operation '{func.__name__}' with args and kwargs {args, kwargs} | Time {start_time}")
+
+        result = func(*args, **kwargs)
+
+        end_time = datetime.datetime.now()
+        duration = end_time - start_time
+        logger.info(f"Completed operation '{func.__name__}'. Duration: {duration}")
+
+        return result
+
+    return wrapper
+
+
+def log_parameter(func):
+    """
+    Decorator for logging parameters and function calls.
+    Inspired from: https://ankitbko.github.io/blog/2021/04/logging-in-python/
+
+    :param func:
+    :return:
+    """
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        # if no args or kwargs, we are reading the value of the param, else we are setting it.
+
+        if len(args) == 0 and len(kwargs) == 0:
+            current_time = datetime.datetime.now()
+            result = func(*args, **kwargs)
+            logger.info("%s | Parameter '%s' got read with value %s", current_time, func.__name__, result)
+
+        else:
+            current_time = datetime.datetime.now()
+            previous_value = func()
+            result = func(*args, **kwargs)
+            logger.info("%s | Parameter '%s' got updated from '%s' to '%s'",
+                        current_time, func.__name__, previous_value, result)
+
+        return result
+
+    return wrapper
+
+
 class DeviceDriver(ABC):
+
+    CATEGORY: DeviceClass = DeviceClass.TESTING
+
+    def __init__(self, name: str, desc: str) -> None:
+        self.name = name
+        self.desc = desc
+
+        self.status = DeviceStatus.OFF
+
+        self.parameters = {}
+        # FIXME: operations is overloaded with the big operations of the system. We should make it mean single thing.
+        self.operations = {}
+
+    @abstractmethod
+    def info(self, *args, **kwargs) -> DeviceInfo: ...
+
+    @abstractmethod
+    def close(self, *args, **kwargs) -> None: ...
+
+
+# TODO: Add communication abstraction layer and how does that look?
+class __DeviceDriver(ABC):
     """
     Drivers can have 4 types of members (python members, this includes class variables):
         1. ALLOWED_MEMBERS:

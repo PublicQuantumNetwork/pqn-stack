@@ -3,6 +3,7 @@
 #
 # NCSA/Illinois Computes
 
+import atexit
 import logging
 import inspect
 import datetime
@@ -145,13 +146,13 @@ def log_operation(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         start_time = datetime.datetime.now()
-        logger.info(f"Starting operation '{func.__name__}' with args and kwargs {args, kwargs} | Time {start_time}")
+        logger.info(f"%s| %s |Starting operation '%s' with args: '%s' and kwargs '%s'", start_time, _extract_name_and_type(args[0]), func.__name__, args, kwargs)
 
         result = func(*args, **kwargs)
 
         end_time = datetime.datetime.now()
         duration = end_time - start_time
-        logger.info(f"Completed operation '{func.__name__}'. Duration: {duration}")
+        logger.info(f"%s | %s | Completed operation %s. Duration: %s", end_time, _extract_name_and_type(args[0]), func.__name__, duration)
 
         return result
 
@@ -169,18 +170,18 @@ def log_parameter(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         # if no args or kwargs, we are reading the value of the param, else we are setting it.
-
-        if len(args) == 0 and len(kwargs) == 0:
+        if len(args) == 1 and len(kwargs) == 0:
             current_time = datetime.datetime.now()
             result = func(*args, **kwargs)
-            logger.info("%s | Parameter '%s' got read with value %s", current_time, func.__name__, result)
+            logger.info("%s | %s | Parameter '%s' got read with value %s", current_time, _extract_name_and_type(args[0]), func.__name__, result)
 
         else:
-            current_time = datetime.datetime.now()
-            previous_value = func()
+            start_time = datetime.datetime.now()
             result = func(*args, **kwargs)
-            logger.info("%s | Parameter '%s' got updated from '%s' to '%s'",
-                        current_time, func.__name__, previous_value, result)
+            end_time = datetime.datetime.now()
+            duration = end_time - start_time
+            logger.info("%s | %s | Parameter '%s' got updated to '%s', parameter update took %s long ",
+                        end_time, _extract_name_and_type(args[0]), func.__name__, result, duration)
 
         return result
 
@@ -189,11 +190,12 @@ def log_parameter(func):
 
 class DeviceDriver(ABC):
 
-    CATEGORY: DeviceClass = DeviceClass.TESTING
+    DEVICE_CLASS: DeviceClass = DeviceClass.TESTING
 
-    def __init__(self, name: str, desc: str) -> None:
+    def __init__(self, name: str, desc: str, address: str | int) -> None:
         self.name = name
         self.desc = desc
+        self.address = address
 
         self.status = DeviceStatus.OFF
 
@@ -201,12 +203,21 @@ class DeviceDriver(ABC):
         # FIXME: operations is overloaded with the big operations of the system. We should make it mean single thing.
         self.operations = {}
 
+        atexit.register(self.close)
+
     @abstractmethod
     def info(self, *args, **kwargs) -> DeviceInfo: ...
 
     @abstractmethod
+    def start(self, *args, **kwargs) -> None: ...
+
+    @abstractmethod
     def close(self, *args, **kwargs) -> None: ...
 
+
+def _extract_name_and_type(obj: DeviceDriver) -> tuple[str, str]:
+    return obj.name, type(obj)
+    
 
 # TODO: Add communication abstraction layer and how does that look?
 class __DeviceDriver(ABC):

@@ -72,6 +72,8 @@ class APTRotator(Rotator):
         self._degrees = 0.0
         self._device: TDC001 | None = None
 
+        self.parameters.add("degrees")
+
     def close(self) -> None:
         if self._device is not None:
             logger.info("Closing APT Rotator")

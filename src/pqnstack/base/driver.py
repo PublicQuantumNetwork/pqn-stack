@@ -107,11 +107,11 @@ def log_parameter(func):
 
         else:
             start_time = datetime.datetime.now()
-            result = func(*args, **kwargs)
+            result = func(*args, **kwargs)  # Always return None
             end_time = datetime.datetime.now()
             duration = end_time - start_time
             logger.info("%s | %s, %s | Parameter '%s' got updated to '%s', parameter update took %s long ",
-                        end_time, ins.name, type(ins), func.__name__, result, duration)
+                        end_time, ins.name, type(ins), func.__name__, args[1:], duration)
 
         return result
 
@@ -129,7 +129,7 @@ class DeviceDriver(ABC):
 
         self.status = DeviceStatus.OFF
 
-        self.parameters: dict[str, property] = {}
+        self.parameters: set[str] = set()
         # FIXME: operations is overloaded with the big operations of the system. We should make it mean single thing.
         self.operations: dict[str, Callable] = {}
 

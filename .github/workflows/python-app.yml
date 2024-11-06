@@ -28,4 +28,4 @@ jobs:
     - name: Type check with Mypy
       run: pdm run mypy src/
     - name: Test with pytest
-      run: pdm run pytest test/pytest
+      run: pdm run pytest tests/pytest

@@ -2,7 +2,12 @@
 # Public Quantum Network
 #
 # NCSA/Illinois Computes
-from pqnstack.base.driver import DeviceDriver
+
+
+class DeviceNotStartedError(Exception):
+    def __init__(self, message: str = "Device not started") -> None:
+        self.message = message
+        super().__init__(self.message)
 
 
 class DriverNotFoundError(Exception):
@@ -12,15 +17,19 @@ class DriverNotFoundError(Exception):
 
 
 class DriverFunctionNotImplementedError(Exception):
-    def __init__(self, driver: DeviceDriver, message: str = "One or more driver functions were not implemented") -> None:
-        self.driver = driver
+    def __init__(self, message: str = "One or more driver functions were not implemented") -> None:
         self.message = message
         super().__init__(self.message)
 
 
 class DriverFunctionUnknownError(Exception):
-    def __init__(self, driver: DeviceDriver, message: str = "Device driver function unknown") -> None:
-        self.driver = driver
+    def __init__(self, message: str = "Device driver function unknown") -> None:
+        self.message = message
+        super().__init__(self.message)
+
+
+class LogDecoratorOutsideOfClassError(Exception):
+    def __init__(self, message: str = "Log decorator used outside of a class") -> None:
         self.message = message
         super().__init__(self.message)
 

@@ -74,7 +74,7 @@ class DeviceDriver(ABC):
 def log_operation(func: Callable) -> Callable:
     @wraps(func)
     def wrapper(*args: tuple, **kwargs: dict) -> Callable:
-        if len(args) < 0:
+        if len(args) == 0:
             msg = ("log_operation has 0 args, "
                    "this usually indicates that it has been used to decorate something that is not a class method. "
                    "This is not allowed.")
@@ -106,7 +106,7 @@ def log_parameter(func: Callable) -> Callable:
     @wraps(func)
     def wrapper(*args: tuple, **kwargs: dict) -> Callable:
 
-        if len(args) <= 0:
+        if len(args) == 0:
             msg = ("log_parameter has 0 args, "
                    "this usually indicates that it has been used to decorate something that is not a class method. "
                    "This is not allowed.")

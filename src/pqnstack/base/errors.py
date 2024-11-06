@@ -4,9 +4,8 @@
 # NCSA/Illinois Computes
 
 
-class InvalidDriverError(Exception):
-    """Not in errors file because DeviceDriver needs it and it leads to infinite imports."""
-    def __init__(self, message: str = "") -> None:
+class DeviceNotStartedError(Exception):
+    def __init__(self, message: str = "Device not started") -> None:
         self.message = message
         super().__init__(self.message)
 
@@ -25,5 +24,11 @@ class DriverFunctionNotImplementedError(Exception):
 
 class DriverFunctionUnknownError(Exception):
     def __init__(self, message: str = "Device driver function unknown") -> None:
+        self.message = message
+        super().__init__(self.message)
+
+
+class LogDecoratorOutsideOfClassError(Exception):
+    def __init__(self, message: str = "Log decorator used outside of a class") -> None:
         self.message = message
         super().__init__(self.message)

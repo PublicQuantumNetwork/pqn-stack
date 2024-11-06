@@ -73,11 +73,14 @@ class ClientBase:
 
     def disconnect(self) -> None:
         logger.info("Disconnecting from %s", self.address)
-        if self.socket is not None:
-            self.socket.close()
-        else:
+        if self.socket is None:
             logger.warning("Socket is already None.")
+            self.connected = False
+            return
+
+        self.socket.close()
         self.connected = False
+        logger.info("Disconnected from %s", self.address)
 
     def ask(self, packet: Packet) -> Packet | None:
         if not self.connected:
@@ -91,15 +94,16 @@ class ClientBase:
             raise RuntimeError(msg)
 
         # try so that if timeout happens, the client remains usable
+
+        self.socket.send(pickle.dumps(packet))
         try:
-            self.socket.send(pickle.dumps(packet))
-            
             response = self.socket.recv()
-            ret = pickle.loads(response)
-            logger.debug("Response received.")
-            logger.debug("Response: %s", str(ret))
-            return ret
         except zmq.error.Again:
             logger.error("Timeout occurred.")
             return None
+
+        ret = pickle.loads(response)
+        logger.debug("Response received.")
+        logger.debug("Response: %s", str(ret))
+        return ret
 

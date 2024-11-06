@@ -36,7 +36,7 @@ class Packet:
     source: str
     destination: str
     payload: object
-    hops: int
+    hops: int = 0
     version: int = 1
 
     def signature(self) -> tuple[str, str, str]:

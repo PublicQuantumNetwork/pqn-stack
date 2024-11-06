@@ -19,8 +19,7 @@ class Node:
     def __init__(self, name: str,
                  host: str = "localhost",
                  port: int | str = 5555,
-                 router_name: str = "router1",
-                 start_at_init: bool = True) -> None:
+                 router_name: str = "router1",) -> None:
         self.name = name
         self.host = host
         self.port = port
@@ -30,9 +29,6 @@ class Node:
         self.context: zmq.Context | None = None
         self.socket: zmq.Socket | None = None  # Has the instance of the socket talking to the router.
         self.running = False
-
-        if start_at_init:
-            self.start()
 
     def start(self) -> None:
 

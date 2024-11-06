@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 # FIXME: handle not finding destination and source better
 class Router:
 
-    def __init__(self, name: str, host: str = "localhost", port: int | str = 5555, start_at_init: bool = True) -> None:
+    def __init__(self, name: str, host: str = "localhost", port: int | str = 5555) -> None:
         self.name = name
         self.host = host
         self.port = port
@@ -34,9 +34,6 @@ class Router:
         self.context: zmq.Context | None = None
         self.socket: zmq.Socket | None = None  # Has the instance of the socket talking to the router.
         self.running = False
-
-        if start_at_init:
-            self.start()
 
     def start(self) -> None:
         logger.info("Starting router %s at %s", self.name, self.address)

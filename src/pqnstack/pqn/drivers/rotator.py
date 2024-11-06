@@ -109,7 +109,11 @@ class APTRotator(Rotator):
             rotator_status=self._device.status if self._device is not None else None,
         )
 
-    def _sleep_while_moving(self):
+    def _sleep_while_moving(self) -> None:
+        if self._device is None:
+            msg = "Start the device before setting parameters"
+            raise DeviceNotStartedError(msg)
+
         try:
             time.sleep(0.5)
             while (self._device.status["moving_forward"] or self._device.status["moving_reverse"] or

@@ -25,6 +25,7 @@ class DeviceClass(Enum):
     MOTOR = auto()
     TEMPCTRL = auto()
     TIMETAGR = auto()
+    PROXY = auto()
     TESTING = auto()
 
 

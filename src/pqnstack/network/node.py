@@ -88,6 +88,7 @@ class Node:
             ins_desc = ins_dict.pop("desc")
             ins_address = ins_dict.pop("address")
 
+            logger.info("Instantiating %s", ins_name)
             try:
                 module_name, class_name = ins_import.rsplit(".", 1)
                 module = importlib.import_module(module_name)
@@ -104,6 +105,7 @@ class Node:
                 raise InvalidInstrumentsConfigurationError(msg) from e
 
             self.instantiated_instruments[ins_name] = ins
+            logger.info("Successfully instantiated %s", ins_name)
 
     def start(self) -> None:
 
@@ -132,32 +134,25 @@ class Node:
             logger.error("Could not connect to router at %s", self.address)
             raise e
 
+        # FIXME: change this into a context manager.
         try:
             while self.running:
                 packet = self._listen()
 
                 match packet.intent:
                     case PacketIntent.PING:
-                        response = Packet(intent=PacketIntent.PING,
-                                          request="PONG",
-                                          source=self.name,
-                                          destination=packet.source,
-                                          hops=0,
-                                          payload=None)
+                        response = self._handle_ping(packet)
                         self.socket.send(pickle.dumps(response))
 
                     case PacketIntent.DATA:
+                        match packet.request:
+                            case "GET_DEVICES":
+                                response = self._handle_get_devices(packet)
+                                self.socket.send(pickle.dumps(response))
 
-                        if packet.request == "GET_DEVICES":
-                            ret_instruments = {name: type(ins) for name, ins in self.instantiated_instruments.items()}
-                            response = Packet(intent=PacketIntent.DATA,
-                                              request="GET_DEVICES",
-                                              source=self.name,
-                                              destination=packet.source,
-                                              hops=0,
-                                              payload=ret_instruments)
-                            self.socket.send(pickle.dumps(response))
-
+                            case "GET_DEVICE_STRUCTURE":
+                                response = self._handle_get_device_structure(packet)
+                                self.socket.send(pickle.dumps(response))
         finally:
             self.socket.close()
 
@@ -172,7 +167,62 @@ class Node:
         logger.info("Received packet: %s", packet)
         return packet
 
+    def _handle_ping(self, packet: Packet) -> Packet:
+        response = Packet(intent=PacketIntent.PING,
+                          request="PONG",
+                          source=self.name,
+                          destination=packet.source,
+                          hops=0,
+                          payload=None)
+        return response
 
+    def _handle_get_devices(self, packet: Packet) -> Packet:
+        ret_instruments = {name: type(ins) for name, ins in self.instantiated_instruments.items()}
+        response = Packet(intent=PacketIntent.DATA,
+                          request="GET_DEVICES",
+                          source=self.name,
+                          destination=packet.source,
+                          hops=0,
+                          payload=ret_instruments)
+        return response
 
+    def _handle_get_device_structure(self, packet: Packet) -> Packet:
 
+        if packet.payload not in self.instantiated_instruments:
+            response = Packet(intent=PacketIntent.ERROR,
+                              request="ERROR",
+                              source=self.name,
+                              destination=packet.source,
+                              hops=0,
+                              payload=f"Instrument '{packet.payload}' not found.")
+            return response
+
+        ins_name = packet.payload
+        if not isinstance(ins_name, str):
+            response = Packet(intent=PacketIntent.ERROR,
+                              request="ERROR",
+                              source=self.name,
+                              destination=packet.source,
+                              hops=0,
+                              payload=f"Payload must be the instrument name as a string, not {type(ins_name)}")
+            return response
+
+        params = self.instantiated_instruments[ins_name].parameters
+        operations = set(self.instantiated_instruments[ins_name].operations.keys())
+
+        payload = {
+            "name": self.instantiated_instruments[ins_name].name,
+            "desc": self.instantiated_instruments[ins_name].desc,
+            "address": self.instantiated_instruments[ins_name].address,
+            "parameters": params,
+            "operations": operations
+        }
+
+        response = Packet(intent=PacketIntent.DATA,
+                          request="GET_DEVICE_STRUCTURE",
+                          source=self.name,
+                          destination=packet.source,
+                          hops=0,
+                          payload=payload)
+        return response
 

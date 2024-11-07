@@ -35,7 +35,7 @@ class Packet:
     request: str
     source: str
     destination: str
-    payload: object
+    payload: object = None
     hops: int = 0
     version: int = 1
 

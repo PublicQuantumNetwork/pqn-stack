@@ -6,6 +6,8 @@ from types import TracebackType
 
 import zmq
 
+from pqnstack.base.errors import PacketError
+from pqnstack.base.driver import DeviceDriver, DeviceClass
 from pqnstack.network.packet import NetworkElementClass
 from pqnstack.network.packet import Packet
 from pqnstack.network.packet import PacketIntent
@@ -108,6 +110,81 @@ class ClientBase:
         return ret
 
 
+class InstrumentClient(ClientBase):
+
+    def __init__(self, name: str,
+                 host: str,
+                 port: int | str,
+                 router_name: str,
+                 instrument_name: str,
+                 node_name: str) -> None:
+        super().__init__(name, host, port, router_name)
+
+        self.instrument_name = instrument_name
+        self.node_name = node_name
+
+    def get_device_structure(self):
+        packet = Packet(intent=PacketIntent.DATA,
+                        request="GET_DEVICE_STRUCTURE",
+                        source=self.name,
+                        destination=self.node_name,
+                        payload=self.instrument_name)
+        response = self.ask(packet)
+
+        if response.intent == PacketIntent.ERROR:
+            raise PacketError(str(response))
+
+
+class ProxyInstrument(DeviceDriver):
+    """
+    The address here is the zmq address of the router that the InstrumentClient will talk to.
+    """
+
+    DEVICE_CLASS = DeviceClass.PROXY
+
+    def __init__(self, name: str,
+                 desc: str,
+                 address: str,
+                 host: str,
+                 port: str,
+                 node_name: str,
+                 router_name: str,
+                 parameters: set[str],
+                 operations=set[str]) -> None:
+
+        super().__init__(name, desc, address)
+
+        self.host = host
+        self.port = port
+
+        self.parameters = parameters
+        self.operations = operations
+
+        self.node_name = node_name
+        self.router_name = router_name
+
+        # The client's name is the instrument name with "_client" appended and a random 6 character string appended.
+        # This is to avoid any potential conflicts with other clients.
+        client_name = name + "_client".join(
+            random.choices(string.ascii_uppercase + string.ascii_lowercase + string.digits, k=6))
+
+        self.client = InstrumentClient(name=client_name,
+                                       host=self.host,
+                                       port=self.port,
+                                       router_name=self.router_name,
+                                       instrument_name=name,
+                                       node_name=self.node_name)
+
+    def start(self) -> None:
+        pass
+
+    def close(self) -> None:
+        pass
+
+    def info(self) -> None:
+        pass
+
+
 class Client(ClientBase):
 
     def ping(self, destination: str) -> Packet | None:
@@ -133,6 +210,26 @@ class Client(ClientBase):
         assert isinstance(response.payload, dict)
         return response.payload
 
-    # def get_device(self, node_name: str, device_name: str) -> :
+    def get_device(self, node_name: str, device_name: str) -> DeviceDriver:
+
+        packet = Packet(intent=PacketIntent.DATA,
+                        request="GET_DEVICE_STRUCTURE",
+                        source=self.name,
+                        destination=node_name,
+                        payload=device_name)
+
+        response = self.ask(packet)
+        if response.intent == PacketIntent.ERROR:
+            raise PacketError(str(response))
+
+        assert isinstance(response.payload, dict)
+
+        return ProxyInstrument(host=self.host,
+                               port=self.port,
+                               node_name=node_name,
+                               router_name=self.router_name,
+                               **response.payload)
+
+
 
 

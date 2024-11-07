@@ -40,3 +40,7 @@ class PacketError(Exception):
         super().__init__(self.message)
 
 
+class InvalidInstrumentsConfigurationError(Exception):
+    def __init__(self, message: str = "Invalid instruments configuration") -> None:
+        self.message = message
+        super().__init__(self.message)

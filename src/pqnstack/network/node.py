@@ -121,8 +121,7 @@ class Node:
                                                     payload=NetworkElementClass.NODE,
                                                     hops=0)
             self.socket.send(pickle.dumps(reg_packet))
-            _, pickled_packet = self.socket.recv_multipart()
-            packet = pickle.loads(pickled_packet)
+            packet = self._listen()
             if packet.intent != PacketIntent.REGISTRATION_ACK:
                 msg = f"Registration failed. Packet: {packet}"
                 raise RuntimeError(msg)
@@ -132,20 +131,50 @@ class Node:
         except zmq.error.ZMQError as e:
             logger.error("Could not connect to router at %s", self.address)
             raise e
+
         try:
             while self.running:
-                _, pickled_packet = self.socket.recv_multipart()
-                packet = pickle.loads(pickled_packet)
+                packet = self._listen()
 
-                if packet.intent == PacketIntent.PING:
-                    logger.info("Received ping from %s", packet.source)
-                    response = Packet(intent=PacketIntent.PING,
-                                      request="PONG",
-                                      source=self.name,
-                                      destination=packet.source,
-                                      hops=0,
-                                      payload=None)
-                    self.socket.send(pickle.dumps(response))
+                match packet.intent:
+                    case PacketIntent.PING:
+                        response = Packet(intent=PacketIntent.PING,
+                                          request="PONG",
+                                          source=self.name,
+                                          destination=packet.source,
+                                          hops=0,
+                                          payload=None)
+                        self.socket.send(pickle.dumps(response))
+
+                    case PacketIntent.DATA:
+
+                        if packet.request == "GET_DEVICES":
+                            ret_instruments = {name: type(ins) for name, ins in self.instantiated_instruments.items()}
+                            response = Packet(intent=PacketIntent.DATA,
+                                              request="GET_DEVICES",
+                                              source=self.name,
+                                              destination=packet.source,
+                                              hops=0,
+                                              payload=ret_instruments)
+                            self.socket.send(pickle.dumps(response))
+
+
 
         finally:
             self.socket.close()
+
+    def _listen(self) -> Packet:
+        _, pickled_packet = self.socket.recv_multipart()
+        packet = pickle.loads(pickled_packet)
+        if packet.destination != self.name:
+            # FIXME: This should return an error packet instead of just crashing
+            msg = f"Packet intended for {packet.destination} but received by {self.name}. Packet: {packet}"
+            raise RuntimeError(msg)
+
+        logger.info("Received packet: %s", packet)
+        return packet
+
+
+
+
+

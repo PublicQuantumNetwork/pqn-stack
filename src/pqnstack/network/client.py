@@ -107,3 +107,32 @@ class ClientBase:
         logger.debug("Response: %s", str(ret))
         return ret
 
+
+class Client(ClientBase):
+
+    def ping(self, destination: str) -> Packet | None:
+        ping_packet = Packet(intent=PacketIntent.PING,
+                             request="PING",
+                             source=self.name,
+                             destination=destination,
+                             hops=0,
+                             payload=None)
+        return self.ask(ping_packet)
+
+    def get_available_devices(self, node_name: str) -> dict[str, str]:
+        packet = Packet(intent=PacketIntent.DATA,
+                        request="GET_DEVICES",
+                        source=self.name,
+                        destination=node_name,
+                        hops=0,
+                        payload=None)
+        response = self.ask(packet)
+        if response is None:
+            return {}
+
+        assert isinstance(response.payload, dict)
+        return response.payload
+
+    # def get_device(self, node_name: str, device_name: str) -> :
+
+

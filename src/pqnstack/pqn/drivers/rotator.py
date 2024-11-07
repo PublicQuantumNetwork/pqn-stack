@@ -31,6 +31,9 @@ class RotatorInfo(DeviceInfo):
 
 
 class Rotator(DeviceDriver):
+
+    DEVICE_CLASS = DeviceClass.MOTOR
+
     def __init__(self, name: str, desc: str, address: str, *args, **kwargs) -> None:
         super().__init__(name, desc, address)
 
@@ -58,7 +61,6 @@ class Rotator(DeviceDriver):
 
 
 class APTRotator(Rotator):
-    DEVICE_CLASS = DeviceClass.MOTOR
 
     def __init__(self, name: str, desc: str, address: str, offset_degrees: float = 0.0,
                  block_while_moving: bool = True) -> None:
@@ -94,7 +96,7 @@ class APTRotator(Rotator):
         self._device.set_velocity_params(vel, vel)
         if self.block_while_moving:
             time.sleep(0.5)
-            self._sleep_while_moving()
+            self._wait_for_stop()
         self.status = DeviceStatus.READY
 
     def info(self) -> RotatorInfo:
@@ -110,7 +112,7 @@ class APTRotator(Rotator):
             rotator_status=self._device.status if self._device is not None else None,
         )
 
-    def _sleep_while_moving(self) -> None:
+    def _wait_for_stop(self) -> None:
         if self._device is None:
             msg = "Start the device before setting parameters"
             raise DeviceNotStartedError(msg)
@@ -139,6 +141,6 @@ class APTRotator(Rotator):
         self.status = DeviceStatus.BUSY
         self._device.move_absolute(int(degrees * self.encoder_units_per_degree))
         if self.block_while_moving:
-            self._sleep_while_moving()
+            self._wait_for_stop()
         self.status = DeviceStatus.READY
 

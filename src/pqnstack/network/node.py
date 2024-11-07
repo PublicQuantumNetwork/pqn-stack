@@ -158,8 +158,6 @@ class Node:
                                               payload=ret_instruments)
                             self.socket.send(pickle.dumps(response))
 
-
-
         finally:
             self.socket.close()
 

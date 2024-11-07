@@ -96,7 +96,7 @@ class APTRotator(Rotator):
         self._device.set_velocity_params(vel, vel)
         if self.block_while_moving:
             time.sleep(0.5)
-            self._sleep_while_moving()
+            self._wait_for_stop()
         self.status = DeviceStatus.READY
 
     def info(self) -> RotatorInfo:
@@ -141,6 +141,6 @@ class APTRotator(Rotator):
         self.status = DeviceStatus.BUSY
         self._device.move_absolute(int(degrees * self.encoder_units_per_degree))
         if self.block_while_moving:
-            self._sleep_while_moving()
+            self._wait_for_stop()
         self.status = DeviceStatus.READY
 

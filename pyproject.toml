@@ -5,6 +5,7 @@ description = "Illinois Computes work on software stack for PQN."
 authors = [
     { name = "Santiano Nunez-Corrales", email = "nunezco2@illinois.edu" },
     { name = "Benjamin Nussbaum", email = "bn9@illinois.edu" },
+    { name = "Marcos Frenkel", email = "marcosf2@illinois.edu"}
 ]
 dependencies = [
     "numpy>=2.1.0",
@@ -24,6 +25,7 @@ dev = [
     "ruff>=0.6.2",
     "pytest-cov>=5.0.0",
     "mypy>=1.11.2",
+    "jupyterlab>=4.2.5",
 ]
 
 [tool.pdm.scripts]

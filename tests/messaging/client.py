@@ -1,8 +1,6 @@
 import logging
 
 from pqnstack.network.client import Client
-from pqnstack.network.packet import Packet
-from pqnstack.network.packet import PacketIntent
 
 logging.basicConfig(level=logging.INFO)
 
@@ -13,48 +11,48 @@ if __name__ == "__main__":
 
     # ping node
     ping_reply = c.ping("node1")
-    print(ping_reply)
+    logger.info(ping_reply)
 
     devices = c.get_available_devices("node1")
-    print(devices)
+    logger.info(devices)
 
     # Create instrument proxy
     instrument = c.get_device("node1", "dummy1")
-    print(instrument)
-    print(f'I should have the proxy object here: {type(instrument)}')
+    logger.info(instrument)
+    logger.info('I should have the proxy object here: %s', type(instrument))
 
     # Call a method on the instrument
     ret = instrument.double_int()
 
-    print(ret)
+    logger.info(ret)
 
     # Callable
     call = instrument.double_int
-    print(type(call))
+    logger.info(type(call))
 
     # Pass argument to operation
     ret = instrument.set_half_input_int(10)
-    print(ret)
+    logger.info(ret)
 
     # Passing keyword arguments
     ret = instrument.set_half_input_int(value=36)
-    print(ret)
+    logger.info(ret)
 
     # Get a parameter
     param = instrument.param_int
-    print(param)
+    logger.info(param)
 
     param_str = instrument.param_str
-    print(param_str)
+    logger.info(param_str)
 
     # Set a parameter
     instrument.param_int = 42
-    print(instrument.param_int)
+    logger.info(instrument.param_int)
 
     # Set a parameter
     try:
         instrument.new_attr = 348
     except AttributeError as e:
-        print(f'Caught exception: {e} cannot set parameter')
+        logger.info('Caught exception: %s cannot set parameter', e)
 
-    print(f'Proxy instrument seems to be working correctly.')
+    logger.info('Proxy instrument seems to be working correctly.')

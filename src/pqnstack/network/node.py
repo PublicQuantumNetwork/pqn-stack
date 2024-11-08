@@ -2,14 +2,14 @@
 # Public Quantum Network
 #
 # NCSA/Illinois Computes
+import importlib
 import logging
 import pickle
-import importlib
 
 import zmq
 
-from pqnstack.base.errors import InvalidInstrumentsConfigurationError
 from pqnstack.base.driver import DeviceDriver
+from pqnstack.base.errors import InvalidInstrumentsConfigurationError
 from pqnstack.network.packet import NetworkElementClass
 from pqnstack.network.packet import Packet
 from pqnstack.network.packet import PacketIntent
@@ -25,7 +25,9 @@ class Node:
                  router_name: str = "router1",
                  **instruments) -> None:
         """
-        Node class for PQN. A Node is the class that talks with real hardware and performs experiments. It talks to a
+        Node class for PQN.
+
+        A Node is the class that talks with real hardware and performs experiments. It talks to a
         single `Router` instance through zqm and awaits for instructions from it.
 
         :param name: Name for the Node.
@@ -163,6 +165,13 @@ class Node:
             self.socket.close()
 
     def _listen(self) -> Packet:
+
+        # This should never happen, but mypy complains if the check is not done
+        if self.socket is None:
+            msg = "Socket is None, cannot listen."
+            logger.error(msg)
+            raise RuntimeError(msg)
+
         _, pickled_packet = self.socket.recv_multipart()
         packet = pickle.loads(pickled_packet)
         if packet.destination != self.name:
@@ -174,40 +183,36 @@ class Node:
         return packet
 
     def _handle_ping(self, packet: Packet) -> Packet:
-        response = Packet(intent=PacketIntent.PING,
-                          request="PONG",
-                          source=self.name,
-                          destination=packet.source,
-                          payload=None)
-        return response
+        return Packet(intent=PacketIntent.PING,
+                      request="PONG",
+                      source=self.name,
+                      destination=packet.source,
+                      payload=None)
 
     def _handle_get_devices(self, packet: Packet) -> Packet:
         ret_instruments = {name: type(ins) for name, ins in self.instantiated_instruments.items()}
-        response = Packet(intent=PacketIntent.DATA,
-                          request="GET_DEVICES",
-                          source=self.name,
-                          destination=packet.source,
-                          payload=ret_instruments)
-        return response
+        return Packet(intent=PacketIntent.DATA,
+                      request="GET_DEVICES",
+                      source=self.name,
+                      destination=packet.source,
+                      payload=ret_instruments)
 
     def _handle_get_device_structure(self, packet: Packet) -> Packet:
 
         if packet.payload not in self.instantiated_instruments:
-            response = Packet(intent=PacketIntent.ERROR,
-                              request="ERROR",
-                              source=self.name,
-                              destination=packet.source,
-                              payload=f"Instrument '{packet.payload}' not found.")
-            return response
+            return Packet(intent=PacketIntent.ERROR,
+                          request="ERROR",
+                          source=self.name,
+                          destination=packet.source,
+                          payload=f"Instrument '{packet.payload}' not found.")
 
         ins_name = packet.payload
         if not isinstance(ins_name, str):
-            response = Packet(intent=PacketIntent.ERROR,
-                              request="ERROR",
-                              source=self.name,
-                              destination=packet.source,
-                              payload=f"Payload must be the instrument name as a string, not {type(ins_name)}")
-            return response
+            return Packet(intent=PacketIntent.ERROR,
+                          request="ERROR",
+                          source=self.name,
+                          destination=packet.source,
+                          payload=f"Payload must be the instrument name as a string, not {type(ins_name)}")
 
         params = self.instantiated_instruments[ins_name].parameters
         operations = set(self.instantiated_instruments[ins_name].operations.keys())
@@ -220,123 +225,111 @@ class Node:
             "operations": operations
         }
 
-        response = Packet(intent=PacketIntent.DATA,
-                          request="GET_DEVICE_STRUCTURE",
-                          source=self.name,
-                          destination=packet.source,
-                          payload=payload)
-        return response
+        return Packet(intent=PacketIntent.DATA,
+                      request="GET_DEVICE_STRUCTURE",
+                      source=self.name,
+                      destination=packet.source,
+                      payload=payload)
 
     def _handle_instrument_control(self, packet: Packet) -> Packet:
 
         request_parts = packet.request.split(":")
         if len(request_parts) != 3:
-            response = Packet(intent=PacketIntent.ERROR,
-                              request="ERROR",
-                              source=self.name,
-                              destination=packet.source,
-                              payload=f"CONTROL packets should have 3 parts, not {len(request_parts)}, formatted as: "
-                                      f"'<instrument_name>:<OPERATION> or <PARAMETER>:<Operation/Parameter name>")
-            return response
+            return Packet(intent=PacketIntent.ERROR,
+                          request="ERROR",
+                          source=self.name,
+                          destination=packet.source,
+                          payload=f"CONTROL packets should have 3 parts, not {len(request_parts)}, formatted as: "
+                                  f"'<instrument_name>:<OPERATION> or <PARAMETER>:<Operation/Parameter name>")
 
         ins_name, request_type, request_name = request_parts
         if ins_name not in self.instantiated_instruments:
-            response = Packet(intent=PacketIntent.ERROR,
-                              request="ERROR",
-                              source=self.name,
-                              destination=packet.source,
-                              payload=f"Instrument '{ins_name}' not found.")
-            return response
+            return Packet(intent=PacketIntent.ERROR,
+                          request="ERROR",
+                          source=self.name,
+                          destination=packet.source,
+                          payload=f"Instrument '{ins_name}' not found.")
+
         instrument = self.instantiated_instruments[ins_name]
 
         if request_type not in ["OPERATION", "PARAMETER"]:
-            response = Packet(intent=PacketIntent.ERROR,
-                              request="ERROR",
-                              source=self.name,
-                              destination=packet.source,
-                              payload=f"Request type must be either 'OPERATION' or 'PARAMETER', not {request_type}")
-            return response
+            return Packet(intent=PacketIntent.ERROR,
+                          request="ERROR",
+                          source=self.name,
+                          destination=packet.source,
+                          payload=f"Request type must be either 'OPERATION' or 'PARAMETER', not {request_type}")
+
+        assert isinstance(packet.payload, tuple)
+        args, kwargs = packet.payload
 
         if request_type == "OPERATION":
             if request_name not in instrument.operations:
-                response = Packet(intent=PacketIntent.ERROR,
-                                  request="ERROR",
-                                  source=self.name,
-                                  destination=packet.source,
-                                  payload=f"Operation '{request_name}' not found in '{ins_name}'")
-                return response
-            args, kwargs = packet.payload
+                return Packet(intent=PacketIntent.ERROR,
+                              request="ERROR",
+                              source=self.name,
+                              destination=packet.source,
+                              payload=f"Operation '{request_name}' not found in '{ins_name}'")
 
             try:
                 operation_ret = instrument.operations[request_name](*args, **kwargs)
             except Exception as e:
-                response = Packet(intent=PacketIntent.ERROR,
-                                  request="ERROR",
-                                  source=self.name,
-                                  destination=packet.source,
-                                  payload=f"Error executing operation '{request_name}' in '{ins_name}'. Error: {e}")
-                return response
-
-            response = Packet(intent=PacketIntent.CONTROL,
-                              request=f"{ins_name}:OPERATION:{request_name}",
+                return Packet(intent=PacketIntent.ERROR,
+                              request="ERROR",
                               source=self.name,
                               destination=packet.source,
-                              payload=operation_ret)
-            return response
+                              payload=f"Error executing operation '{request_name}' in '{ins_name}'. Error: {e}")
+
+            return Packet(intent=PacketIntent.CONTROL,
+                          request=f"{ins_name}:OPERATION:{request_name}",
+                          source=self.name,
+                          destination=packet.source,
+                          payload=operation_ret)
 
         if request_type == "PARAMETER":
 
             if request_name not in instrument.parameters:
-                response = Packet(intent=PacketIntent.ERROR,
-                                  request="ERROR",
-                                  source=self.name,
-                                  destination=packet.source,
-                                  payload=f"Parameter '{request_name}' not found in '{ins_name}'")
-                return response
-
-            args, kwargs = packet.payload
+                return Packet(intent=PacketIntent.ERROR,
+                              request="ERROR",
+                              source=self.name,
+                              destination=packet.source,
+                              payload=f"Parameter '{request_name}' not found in '{ins_name}'")
 
             # Check if this is just reading the parameter or setting it.
             if len(args) == 0 and len(kwargs) == 0:
                 try:
                     parameter_ret = getattr(instrument, request_name)
                 except AttributeError as e:
-                    response = Packet(intent=PacketIntent.ERROR,
-                                      request="ERROR",
-                                      source=self.name,
-                                      destination=packet.source,
-                                      payload=f"Error reading parameter '{request_name}' in '{ins_name}'. Error: {e}")
-                    return response
-
-                response = Packet(intent=PacketIntent.CONTROL,
-                                  request=f"{ins_name}:PARAMETER:{request_name}",
+                    return Packet(intent=PacketIntent.ERROR,
+                                  request="ERROR",
                                   source=self.name,
                                   destination=packet.source,
-                                  payload=parameter_ret)
-                return response
+                                  payload=f"Error reading parameter '{request_name}' in '{ins_name}'. Error: {e}")
+
+                return Packet(intent=PacketIntent.CONTROL,
+                              request=f"{ins_name}:PARAMETER:{request_name}",
+                              source=self.name,
+                              destination=packet.source,
+                              payload=parameter_ret)
 
             try:
                 setattr(instrument, request_name, *args, **kwargs)
             # TODO: Double check this exception type, I am not entirely sure this would work.
             except AttributeError as e:
-                response = Packet(intent=PacketIntent.ERROR,
-                                  request="ERROR",
-                                  source=self.name,
-                                  destination=packet.source,
-                                  payload=f"Error setting parameter '{request_name}' in '{ins_name}'. Error: {e}")
-                return response
-
-            response = Packet(intent=PacketIntent.CONTROL,
-                              request=f"{ins_name}:PARAMETER:{request_name}",
+                return Packet(intent=PacketIntent.ERROR,
+                              request="ERROR",
                               source=self.name,
                               destination=packet.source,
-                              payload="OK")
-            return response
+                              payload=f"Error setting parameter '{request_name}' in '{ins_name}'. Error: {e}")
 
-        response = Packet(intent=PacketIntent.ERROR,
-                          request="ERROR",
+            return Packet(intent=PacketIntent.CONTROL,
+                          request=f"{ins_name}:PARAMETER:{request_name}",
                           source=self.name,
                           destination=packet.source,
-                          payload=f"Something inside node {self.name} went wrong. "
-                                  f"Check that your packet is correct and try again.")
-        return response
+                          payload="OK")
+
+        return Packet(intent=PacketIntent.ERROR,
+                      request="ERROR",
+                      source=self.name,
+                      destination=packet.source,
+                      payload=f"Something inside node {self.name} went wrong. "
+                              f"Check that your packet is correct and try again.")

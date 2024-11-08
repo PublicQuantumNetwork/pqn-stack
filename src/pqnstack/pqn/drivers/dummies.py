@@ -1,7 +1,12 @@
 import time
 from dataclasses import dataclass
 
-from pqnstack.base.driver import DeviceDriver, DeviceClass, DeviceInfo, DeviceStatus, log_parameter, log_operation
+from pqnstack.base.driver import DeviceClass
+from pqnstack.base.driver import DeviceDriver
+from pqnstack.base.driver import DeviceInfo
+from pqnstack.base.driver import DeviceStatus
+from pqnstack.base.driver import log_operation
+from pqnstack.base.driver import log_parameter
 from pqnstack.base.errors import DeviceNotStartedError
 
 
@@ -53,7 +58,8 @@ class DummyInstrument(DeviceDriver):
     @log_parameter
     def param_int(self) -> int:
         if not self.connected:
-            raise DeviceNotStartedError("Device is not connected.")
+            msg = "Device is not connected."
+            raise DeviceNotStartedError(msg)
 
         return self._param_int
 
@@ -61,7 +67,8 @@ class DummyInstrument(DeviceDriver):
     @log_parameter
     def param_int(self, value: int) -> None:
         if not self.connected:
-            raise DeviceNotStartedError("Device is not connected.")
+            msg = "Device is not connected."
+            raise DeviceNotStartedError(msg)
 
         self._param_int = value
 
@@ -69,7 +76,8 @@ class DummyInstrument(DeviceDriver):
     @log_parameter
     def param_str(self) -> str:
         if not self.connected:
-            raise DeviceNotStartedError("Device is not connected.")
+            msg = "Device is not connected."
+            raise DeviceNotStartedError(msg)
 
         return self._param_str
 
@@ -77,7 +85,8 @@ class DummyInstrument(DeviceDriver):
     @log_parameter
     def param_str(self, value: str) -> None:
         if not self.connected:
-            raise DeviceNotStartedError("Device is not connected.")
+            msg = "Device is not connected."
+            raise DeviceNotStartedError(msg)
 
         self._param_str = value
 
@@ -85,7 +94,8 @@ class DummyInstrument(DeviceDriver):
     @log_parameter
     def param_bool(self) -> bool:
         if not self.connected:
-            raise DeviceNotStartedError("Device is not connected.")
+            msg = "Device is not connected."
+            raise DeviceNotStartedError(msg)
 
         return self._param_bool
 
@@ -93,14 +103,16 @@ class DummyInstrument(DeviceDriver):
     @log_parameter
     def param_bool(self, value: bool) -> None:
         if not self.connected:
-            raise DeviceNotStartedError("Device is not connected.")
+            msg = "Device is not connected."
+            raise DeviceNotStartedError(msg)
 
         self._param_bool = value
 
     @log_operation
     def double_int(self) -> int:
         if not self.connected:
-            raise DeviceNotStartedError("Device is not connected.")
+            msg = "Device is not connected."
+            raise DeviceNotStartedError(msg)
 
         self.param_int *= 2
         return self.param_int
@@ -108,7 +120,8 @@ class DummyInstrument(DeviceDriver):
     @log_operation
     def set_half_input_int(self, value: int) -> int:
         if not self.connected:
-            raise DeviceNotStartedError("Device is not connected.")
+            msg = "Device is not connected."
+            raise DeviceNotStartedError(msg)
 
         self.param_int = value // 2
         return self.param_int
@@ -116,7 +129,8 @@ class DummyInstrument(DeviceDriver):
     @log_operation
     def lowercase_str(self) -> str:
         if not self.connected:
-            raise DeviceNotStartedError("Device is not connected.")
+            msg = "Device is not connected."
+            raise DeviceNotStartedError(msg)
 
         self._param_str = self._param_str.lower()
         return self._param_str
@@ -124,7 +138,8 @@ class DummyInstrument(DeviceDriver):
     @log_operation
     def uppercase_str(self) -> str:
         if not self.connected:
-            raise DeviceNotStartedError("Device is not connected.")
+            msg = "Device is not connected."
+            raise DeviceNotStartedError(msg)
 
         self._param_str = self._param_str.upper()
         return self._param_str
@@ -132,7 +147,8 @@ class DummyInstrument(DeviceDriver):
     @log_operation
     def toggle_bool(self) -> bool:
         if not self.connected:
-            raise DeviceNotStartedError("Device is not connected.")
+            msg = "Device is not connected."
+            raise DeviceNotStartedError(msg)
 
         time.sleep(1.4)
 

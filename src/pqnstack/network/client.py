@@ -4,11 +4,13 @@ import random
 import string
 from types import TracebackType
 from typing import Any
+from typing import Callable
 
 import zmq
 
+from pqnstack.base.driver import DeviceClass
+from pqnstack.base.driver import DeviceDriver
 from pqnstack.base.errors import PacketError
-from pqnstack.base.driver import DeviceDriver, DeviceClass
 from pqnstack.network.packet import NetworkElementClass
 from pqnstack.network.packet import Packet
 from pqnstack.network.packet import PacketIntent
@@ -127,17 +129,6 @@ class InstrumentClient(ClientBase):
         self.instrument_name = instrument_name
         self.node_name = node_name
 
-    def get_device_structure(self):
-        packet = Packet(intent=PacketIntent.DATA,
-                        request="GET_DEVICE_STRUCTURE",
-                        source=self.name,
-                        destination=self.node_name,
-                        payload=self.instrument_name)
-        response = self.ask(packet)
-
-        if response.intent == PacketIntent.ERROR:
-            raise PacketError(str(response))
-
     def trigger_operation(self, operation: str, *args, **kwargs) -> Any:
         packet = Packet(intent=PacketIntent.CONTROL,
                         request=str(self.instrument_name) + ":OPERATION:" + operation,
@@ -146,6 +137,10 @@ class InstrumentClient(ClientBase):
                         payload=(args, kwargs)
                         )
         response = self.ask(packet)
+        if response is None:
+            msg = "No response received."
+            raise PacketError(msg)
+
         return response.payload
 
     def trigger_parameter(self, parameter: str, *args, **kwargs) -> Any:
@@ -155,13 +150,15 @@ class InstrumentClient(ClientBase):
                         destination=self.node_name,
                         payload=(args, kwargs))
         response = self.ask(packet)
+        if response is None:
+            msg = "No response received."
+            raise PacketError(msg)
+
         return response.payload
 
 
 class ProxyInstrument(DeviceDriver):
-    """
-    The address here is the zmq address of the router that the InstrumentClient will talk to.
-    """
+    """The address here is the zmq address of the router that the InstrumentClient will talk to."""
 
     DEVICE_CLASS = DeviceClass.PROXY
 
@@ -173,7 +170,7 @@ class ProxyInstrument(DeviceDriver):
                  node_name: str,
                  router_name: str,
                  parameters: set[str],
-                 operations=set[str]) -> None:
+                 operations: dict[str, Callable]) -> None:
 
         # Boolean used to control when new attributes are being set.
         self._instantiating = True
@@ -206,17 +203,15 @@ class ProxyInstrument(DeviceDriver):
     def __getattr__(self, name: str) -> Any:
         try:
             return super().__getattr__(name)
-        except AttributeError as e:
+        except AttributeError:
             logger.debug("Attribute %s not found in %s. Trying to find it in the client.", name, self.name)
 
         if name in self.operations:
             return lambda *args, **kwargs: self.client.trigger_operation(name, *args, **kwargs)
         if name in self.parameters:
             return self.client.trigger_parameter(name)
-            pass
-        else:
-            msg = f"Attribute '{name}' not found."
-            raise AttributeError(msg)
+        msg = f"Attribute '{name}' not found."
+        raise AttributeError(msg)
 
     def __setattr__(self, name: str, value: Any) -> None:
         # Catch the first iteration
@@ -226,8 +221,8 @@ class ProxyInstrument(DeviceDriver):
         if name in self.parameters:
             self.client.trigger_parameter(name, value)
             return
-
-        raise AttributeError(f"Cannot manually set attributes in a ProxyInstrument")
+        msg = "Cannot manually set attributes in a ProxyInstrument"
+        raise AttributeError(msg)
 
     def start(self) -> None:
         pass

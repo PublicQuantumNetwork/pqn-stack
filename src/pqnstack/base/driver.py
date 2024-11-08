@@ -6,6 +6,7 @@
 import atexit
 import datetime
 import logging
+from typing import Any
 from abc import ABC
 from abc import abstractmethod
 from collections.abc import Callable
@@ -47,6 +48,8 @@ class DeviceInfo:
 
 class DeviceDriver(ABC):
     """
+    Base class for all drivers in the PQN stack.
+
     Some rules for drivers:
 
       * You cannot use the character `:` in the names of instruments. This is used to separate parts of requests in
@@ -54,6 +57,7 @@ class DeviceDriver(ABC):
 
 
     """
+
     DEVICE_CLASS: DeviceClass = DeviceClass.TESTING
 
     def __init__(self, name: str, desc: str, address: str) -> None:
@@ -77,6 +81,12 @@ class DeviceDriver(ABC):
 
     @abstractmethod
     def close(self) -> None: ...
+
+    def __setattr__(self, key: str, value: Any) -> None:
+        super().__setattr__(key, value)
+
+    def __getattr__(self, key: str) -> Any:
+        return super().__getattr__(key)
 
 
 def log_operation(func: Callable) -> Callable:

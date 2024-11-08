@@ -1,6 +1,5 @@
 import logging
 
-from pqnstack.pqn.drivers.dummies import DummyInstrument
 from pqnstack.network.node import Node
 
 logging.basicConfig(level=logging.INFO)

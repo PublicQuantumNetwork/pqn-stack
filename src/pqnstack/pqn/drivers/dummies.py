@@ -18,7 +18,7 @@ class DummyInstrument(DeviceDriver):
     def __init__(self, name: str, desc: str, address: str) -> None:
         super().__init__(name, desc, address)
 
-        self._param_int = 0
+        self._param_int = 2
         self._param_str = "hello"
         self._param_bool = True
 
@@ -26,7 +26,8 @@ class DummyInstrument(DeviceDriver):
         self.operations = {"double_int": self.double_int,
                            "lowercase_str": self.lowercase_str,
                            "uppercase_str": self.uppercase_str,
-                           "toggle_bool": self.toggle_bool}
+                           "toggle_bool": self.toggle_bool,
+                           "set_half_input_int": self.set_half_input_int}
 
         self.connected = False
 
@@ -101,8 +102,16 @@ class DummyInstrument(DeviceDriver):
         if not self.connected:
             raise DeviceNotStartedError("Device is not connected.")
 
-        self._param_int *= 2
-        return self._param_int
+        self.param_int *= 2
+        return self.param_int
+
+    @log_operation
+    def set_half_input_int(self, value: int) -> int:
+        if not self.connected:
+            raise DeviceNotStartedError("Device is not connected.")
+
+        self.param_int = value // 2
+        return self.param_int
 
     @log_operation
     def lowercase_str(self) -> str:

@@ -99,6 +99,7 @@ class Node:
 
             try:
                 ins = class_(name=ins_name, desc=ins_desc, address=ins_address, **ins_dict)
+                ins.start()
             # FIXME: Figure out what the exception type could be if the instrument cannot be instantiated.
             except Exception as e:
                 msg = f"Could not instantiate {ins_import}. Please verify the parameters for this instrument."
@@ -153,6 +154,11 @@ class Node:
                             case "GET_DEVICE_STRUCTURE":
                                 response = self._handle_get_device_structure(packet)
                                 self.socket.send(pickle.dumps(response))
+
+                    case PacketIntent.CONTROL:
+                        response = self._handle_instrument_control(packet)
+                        self.socket.send(pickle.dumps(response))
+
         finally:
             self.socket.close()
 
@@ -172,7 +178,6 @@ class Node:
                           request="PONG",
                           source=self.name,
                           destination=packet.source,
-                          hops=0,
                           payload=None)
         return response
 
@@ -182,7 +187,6 @@ class Node:
                           request="GET_DEVICES",
                           source=self.name,
                           destination=packet.source,
-                          hops=0,
                           payload=ret_instruments)
         return response
 
@@ -193,7 +197,6 @@ class Node:
                               request="ERROR",
                               source=self.name,
                               destination=packet.source,
-                              hops=0,
                               payload=f"Instrument '{packet.payload}' not found.")
             return response
 
@@ -203,7 +206,6 @@ class Node:
                               request="ERROR",
                               source=self.name,
                               destination=packet.source,
-                              hops=0,
                               payload=f"Payload must be the instrument name as a string, not {type(ins_name)}")
             return response
 
@@ -222,7 +224,63 @@ class Node:
                           request="GET_DEVICE_STRUCTURE",
                           source=self.name,
                           destination=packet.source,
-                          hops=0,
                           payload=payload)
         return response
+
+    def _handle_instrument_control(self, packet: Packet) -> Packet:
+
+        request_parts = packet.request.split(":")
+        if len(request_parts) != 3:
+            response = Packet(intent=PacketIntent.ERROR,
+                              request="ERROR",
+                              source=self.name,
+                              destination=packet.source,
+                              payload=f"CONTROL packets should have 3 parts, not {len(request_parts)}, formatted as: "
+                                      f"'<instrument_name>:<OPERATION> or <PARAMETER>:<Operation/Parameter name>")
+            return response
+
+        ins_name, request_type, request_name = request_parts
+        if ins_name not in self.instantiated_instruments:
+            response = Packet(intent=PacketIntent.ERROR,
+                              request="ERROR",
+                              source=self.name,
+                              destination=packet.source,
+                              payload=f"Instrument '{ins_name}' not found.")
+            return response
+        instrument = self.instantiated_instruments[ins_name]
+
+        if request_type not in ["OPERATION", "PARAMETER"]:
+            response = Packet(intent=PacketIntent.ERROR,
+                              request="ERROR",
+                              source=self.name,
+                              destination=packet.source,
+                              payload=f"Request type must be either 'OPERATION' or 'PARAMETER', not {request_type}")
+            return response
+
+        if request_type == "OPERATION":
+            if request_name not in instrument.operations:
+                response = Packet(intent=PacketIntent.ERROR,
+                                  request="ERROR",
+                                  source=self.name,
+                                  destination=packet.source,
+                                  payload=f"Operation '{request_name}' not found in '{ins_name}'")
+                return response
+            args, kwargs = packet.payload
+
+            try:
+                operation_ret = instrument.operations[request_name](*args, **kwargs)
+            except Exception as e:
+                response = Packet(intent=PacketIntent.ERROR,
+                                  request="ERROR",
+                                  source=self.name,
+                                  destination=packet.source,
+                                  payload=f"Error executing operation '{request_name}' in '{ins_name}'. Error: {e}")
+                return response
+
+            response = Packet(intent=PacketIntent.CONTROL,
+                              request=f"{ins_name}:OPERATION:{request_name}",
+                              source=self.name,
+                              destination=packet.source,
+                              payload=operation_ret)
+            return response
 

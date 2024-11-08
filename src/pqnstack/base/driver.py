@@ -46,7 +46,14 @@ class DeviceInfo:
 
 
 class DeviceDriver(ABC):
+    """
+    Some rules for drivers:
 
+      * You cannot use the character `:` in the names of instruments. This is used to separate parts of requests in
+        proxy instruments.
+
+
+    """
     DEVICE_CLASS: DeviceClass = DeviceClass.TESTING
 
     def __init__(self, name: str, desc: str, address: str) -> None:

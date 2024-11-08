@@ -20,7 +20,7 @@ class NetworkElementClass(Enum):
 
 class PacketIntent(Enum):
     DATA = auto()
-    OPERATION = auto()
+    PROTOCOL = auto()
     CONTROL = auto()
     REGISTRATION = auto()
     REGISTRATION_ACK = auto()

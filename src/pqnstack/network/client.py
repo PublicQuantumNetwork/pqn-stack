@@ -3,6 +3,7 @@ import pickle
 import random
 import string
 from types import TracebackType
+from typing import Any
 
 import zmq
 
@@ -107,6 +108,9 @@ class ClientBase:
         ret = pickle.loads(response)
         logger.debug("Response received.")
         logger.debug("Response: %s", str(ret))
+        if ret.intent == PacketIntent.ERROR:
+            raise PacketError(str(ret))
+
         return ret
 
 
@@ -133,6 +137,25 @@ class InstrumentClient(ClientBase):
 
         if response.intent == PacketIntent.ERROR:
             raise PacketError(str(response))
+
+    def trigger_operation(self, operation: str, *args, **kwargs) -> Any:
+        packet = Packet(intent=PacketIntent.CONTROL,
+                        request=str(self.instrument_name) + ":OPERATION:" + operation,
+                        source=self.name,
+                        destination=self.node_name,
+                        payload=(args, kwargs)
+                        )
+        response = self.ask(packet)
+        return response.payload
+
+    def trigger_parameter(self, parameter: str, value: Any) -> Any:
+        packet = Packet(intent=PacketIntent.CONTROL,
+                        request=str(self.instrument_name) + ":PARAMETER:" + parameter,
+                        source=self.name,
+                        destination=self.node_name,
+                        payload=value)
+        response = self.ask(packet)
+        return response.payload
 
 
 class ProxyInstrument(DeviceDriver):
@@ -165,7 +188,7 @@ class ProxyInstrument(DeviceDriver):
 
         # The client's name is the instrument name with "_client" appended and a random 6 character string appended.
         # This is to avoid any potential conflicts with other clients.
-        client_name = name + "_client".join(
+        client_name = name + "_client_" + "".join(
             random.choices(string.ascii_uppercase + string.ascii_lowercase + string.digits, k=6))
 
         self.client = InstrumentClient(name=client_name,
@@ -175,11 +198,28 @@ class ProxyInstrument(DeviceDriver):
                                        instrument_name=name,
                                        node_name=self.node_name)
 
+    def __getattr__(self, name: str) -> Any:
+        try:
+            print(F'Name: {name}')
+            return super().__getattr__(name)
+        except AttributeError as e:
+            logger.debug("Attribute %s not found in %s. Trying to find it in the client.", name, self.name)
+            raise e
+
+        if name in self.operations:
+            return lambda *args, **kwargs: self.client.trigger_operation(name, *args, **kwargs)
+        if name in self.parameters:
+            return self.client.trigger_parameter(name)
+            pass
+        else:
+            msg = f"Attribute '{name}' not found."
+            raise AttributeError(msg)
+
     def start(self) -> None:
         pass
 
     def close(self) -> None:
-        pass
+        self.client.disconnect()
 
     def info(self) -> None:
         pass

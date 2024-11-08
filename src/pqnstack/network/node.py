@@ -284,3 +284,59 @@ class Node:
                               payload=operation_ret)
             return response
 
+        if request_type == "PARAMETER":
+
+            if request_name not in instrument.parameters:
+                response = Packet(intent=PacketIntent.ERROR,
+                                  request="ERROR",
+                                  source=self.name,
+                                  destination=packet.source,
+                                  payload=f"Parameter '{request_name}' not found in '{ins_name}'")
+                return response
+
+            args, kwargs = packet.payload
+
+            # Check if this is just reading the parameter or setting it.
+            if len(args) == 0 and len(kwargs) == 0:
+                try:
+                    parameter_ret = getattr(instrument, request_name)
+                except AttributeError as e:
+                    response = Packet(intent=PacketIntent.ERROR,
+                                      request="ERROR",
+                                      source=self.name,
+                                      destination=packet.source,
+                                      payload=f"Error reading parameter '{request_name}' in '{ins_name}'. Error: {e}")
+                    return response
+
+                response = Packet(intent=PacketIntent.CONTROL,
+                                  request=f"{ins_name}:PARAMETER:{request_name}",
+                                  source=self.name,
+                                  destination=packet.source,
+                                  payload=parameter_ret)
+                return response
+
+            try:
+                setattr(instrument, request_name, *args, **kwargs)
+            # TODO: Double check this exception type, I am not entirely sure this would work.
+            except AttributeError as e:
+                response = Packet(intent=PacketIntent.ERROR,
+                                  request="ERROR",
+                                  source=self.name,
+                                  destination=packet.source,
+                                  payload=f"Error setting parameter '{request_name}' in '{ins_name}'. Error: {e}")
+                return response
+
+            response = Packet(intent=PacketIntent.CONTROL,
+                              request=f"{ins_name}:PARAMETER:{request_name}",
+                              source=self.name,
+                              destination=packet.source,
+                              payload="OK")
+            return response
+
+        response = Packet(intent=PacketIntent.ERROR,
+                          request="ERROR",
+                          source=self.name,
+                          destination=packet.source,
+                          payload=f"Something inside node {self.name} went wrong. "
+                                  f"Check that your packet is correct and try again.")
+        return response

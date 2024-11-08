@@ -148,12 +148,12 @@ class InstrumentClient(ClientBase):
         response = self.ask(packet)
         return response.payload
 
-    def trigger_parameter(self, parameter: str, value: Any) -> Any:
+    def trigger_parameter(self, parameter: str, *args, **kwargs) -> Any:
         packet = Packet(intent=PacketIntent.CONTROL,
                         request=str(self.instrument_name) + ":PARAMETER:" + parameter,
                         source=self.name,
                         destination=self.node_name,
-                        payload=value)
+                        payload=(args, kwargs))
         response = self.ask(packet)
         return response.payload
 
@@ -174,6 +174,9 @@ class ProxyInstrument(DeviceDriver):
                  router_name: str,
                  parameters: set[str],
                  operations=set[str]) -> None:
+
+        # Boolean used to control when new attributes are being set.
+        self._instantiating = True
 
         super().__init__(name, desc, address)
 
@@ -198,13 +201,13 @@ class ProxyInstrument(DeviceDriver):
                                        instrument_name=name,
                                        node_name=self.node_name)
 
+        self._instantiating = False
+
     def __getattr__(self, name: str) -> Any:
         try:
-            print(F'Name: {name}')
             return super().__getattr__(name)
         except AttributeError as e:
             logger.debug("Attribute %s not found in %s. Trying to find it in the client.", name, self.name)
-            raise e
 
         if name in self.operations:
             return lambda *args, **kwargs: self.client.trigger_operation(name, *args, **kwargs)
@@ -214,6 +217,17 @@ class ProxyInstrument(DeviceDriver):
         else:
             msg = f"Attribute '{name}' not found."
             raise AttributeError(msg)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        # Catch the first iteration
+        if name == "_instantiating" or self._instantiating:
+            super().__setattr__(name, value)
+            return
+        if name in self.parameters:
+            self.client.trigger_parameter(name, value)
+            return
+
+        raise AttributeError(f"Cannot manually set attributes in a ProxyInstrument")
 
     def start(self) -> None:
         pass

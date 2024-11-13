@@ -6,7 +6,6 @@
 import atexit
 import datetime
 import logging
-from typing import Any
 from abc import ABC
 from abc import abstractmethod
 from collections.abc import Callable
@@ -15,6 +14,7 @@ from enum import Enum
 from enum import StrEnum
 from enum import auto
 from functools import wraps
+from typing import Any
 
 from pqnstack.base.errors import LogDecoratorOutsideOfClassError
 
@@ -84,9 +84,6 @@ class DeviceDriver(ABC):
 
     def __setattr__(self, key: str, value: Any) -> None:
         super().__setattr__(key, value)
-
-    def __getattr__(self, key: str) -> Any:
-        return super().__getattr__(key)
 
 
 def log_operation(func: Callable) -> Callable:

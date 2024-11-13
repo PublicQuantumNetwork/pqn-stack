@@ -239,8 +239,10 @@ class Node:
                           request="ERROR",
                           source=self.name,
                           destination=packet.source,
-                          payload=f"CONTROL packets should have 3 parts, not {len(request_parts)}, formatted as: "
-                                  f"'<instrument_name>:<OPERATION> or <PARAMETER>:<Operation/Parameter name>")
+                          payload=f"CONTROL packets should have a request field with 3 parts divided by a ':', "
+                                  f"not {len(request_parts)}, formatted as:"
+                                  f"'<instrument_name>:<OPERATION/PARAMETER/INFO>:<Operation/Parameter name/empty for "
+                                  f"info>")
 
         ins_name, request_type, request_name = request_parts
         if ins_name not in self.instantiated_instruments:
@@ -252,14 +254,20 @@ class Node:
 
         instrument = self.instantiated_instruments[ins_name]
 
-        if request_type not in ["OPERATION", "PARAMETER"]:
+        if request_type not in ["OPERATION", "PARAMETER", "INFO"]:
             return Packet(intent=PacketIntent.ERROR,
                           request="ERROR",
                           source=self.name,
                           destination=packet.source,
-                          payload=f"Request type must be either 'OPERATION' or 'PARAMETER', not {request_type}")
+                          payload=f"Request type must be either 'OPERATION', 'PARAMETER', 'INFO', not {request_type}")
 
-        assert isinstance(packet.payload, tuple)
+        if not isinstance(packet.payload, tuple):
+            return Packet(intent=PacketIntent.ERROR,
+                          request="ERROR",
+                          source=self.name,
+                          destination=packet.source,
+                          payload=f"Payload must be a tuple with the arguments and kwargs (have empty args and kwargs "
+                                  f"if not necessary) for the operation or parameter, not {type(packet.payload)}")
         args, kwargs = packet.payload
 
         if request_type == "OPERATION":
@@ -326,6 +334,13 @@ class Node:
                           source=self.name,
                           destination=packet.source,
                           payload="OK")
+
+        if request_type == "INFO":
+            return Packet(intent=PacketIntent.CONTROL,
+                          request=f"{ins_name}:INFO",
+                          source=self.name,
+                          destination=packet.source,
+                          payload=instrument.info())
 
         return Packet(intent=PacketIntent.ERROR,
                       request="ERROR",

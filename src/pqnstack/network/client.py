@@ -2,14 +2,15 @@ import logging
 import pickle
 import random
 import string
+from collections.abc import Callable
 from types import TracebackType
 from typing import Any
-from typing import Callable
 
 import zmq
 
 from pqnstack.base.driver import DeviceClass
 from pqnstack.base.driver import DeviceDriver
+from pqnstack.base.driver import DeviceInfo
 from pqnstack.base.errors import PacketError
 from pqnstack.network.packet import NetworkElementClass
 from pqnstack.network.packet import Packet
@@ -156,6 +157,23 @@ class InstrumentClient(ClientBase):
 
         return response.payload
 
+    def get_info(self) -> DeviceInfo:
+        packet = Packet(intent=PacketIntent.CONTROL,
+                        request=str(self.instrument_name) + ":INFO:",
+                        source=self.name,
+                        destination=self.node_name,
+                        payload=((), {}))
+        response = self.ask(packet)
+        if response is None:
+            msg = "No response received."
+            raise PacketError(msg)
+
+        if not isinstance(response.payload, DeviceInfo):
+            msg = "Asking for info to proxy driver did not get a DeviceInfo object."
+            raise PacketError(msg)
+
+        return response.payload
+
 
 class ProxyInstrument(DeviceDriver):
     """The address here is the zmq address of the router that the InstrumentClient will talk to."""
@@ -201,11 +219,6 @@ class ProxyInstrument(DeviceDriver):
         self._instantiating = False
 
     def __getattr__(self, name: str) -> Any:
-        try:
-            return super().__getattr__(name)
-        except AttributeError:
-            logger.debug("Attribute %s not found in %s. Trying to find it in the client.", name, self.name)
-
         if name in self.operations:
             return lambda *args, **kwargs: self.client.trigger_operation(name, *args, **kwargs)
         if name in self.parameters:
@@ -230,8 +243,8 @@ class ProxyInstrument(DeviceDriver):
     def close(self) -> None:
         self.client.disconnect()
 
-    def info(self) -> None:
-        pass
+    def info(self) -> DeviceInfo:
+        return self.client.get_info()
 
 
 class Client(ClientBase):
@@ -253,8 +266,10 @@ class Client(ClientBase):
                         hops=0,
                         payload=None)
         response = self.ask(packet)
+
         if response is None:
-            return {}
+            msg = "Timeout occurred."
+            raise PacketError(msg)
 
         assert isinstance(response.payload, dict)
         return response.payload
@@ -268,13 +283,18 @@ class Client(ClientBase):
                         payload=device_name)
 
         response = self.ask(packet)
+
+        if response is None:
+            msg = "Timeout occurred."
+            raise PacketError(msg)
+
         if response.intent == PacketIntent.ERROR:
             raise PacketError(str(response))
 
         assert isinstance(response.payload, dict)
 
         return ProxyInstrument(host=self.host,
-                               port=self.port,
+                               port=str(self.port),
                                node_name=node_name,
                                router_name=self.router_name,
                                **response.payload)

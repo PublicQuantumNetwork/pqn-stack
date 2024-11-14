@@ -21,13 +21,14 @@ logger = logging.getLogger(__name__)
 
 
 class ClientBase:
-
-    def __init__(self, name: str = "",
-                 host: str = "127.0.0.1",
-                 port: int | str = 5555,
-                 router_name: str = "router1",
-                 timeout: int = 5000) -> None:
-
+    def __init__(
+        self,
+        name: str = "",
+        host: str = "127.0.0.1",
+        port: int | str = 5555,
+        router_name: str = "router1",
+        timeout: int = 5000,
+    ) -> None:
         if name == "":
             name = "".join(random.choices(string.ascii_uppercase + string.ascii_lowercase + string.digits, k=6))
         self.name = name
@@ -50,9 +51,9 @@ class ClientBase:
             self.connect()
         return self
 
-    def __exit__(self, exc_type: type[BaseException] | None,
-                 exc_val: BaseException | None,
-                 exc_tb: TracebackType | None) -> None:
+    def __exit__(
+        self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: TracebackType | None
+    ) -> None:
         self.disconnect()
 
     def connect(self) -> None:
@@ -64,10 +65,9 @@ class ClientBase:
         self.socket.connect(self.address)
         self.connected = True
 
-        reg_packet = create_registration_packet(source=self.name,
-                                                destination=self.router_name,
-                                                payload=NetworkElementClass.CLIENT,
-                                                hops=0)
+        reg_packet = create_registration_packet(
+            source=self.name, destination=self.router_name, payload=NetworkElementClass.CLIENT, hops=0
+        )
         ret = self.ask(reg_packet)
         if ret is None:
             msg = "Something went wrong with the registration."
@@ -118,25 +118,22 @@ class ClientBase:
 
 
 class InstrumentClient(ClientBase):
-
-    def __init__(self, name: str,
-                 host: str,
-                 port: int | str,
-                 router_name: str,
-                 instrument_name: str,
-                 node_name: str) -> None:
+    def __init__(
+        self, name: str, host: str, port: int | str, router_name: str, instrument_name: str, node_name: str
+    ) -> None:
         super().__init__(name, host, port, router_name)
 
         self.instrument_name = instrument_name
         self.node_name = node_name
 
     def trigger_operation(self, operation: str, *args, **kwargs) -> Any:
-        packet = Packet(intent=PacketIntent.CONTROL,
-                        request=str(self.instrument_name) + ":OPERATION:" + operation,
-                        source=self.name,
-                        destination=self.node_name,
-                        payload=(args, kwargs)
-                        )
+        packet = Packet(
+            intent=PacketIntent.CONTROL,
+            request=str(self.instrument_name) + ":OPERATION:" + operation,
+            source=self.name,
+            destination=self.node_name,
+            payload=(args, kwargs),
+        )
         response = self.ask(packet)
         if response is None:
             msg = "No response received."
@@ -145,11 +142,13 @@ class InstrumentClient(ClientBase):
         return response.payload
 
     def trigger_parameter(self, parameter: str, *args, **kwargs) -> Any:
-        packet = Packet(intent=PacketIntent.CONTROL,
-                        request=str(self.instrument_name) + ":PARAMETER:" + parameter,
-                        source=self.name,
-                        destination=self.node_name,
-                        payload=(args, kwargs))
+        packet = Packet(
+            intent=PacketIntent.CONTROL,
+            request=str(self.instrument_name) + ":PARAMETER:" + parameter,
+            source=self.name,
+            destination=self.node_name,
+            payload=(args, kwargs),
+        )
         response = self.ask(packet)
         if response is None:
             msg = "No response received."
@@ -158,11 +157,13 @@ class InstrumentClient(ClientBase):
         return response.payload
 
     def get_info(self) -> DeviceInfo:
-        packet = Packet(intent=PacketIntent.CONTROL,
-                        request=str(self.instrument_name) + ":INFO:",
-                        source=self.name,
-                        destination=self.node_name,
-                        payload=((), {}))
+        packet = Packet(
+            intent=PacketIntent.CONTROL,
+            request=str(self.instrument_name) + ":INFO:",
+            source=self.name,
+            destination=self.node_name,
+            payload=((), {}),
+        )
         response = self.ask(packet)
         if response is None:
             msg = "No response received."
@@ -180,16 +181,18 @@ class ProxyInstrument(DeviceDriver):
 
     DEVICE_CLASS = DeviceClass.PROXY
 
-    def __init__(self, name: str,
-                 desc: str,
-                 address: str,
-                 host: str,
-                 port: str,
-                 node_name: str,
-                 router_name: str,
-                 parameters: set[str],
-                 operations: dict[str, Callable]) -> None:
-
+    def __init__(
+        self,
+        name: str,
+        desc: str,
+        address: str,
+        host: str,
+        port: str,
+        node_name: str,
+        router_name: str,
+        parameters: set[str],
+        operations: dict[str, Callable],
+    ) -> None:
         # Boolean used to control when new attributes are being set.
         self._instantiating = True
 
@@ -206,15 +209,20 @@ class ProxyInstrument(DeviceDriver):
 
         # The client's name is the instrument name with "_client" appended and a random 6 character string appended.
         # This is to avoid any potential conflicts with other clients.
-        client_name = name + "_client_" + "".join(
-            random.choices(string.ascii_uppercase + string.ascii_lowercase + string.digits, k=6))
+        client_name = (
+            name
+            + "_client_"
+            + "".join(random.choices(string.ascii_uppercase + string.ascii_lowercase + string.digits, k=6))
+        )
 
-        self.client = InstrumentClient(name=client_name,
-                                       host=self.host,
-                                       port=self.port,
-                                       router_name=self.router_name,
-                                       instrument_name=name,
-                                       node_name=self.node_name)
+        self.client = InstrumentClient(
+            name=client_name,
+            host=self.host,
+            port=self.port,
+            router_name=self.router_name,
+            instrument_name=name,
+            node_name=self.node_name,
+        )
 
         self._instantiating = False
 
@@ -248,23 +256,21 @@ class ProxyInstrument(DeviceDriver):
 
 
 class Client(ClientBase):
-
     def ping(self, destination: str) -> Packet | None:
-        ping_packet = Packet(intent=PacketIntent.PING,
-                             request="PING",
-                             source=self.name,
-                             destination=destination,
-                             hops=0,
-                             payload=None)
+        ping_packet = Packet(
+            intent=PacketIntent.PING, request="PING", source=self.name, destination=destination, hops=0, payload=None
+        )
         return self.ask(ping_packet)
 
     def get_available_devices(self, node_name: str) -> dict[str, str]:
-        packet = Packet(intent=PacketIntent.DATA,
-                        request="GET_DEVICES",
-                        source=self.name,
-                        destination=node_name,
-                        hops=0,
-                        payload=None)
+        packet = Packet(
+            intent=PacketIntent.DATA,
+            request="GET_DEVICES",
+            source=self.name,
+            destination=node_name,
+            hops=0,
+            payload=None,
+        )
         response = self.ask(packet)
 
         if response is None:
@@ -275,12 +281,13 @@ class Client(ClientBase):
         return response.payload
 
     def get_device(self, node_name: str, device_name: str) -> DeviceDriver:
-
-        packet = Packet(intent=PacketIntent.DATA,
-                        request="GET_DEVICE_STRUCTURE",
-                        source=self.name,
-                        destination=node_name,
-                        payload=device_name)
+        packet = Packet(
+            intent=PacketIntent.DATA,
+            request="GET_DEVICE_STRUCTURE",
+            source=self.name,
+            destination=node_name,
+            payload=device_name,
+        )
 
         response = self.ask(packet)
 
@@ -293,12 +300,6 @@ class Client(ClientBase):
 
         assert isinstance(response.payload, dict)
 
-        return ProxyInstrument(host=self.host,
-                               port=str(self.port),
-                               node_name=node_name,
-                               router_name=self.router_name,
-                               **response.payload)
-
-
-
-
+        return ProxyInstrument(
+            host=self.host, port=str(self.port), node_name=node_name, router_name=self.router_name, **response.payload
+        )

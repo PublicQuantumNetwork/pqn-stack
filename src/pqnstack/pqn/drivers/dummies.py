@@ -28,23 +28,27 @@ class DummyInstrument(DeviceDriver):
         self._param_bool = True
 
         self.parameters = {"param_int", "param_str", "param_bool"}
-        self.operations = {"double_int": self.double_int,
-                           "lowercase_str": self.lowercase_str,
-                           "uppercase_str": self.uppercase_str,
-                           "toggle_bool": self.toggle_bool,
-                           "set_half_input_int": self.set_half_input_int}
+        self.operations = {
+            "double_int": self.double_int,
+            "lowercase_str": self.lowercase_str,
+            "uppercase_str": self.uppercase_str,
+            "toggle_bool": self.toggle_bool,
+            "set_half_input_int": self.set_half_input_int,
+        }
 
         self.connected = False
 
     def info(self) -> DummyInfo:
-        return DummyInfo(self.name,
-                         self.desc,
-                         self.address,
-                         self.DEVICE_CLASS,
-                         self.status,
-                         self.param_int,
-                         self.param_str,
-                         self.param_bool)
+        return DummyInfo(
+            self.name,
+            self.desc,
+            self.address,
+            self.DEVICE_CLASS,
+            self.status,
+            self.param_int,
+            self.param_str,
+            self.param_bool,
+        )
 
     def start(self) -> None:
         self.connected = True

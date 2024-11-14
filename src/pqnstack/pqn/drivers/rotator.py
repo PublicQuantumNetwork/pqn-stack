@@ -31,7 +31,6 @@ class RotatorInfo(DeviceInfo):
 
 
 class Rotator(DeviceDriver):
-
     DEVICE_CLASS = DeviceClass.MOTOR
 
     def __init__(self, name: str, desc: str, address: str, *args, **kwargs) -> None:
@@ -61,15 +60,15 @@ class Rotator(DeviceDriver):
 
 
 class APTRotator(Rotator):
-
-    def __init__(self, name: str, desc: str, address: str, offset_degrees: float = 0.0,
-                 block_while_moving: bool = True) -> None:
+    def __init__(
+        self, name: str, desc: str, address: str, offset_degrees: float = 0.0, block_while_moving: bool = True
+    ) -> None:
         super().__init__(name, desc, address)
 
         self.block_while_moving = block_while_moving
 
         self.offset_degrees = offset_degrees
-        self.encoder_units_per_degree = (86384 / 45)
+        self.encoder_units_per_degree = 86384 / 45
 
         # Instrument does not seem to keep track of its position.
         self._degrees = 0.0
@@ -119,8 +118,12 @@ class APTRotator(Rotator):
 
         try:
             time.sleep(0.5)
-            while (self._device.status["moving_forward"] or self._device.status["moving_reverse"] or
-                   self._device.status["jogging_forward"] or self._device.status["jogging_reverse"]):
+            while (
+                self._device.status["moving_forward"]
+                or self._device.status["moving_reverse"]
+                or self._device.status["jogging_forward"]
+                or self._device.status["jogging_reverse"]
+            ):
                 continue
         except KeyboardInterrupt:
             self._device.stop(True)
@@ -143,4 +146,3 @@ class APTRotator(Rotator):
         if self.block_while_moving:
             self._wait_for_stop()
         self.status = DeviceStatus.READY
-

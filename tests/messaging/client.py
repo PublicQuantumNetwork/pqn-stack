@@ -19,7 +19,7 @@ if __name__ == "__main__":
     # Create instrument proxy
     instrument = c.get_device("node1", "dummy1")
     logger.info(instrument)
-    logger.info('I should have the proxy object here: %s', type(instrument))
+    logger.info("I should have the proxy object here: %s", type(instrument))
 
     # Call a method on the instrument
     ret = instrument.double_int()
@@ -53,6 +53,6 @@ if __name__ == "__main__":
     try:
         instrument.new_attr = 348
     except AttributeError as e:
-        logger.info('Caught exception: %s cannot set parameter', e)
+        logger.info("Caught exception: %s cannot set parameter", e)
 
-    logger.info('Proxy instrument seems to be working correctly.')
+    logger.info("Proxy instrument seems to be working correctly.")

@@ -16,10 +16,13 @@ logger = logging.getLogger(__name__)
 
 
 class Node:
-    def __init__(self, name: str,
-                 host: str = "localhost",
-                 port: int | str = 5555,
-                 router_name: str = "router1",) -> None:
+    def __init__(
+        self,
+        name: str,
+        host: str = "localhost",
+        port: int | str = 5555,
+        router_name: str = "router1",
+    ) -> None:
         self.name = name
         self.host = host
         self.port = port
@@ -31,7 +34,6 @@ class Node:
         self.running = False
 
     def start(self) -> None:
-
         logger.info("Starting node %s at %s", self.name, self.address)
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.DEALER)
@@ -39,10 +41,9 @@ class Node:
 
         try:
             self.socket.connect(self.address)
-            reg_packet = create_registration_packet(source=self.name,
-                                                    destination=self.router_name,
-                                                    payload=NetworkElementClass.NODE,
-                                                    hops=0)
+            reg_packet = create_registration_packet(
+                source=self.name, destination=self.router_name, payload=NetworkElementClass.NODE, hops=0
+            )
             self.socket.send(pickle.dumps(reg_packet))
             _, pickled_packet = self.socket.recv_multipart()
             packet = pickle.loads(pickled_packet)
@@ -62,12 +63,14 @@ class Node:
 
                 if packet.intent == PacketIntent.PING:
                     logger.info("Received ping from %s", packet.source)
-                    response = Packet(intent=PacketIntent.PING,
-                                      request="PONG",
-                                      source=self.name,
-                                      destination=packet.source,
-                                      hops=0,
-                                      payload=None)
+                    response = Packet(
+                        intent=PacketIntent.PING,
+                        request="PONG",
+                        source=self.name,
+                        destination=packet.source,
+                        hops=0,
+                        payload=None,
+                    )
                     self.socket.send(pickle.dumps(response))
 
         finally:

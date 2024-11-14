@@ -38,5 +38,3 @@ class PacketError(Exception):
     def __init__(self, message: str = "Packet error") -> None:
         self.message = message
         super().__init__(self.message)
-
-

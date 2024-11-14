@@ -15,13 +15,14 @@ logger = logging.getLogger(__name__)
 
 
 class ClientBase:
-
-    def __init__(self, name: str = "",
-                 host: str = "127.0.0.1",
-                 port: int | str = 5555,
-                 router_name: str = "router1",
-                 timeout: int = 5000) -> None:
-
+    def __init__(
+        self,
+        name: str = "",
+        host: str = "127.0.0.1",
+        port: int | str = 5555,
+        router_name: str = "router1",
+        timeout: int = 5000,
+    ) -> None:
         if name == "":
             name = "".join(random.choices(string.ascii_uppercase + string.ascii_lowercase + string.digits, k=6))
         self.name = name
@@ -44,9 +45,9 @@ class ClientBase:
             self.connect()
         return self
 
-    def __exit__(self, exc_type: type[BaseException] | None,
-                 exc_val: BaseException | None,
-                 exc_tb: TracebackType | None) -> None:
+    def __exit__(
+        self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: TracebackType | None
+    ) -> None:
         self.disconnect()
 
     def connect(self) -> None:
@@ -58,10 +59,9 @@ class ClientBase:
         self.socket.connect(self.address)
         self.connected = True
 
-        reg_packet = create_registration_packet(source=self.name,
-                                                destination=self.router_name,
-                                                payload=NetworkElementClass.CLIENT,
-                                                hops=0)
+        reg_packet = create_registration_packet(
+            source=self.name, destination=self.router_name, payload=NetworkElementClass.CLIENT, hops=0
+        )
         ret = self.ask(reg_packet)
         if ret is None:
             msg = "Something went wrong with the registration."
@@ -106,4 +106,3 @@ class ClientBase:
         logger.debug("Response received.")
         logger.debug("Response: %s", str(ret))
         return ret
-

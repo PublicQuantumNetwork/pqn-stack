@@ -57,8 +57,3 @@ def create_registration_packet(**kwargs) -> Packet:
 
     kwargs |= {"intent": PacketIntent.REGISTRATION, "request": "REGISTER"}
     return Packet(**kwargs)
-
-
-
-
-

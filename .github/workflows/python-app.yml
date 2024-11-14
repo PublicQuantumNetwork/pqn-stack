@@ -23,6 +23,8 @@ jobs:
         python-version: 3.12
     - name: Install dependencies
       run: pdm install
+    - name: Check for unformatted files with Ruff
+      run: pdm run ruff format --check
     - name: Lint with Ruff
       run: pdm run ruff check
     - name: Type check with Mypy

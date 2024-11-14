@@ -5,6 +5,7 @@
 
 import logging
 import time
+import serial
 from abc import abstractmethod
 from dataclasses import dataclass
 from typing import Any
@@ -146,3 +147,58 @@ class APTRotator(Rotator):
         if self.block_while_moving:
             self._wait_for_stop()
         self.status = DeviceStatus.READY
+
+
+class HBRotator(Rotator):
+    def __init__(self, name: str, desc: str, address: str, offset_degrees: float = 0.0, block_while_moving: bool = True) -> None:
+        super.__init__(name, desc, address)
+        self.block_while_moving = block_while_moving
+        self.offset_degrees = offset_degrees
+        self._degrees = 0
+        
+
+        self.parameters.add("degrees")
+
+    def close(self) -> None:
+        if self._device is not None:
+            logger.info("Closing house-built rotator")
+            self._device.close()
+        self.status = DeviceStatus.OFF
+
+    def start(self) -> None:
+        self.ard = serial.Serial(address, baudrate = 11520, timeout = 1)
+        self.ard.write(b'open_channel')
+        self.ard.read(100)
+        self.ard.write(b'motor_ready')
+        self.ard.read(100)
+        if self.block_while_moving:
+            time.sleep(0.5)
+            self.wait_for_stop()
+        self.status = DeviceStatus.READY
+
+    def info(self) -> RotatorInfo:
+        return RotatorInfo(
+            name=self.name,
+            desc=self.desc,
+            dtype=self.DEVICE_CLASS,
+            status=self.status,
+            address=self.address,
+            offset_degrees=self.offset_degrees,
+            degrees=self.degrees,
+            rotator_status=self._device.status if self._device is not None else None,
+        )
+
+    def wait_for_stop(self) -> None:
+        while(self.status == DeviceStatus.BUSY):
+            continue
+
+
+
+
+
+
+     
+
+if __name__ == "__main__":
+   
+

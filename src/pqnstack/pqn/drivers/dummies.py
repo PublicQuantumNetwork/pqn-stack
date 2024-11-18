@@ -61,100 +61,55 @@ class DummyInstrument(DeviceDriver):
     @property
     @log_parameter
     def param_int(self) -> int:
-        if not self.connected:
-            msg = "Device is not connected."
-            raise DeviceNotStartedError(msg)
-
         return self._param_int
 
     @param_int.setter
     @log_parameter
     def param_int(self, value: int) -> None:
-        if not self.connected:
-            msg = "Device is not connected."
-            raise DeviceNotStartedError(msg)
-
         self._param_int = value
 
     @property
     @log_parameter
     def param_str(self) -> str:
-        if not self.connected:
-            msg = "Device is not connected."
-            raise DeviceNotStartedError(msg)
-
         return self._param_str
 
     @param_str.setter
     @log_parameter
     def param_str(self, value: str) -> None:
-        if not self.connected:
-            msg = "Device is not connected."
-            raise DeviceNotStartedError(msg)
-
         self._param_str = value
 
     @property
     @log_parameter
     def param_bool(self) -> bool:
-        if not self.connected:
-            msg = "Device is not connected."
-            raise DeviceNotStartedError(msg)
-
         return self._param_bool
 
     @param_bool.setter
     @log_parameter
     def param_bool(self, value: bool) -> None:
-        if not self.connected:
-            msg = "Device is not connected."
-            raise DeviceNotStartedError(msg)
-
         self._param_bool = value
 
     @log_operation
     def double_int(self) -> int:
-        if not self.connected:
-            msg = "Device is not connected."
-            raise DeviceNotStartedError(msg)
-
         self.param_int *= 2
         return self.param_int
 
     @log_operation
     def set_half_input_int(self, value: int) -> int:
-        if not self.connected:
-            msg = "Device is not connected."
-            raise DeviceNotStartedError(msg)
-
         self.param_int = value // 2
         return self.param_int
 
     @log_operation
     def lowercase_str(self) -> str:
-        if not self.connected:
-            msg = "Device is not connected."
-            raise DeviceNotStartedError(msg)
-
         self._param_str = self._param_str.lower()
         return self._param_str
 
     @log_operation
     def uppercase_str(self) -> str:
-        if not self.connected:
-            msg = "Device is not connected."
-            raise DeviceNotStartedError(msg)
-
         self._param_str = self._param_str.upper()
         return self._param_str
 
     @log_operation
     def toggle_bool(self) -> bool:
-        if not self.connected:
-            msg = "Device is not connected."
-            raise DeviceNotStartedError(msg)
-
-        time.sleep(1.4)
-
+        time.sleep(1.4)  # Simulate a long operation
         self._param_bool = not self._param_bool
         return self._param_bool

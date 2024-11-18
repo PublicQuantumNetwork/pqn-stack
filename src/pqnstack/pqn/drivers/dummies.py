@@ -7,7 +7,6 @@ from pqnstack.base.driver import DeviceInfo
 from pqnstack.base.driver import DeviceStatus
 from pqnstack.base.driver import log_operation
 from pqnstack.base.driver import log_parameter
-from pqnstack.base.errors import DeviceNotStartedError
 
 
 @dataclass

@@ -147,9 +147,6 @@ class InstrumentClient(ClientBase):
             self.node_name, self.instrument_name + ":OPERATION:" + operation, (args, kwargs)
         )
         response = self.ask(packet)
-        if response is None:
-            msg = "No response received."
-            raise PacketError(msg)
 
         return response.payload
 
@@ -262,10 +259,6 @@ class Client(ClientBase):
         packet = self.create_data_packet(node_name, "GET_DEVICES", None)
         response = self.ask(packet)
 
-        if response is None:
-            msg = "Timeout occurred."
-            raise PacketError(msg)
-
         assert isinstance(response.payload, dict)
         return response.payload
 
@@ -273,10 +266,6 @@ class Client(ClientBase):
         packet = self.create_data_packet(node_name, "GET_DEVICE_STRUCTURE", device_name)
 
         response = self.ask(packet)
-
-        if response is None:
-            msg = "Timeout occurred."
-            raise PacketError(msg)
 
         if response.intent == PacketIntent.ERROR:
             raise PacketError(str(response))

@@ -116,9 +116,7 @@ class ClientBase:
 
         return ret
 
-    def create_control_packet(
-        self, destination: str, request: str, payload: tuple[tuple, dict[str, Any]]
-    ) -> Packet:
+    def create_control_packet(self, destination: str, request: str, payload: tuple[tuple, dict[str, Any]]) -> Packet:
         return Packet(
             intent=PacketIntent.CONTROL,
             request=request,

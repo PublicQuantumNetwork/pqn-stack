@@ -277,7 +277,7 @@ class Node:
                 msg = f"Error setting parameter '{request_name}' in '{ins_name}'. Error: {e}"
                 return self._create_error_packet(packet.source, msg)
 
-            self._create_control_packet(packet.source, f"{ins_name}:PARAMETER:{request_name}", "OK")
+            return self._create_control_packet(packet.source, f"{ins_name}:PARAMETER:{request_name}", "OK")
 
         if request_type == "INFO":
             return self._create_control_packet(packet.source, f"{ins_name}:INFO", instrument.info())

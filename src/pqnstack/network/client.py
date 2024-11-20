@@ -116,6 +116,24 @@ class ClientBase:
 
         return ret
 
+    def create_control_packet(self, destination, request, payload):
+        return Packet(
+            intent=PacketIntent.CONTROL,
+            request=request,
+            source=self.name,
+            destination=destination,
+            payload=payload,
+        )
+
+    def create_data_packet(self, destination, request, payload):
+        return Packet(
+            intent=PacketIntent.DATA,
+            request=request,
+            source=self.name,
+            destination=destination,
+            payload=payload,
+        )
+
 
 class InstrumentClient(ClientBase):
     def __init__(self, name: str, host: str, port: int, router_name: str, instrument_name: str, node_name: str) -> None:
@@ -125,12 +143,8 @@ class InstrumentClient(ClientBase):
         self.node_name = node_name
 
     def trigger_operation(self, operation: str, *args, **kwargs) -> Any:
-        packet = Packet(
-            intent=PacketIntent.CONTROL,
-            request=self.instrument_name + ":OPERATION:" + operation,
-            source=self.name,
-            destination=self.node_name,
-            payload=(args, kwargs),
+        packet = self.create_control_packet(
+            self.node_name, self.instrument_name + ":OPERATION:" + operation, (args, kwargs)
         )
         response = self.ask(packet)
         if response is None:
@@ -140,25 +154,15 @@ class InstrumentClient(ClientBase):
         return response.payload
 
     def trigger_parameter(self, parameter: str, *args, **kwargs) -> Any:
-        packet = Packet(
-            intent=PacketIntent.CONTROL,
-            request=self.instrument_name + ":PARAMETER:" + parameter,
-            source=self.name,
-            destination=self.node_name,
-            payload=(args, kwargs),
+        packet = self.create_control_packet(
+            self.node_name, self.instrument_name + ":PARAMETER:" + parameter, (args, kwargs)
         )
 
         response = self.ask(packet)
         return response.payload
 
     def get_info(self) -> DeviceInfo:
-        packet = Packet(
-            intent=PacketIntent.CONTROL,
-            request=self.instrument_name + ":INFO:",
-            source=self.name,
-            destination=self.node_name,
-            payload=((), {}),
-        )
+        packet = self.create_control_packet(self.node_name, self.instrument_name + ":INFO:", ((), {}))
 
         response = self.ask(packet)
         if not isinstance(response.payload, DeviceInfo):
@@ -255,14 +259,7 @@ class Client(ClientBase):
         return self.ask(ping_packet)
 
     def get_available_devices(self, node_name: str) -> dict[str, str]:
-        packet = Packet(
-            intent=PacketIntent.DATA,
-            request="GET_DEVICES",
-            source=self.name,
-            destination=node_name,
-            hops=0,
-            payload=None,
-        )
+        packet = self.create_data_packet(node_name, "GET_DEVICES", None)
         response = self.ask(packet)
 
         if response is None:
@@ -273,13 +270,7 @@ class Client(ClientBase):
         return response.payload
 
     def get_device(self, node_name: str, device_name: str) -> DeviceDriver:
-        packet = Packet(
-            intent=PacketIntent.DATA,
-            request="GET_DEVICE_STRUCTURE",
-            source=self.name,
-            destination=node_name,
-            payload=device_name,
-        )
+        packet = self.create_data_packet(node_name, "GET_DEVICE_STRUCTURE", device_name)
 
         response = self.ask(packet)
 

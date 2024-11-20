@@ -5,6 +5,7 @@
 import importlib
 import logging
 import pickle
+from typing import Any
 
 import zmq
 
@@ -197,8 +198,9 @@ class Node:
 
         ins_name = packet.payload
         if not isinstance(ins_name, str):
-            return self._create_error_packet(packet.source,
-                                             f"Payload must be the instrument name as a string, not {type(ins_name)}")
+            return self._create_error_packet(
+                packet.source, f"Payload must be the instrument name as a string, not {type(ins_name)}"
+            )
 
         params = self.instantiated_instruments[ins_name].parameters
         operations = set(self.instantiated_instruments[ins_name].operations.keys())
@@ -222,9 +224,11 @@ class Node:
     def _handle_instrument_control(self, packet: Packet) -> Packet:
         request_parts = packet.request.split(":")
         if len(request_parts) != 3:
-            msg = (f"CONTROL packets should have a request field with 3 parts divided by a ':', "
-                   f"not {len(request_parts)}, formatted as: "
-                   f"<instrument_name>:<OPERATION/PARAMETER/INFO>:<Operation/Parameter name/empty for info>")
+            msg = (
+                f"CONTROL packets should have a request field with 3 parts divided by a ':', "
+                f"not {len(request_parts)}, formatted as: "
+                f"<instrument_name>:<OPERATION/PARAMETER/INFO>:<Operation/Parameter name/empty for info>"
+            )
             return self._create_error_packet(packet.source, msg)
 
         ins_name, request_type, request_name = request_parts
@@ -238,8 +242,10 @@ class Node:
             return self._create_error_packet(packet.source, msg)
 
         if not isinstance(packet.payload, tuple):
-            msg = (f"Payload must be a tuple with the arguments and kwargs (have empty args and kwargs "
-                   f"if not necessary) for the operation or parameter, not {type(packet.payload)}")
+            msg = (
+                f"Payload must be a tuple with the arguments and kwargs (have empty args and kwargs "
+                f"if not necessary) for the operation or parameter, not {type(packet.payload)}"
+            )
             return self._create_error_packet(packet.source, msg)
 
         args, kwargs = packet.payload
@@ -294,7 +300,7 @@ class Node:
             payload=error_msg,
         )
 
-    def _create_control_packet(self, destination, request, payload):
+    def _create_control_packet(self, destination: str, request: str, payload: Any) -> Packet:
         return Packet(
             intent=PacketIntent.CONTROL,
             request=request,

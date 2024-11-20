@@ -1,3 +1,4 @@
+import logging
 import math
 import sys
 import time
@@ -8,11 +9,11 @@ from typing import Protocol
 
 from pyfirmata2 import Arduino
 
-from pqn.logging import logger
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
-class Buffer(Protocol):
+class Buffer:
     _buffer: deque[float]
     normalizing: bool = field(default=False)
     _min: float = field(default=float("inf"), init=False)
@@ -74,8 +75,42 @@ class Polarimeter(Protocol):
     def read(self) -> PolarizationMeasurement: ...
 
 
-@dataclass(slots=True)
-class ArduinoPolarimeter(Polarimeter):
+class PolarimeterDevice(DeviceDriver, Polarimeter):
+    DEVICE_CLASS = DeviceClass.SENSOR
+
+    def __init__(self, name: str, desc: str, address: str, *args, **kwargs) -> None:
+        super().__init__(name, desc, address)
+
+        self.operations["read"] = self.read
+
+    @log_operation
+    def read(self) -> PolarizationMeasurement: ...
+
+    @abstractmethod
+    def info(self) -> DeviceInfo: ...
+
+    @abstractmethod
+    def close(self) -> None: ...
+
+    @abstractmethod
+    def start(self) -> None: ...
+
+
+class ArduinoPolarimeter(PolarimeterDevice):
+    def __init__(
+        self,
+        name: str,
+        desc: str,
+        address: str,
+        board: Arduino,
+        pins: dict[str,int]
+        sample_rate: int
+        average_width: int
+        _buffers: list[Buffer]
+
+    ) -> None:
+        super().__init__(name, desc, address, *args, **kwargs)
+
     board: Arduino = field(default_factory=lambda: Arduino(Arduino.AUTODETECT))
     pins: dict[str, int] = field(default_factory=lambda: dict(zip("hvda", range(4), strict=False)))
     sample_rate: int = 10
@@ -111,6 +146,32 @@ class ArduinoPolarimeter(Polarimeter):
     def read(self) -> PolarizationMeasurement:
         hvda = [buffer.read() for buffer in self._buffers]
         return PolarizationMeasurement(*hvda)
+
+class ArduinoPolarimeterDevice(PolarimeterDevice): #ap = arduinopolarimeter
+    def __init__(self, name: str, desc: str, address: str, ap: ArduinoPolarimeter) -> None:
+        super().__init__(name, desc, address)
+
+        self.ap = ap
+        pm = ap.read()
+        print(pm)
+
+    @log_operation
+    def read(self) -> PolarizationMeasurement:
+        return self.ap.read()
+
+    @abstractmethod
+    def info(self) -> DeviceInfo:
+        
+
+
+    @abstractmethod
+    def close(self) -> None:
+        self.board.exit()
+        logger.info("Polarimeter stopped")
+
+    @abstractmethod
+    def start(self) -> None: ...
+
 
 
 if __name__ == "__main__":

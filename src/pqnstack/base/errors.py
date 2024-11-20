@@ -44,3 +44,9 @@ class InvalidInstrumentsConfigurationError(Exception):
     def __init__(self, message: str = "Invalid instruments configuration") -> None:
         self.message = message
         super().__init__(self.message)
+
+
+class TimeoutError(Exception):
+    def __init__(self, message: str = "Timeout occurred") -> None:
+        self.message = message
+        super().__init__(self.message)

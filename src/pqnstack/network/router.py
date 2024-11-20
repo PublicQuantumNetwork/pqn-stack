@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 # FIXME: handle not finding destination and source better
 class Router:
-    def __init__(self, name: str, host: str = "localhost", port: int | str = 5555) -> None:
+    def __init__(self, name: str, host: str = "localhost", port: int = 5555) -> None:
         self.name = name
         self.host = host
         self.port = port

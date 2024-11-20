@@ -25,7 +25,7 @@ class ClientBase:
         self,
         name: str = "",
         host: str = "127.0.0.1",
-        port: int | str = 5555,
+        port: int = 5555,
         router_name: str = "router1",
         timeout: int = 5000,
     ) -> None:
@@ -88,7 +88,7 @@ class ClientBase:
         self.connected = False
         logger.info("Disconnected from %s", self.address)
 
-    def ask(self, packet: Packet) -> Packet | None:
+    def ask(self, packet: Packet) -> Packet:
         if not self.connected:
             msg = "No connection yet."
             logger.error(msg)
@@ -104,9 +104,9 @@ class ClientBase:
         self.socket.send(pickle.dumps(packet))
         try:
             response = self.socket.recv()
-        except zmq.error.Again:
+        except zmq.error.Again as e:
             logger.error("Timeout occurred.")
-            return None
+            raise TimeoutError() from e
 
         ret = pickle.loads(response)
         logger.debug("Response received.")
@@ -118,9 +118,7 @@ class ClientBase:
 
 
 class InstrumentClient(ClientBase):
-    def __init__(
-        self, name: str, host: str, port: int | str, router_name: str, instrument_name: str, node_name: str
-    ) -> None:
+    def __init__(self, name: str, host: str, port: int, router_name: str, instrument_name: str, node_name: str) -> None:
         super().__init__(name, host, port, router_name)
 
         self.instrument_name = instrument_name
@@ -129,7 +127,7 @@ class InstrumentClient(ClientBase):
     def trigger_operation(self, operation: str, *args, **kwargs) -> Any:
         packet = Packet(
             intent=PacketIntent.CONTROL,
-            request=str(self.instrument_name) + ":OPERATION:" + operation,
+            request=self.instrument_name + ":OPERATION:" + operation,
             source=self.name,
             destination=self.node_name,
             payload=(args, kwargs),
@@ -144,31 +142,25 @@ class InstrumentClient(ClientBase):
     def trigger_parameter(self, parameter: str, *args, **kwargs) -> Any:
         packet = Packet(
             intent=PacketIntent.CONTROL,
-            request=str(self.instrument_name) + ":PARAMETER:" + parameter,
+            request=self.instrument_name + ":PARAMETER:" + parameter,
             source=self.name,
             destination=self.node_name,
             payload=(args, kwargs),
         )
-        response = self.ask(packet)
-        if response is None:
-            msg = "No response received."
-            raise PacketError(msg)
 
+        response = self.ask(packet)
         return response.payload
 
     def get_info(self) -> DeviceInfo:
         packet = Packet(
             intent=PacketIntent.CONTROL,
-            request=str(self.instrument_name) + ":INFO:",
+            request=self.instrument_name + ":INFO:",
             source=self.name,
             destination=self.node_name,
             payload=((), {}),
         )
-        response = self.ask(packet)
-        if response is None:
-            msg = "No response received."
-            raise PacketError(msg)
 
+        response = self.ask(packet)
         if not isinstance(response.payload, DeviceInfo):
             msg = "Asking for info to proxy driver did not get a DeviceInfo object."
             raise PacketError(msg)
@@ -187,7 +179,7 @@ class ProxyInstrument(DeviceDriver):
         desc: str,
         address: str,
         host: str,
-        port: str,
+        port: int,
         node_name: str,
         router_name: str,
         parameters: set[str],
@@ -301,5 +293,5 @@ class Client(ClientBase):
         assert isinstance(response.payload, dict)
 
         return ProxyInstrument(
-            host=self.host, port=str(self.port), node_name=node_name, router_name=self.router_name, **response.payload
+            host=self.host, port=self.port, node_name=node_name, router_name=self.router_name, **response.payload
         )

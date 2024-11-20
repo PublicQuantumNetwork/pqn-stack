@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 class Node:
     def __init__(
-        self, name: str, host: str = "localhost", port: int | str = 5555, router_name: str = "router1", **instruments
+        self, name: str, host: str = "localhost", port: int = 5555, router_name: str = "router1", **instruments
     ) -> None:
         """
         Node class for PQN.

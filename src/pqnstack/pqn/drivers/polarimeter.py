@@ -9,6 +9,14 @@ from typing import Protocol
 
 from pyfirmata2 import Arduino
 
+from pqnstack.base.driver import DeviceClass
+from pqnstack.base.driver import DeviceDriver
+from pqnstack.base.driver import DeviceInfo
+from pqnstack.base.driver import DeviceStatus
+from pqnstack.base.driver import log_operation
+from pqnstack.base.driver import log_parameter
+from pqnstack.base.errors import DeviceNotStartedError
+
 logger = logging.getLogger(__name__)
 
 
@@ -74,43 +82,8 @@ class PolarizationMeasurement:
 class Polarimeter(Protocol):
     def read(self) -> PolarizationMeasurement: ...
 
-
-class PolarimeterDevice(DeviceDriver, Polarimeter):
-    DEVICE_CLASS = DeviceClass.SENSOR
-
-    def __init__(self, name: str, desc: str, address: str, *args, **kwargs) -> None:
-        super().__init__(name, desc, address)
-
-        self.operations["read"] = self.read
-
-    @log_operation
-    def read(self) -> PolarizationMeasurement: ...
-
-    @abstractmethod
-    def info(self) -> DeviceInfo: ...
-
-    @abstractmethod
-    def close(self) -> None: ...
-
-    @abstractmethod
-    def start(self) -> None: ...
-
-
-class ArduinoPolarimeter(PolarimeterDevice):
-    def __init__(
-        self,
-        name: str,
-        desc: str,
-        address: str,
-        board: Arduino,
-        pins: dict[str,int]
-        sample_rate: int
-        average_width: int
-        _buffers: list[Buffer]
-
-    ) -> None:
-        super().__init__(name, desc, address, *args, **kwargs)
-
+@dataclass(slots = True)
+class ArduinoPolarimeter(Polarimeter):
     board: Arduino = field(default_factory=lambda: Arduino(Arduino.AUTODETECT))
     pins: dict[str, int] = field(default_factory=lambda: dict(zip("hvda", range(4), strict=False)))
     sample_rate: int = 10
@@ -127,8 +100,10 @@ class ArduinoPolarimeter(PolarimeterDevice):
         logger.info("Polarimeter started")
 
     def close(self) -> None:
-        self.board.exit()
-        logger.info("Polarimeter stopped")
+        if self.board is not None:
+            logger.info("Polarimeter stopped")
+            self.board.exit()
+        self.status = DeviceStatus.OFF
 
     def reset(self) -> None:
         for buffer in self._buffers:
@@ -146,45 +121,61 @@ class ArduinoPolarimeter(PolarimeterDevice):
     def read(self) -> PolarizationMeasurement:
         hvda = [buffer.read() for buffer in self._buffers]
         return PolarizationMeasurement(*hvda)
+    
+class PolarimeterDevice(DeviceDriver, Polarimeter):
+    DEVICE_CLASS = DeviceClass.SENSOR
 
-class ArduinoPolarimeterDevice(PolarimeterDevice): #ap = arduinopolarimeter
-    def __init__(self, name: str, desc: str, address: str, ap: ArduinoPolarimeter) -> None:
+    def __init__(self, name: str, desc: str, address: str) -> None:
         super().__init__(name, desc, address)
 
-        self.ap = ap
-        pm = ap.read()
-        print(pm)
+        self.operations["read"] = self.read
+        self.operations["start_normalizing"] = self.start_normalizing
+        self.operations["stop_normalizing"] = self.stop_normalizing
+        self.operations["close"] = self.close
+        self.operations["start"] = self.start
+    
+    @log_operation
+    def read(self) -> PolarizationMeasurement: ...
 
     @log_operation
-    def read(self) -> PolarizationMeasurement:
-        return self.ap.read()
+    def reset(self) -> None: ...
+
+    @log_operation
+    def start_normalizing(self) -> None: ...
+    
+    @log_operation
+    def stop_normalizing(self) -> None: ...
 
     @abstractmethod
-    def info(self) -> DeviceInfo:
-        
-
+    def info(self) -> DeviceInfo: ...
 
     @abstractmethod
-    def close(self) -> None:
-        self.board.exit()
-        logger.info("Polarimeter stopped")
+    def close(self) -> None: ...
 
     @abstractmethod
     def start(self) -> None: ...
 
+class ArduinoPolarimeterDevice(PolarimeterDevice): 
+    def __init__(self, name: str, desc: str, address: str, ap: ArduinoPolarimeter) -> None:
+        super().__init__(name, desc, address)
 
+        self.ap = ap
 
-if __name__ == "__main__":
-    polarimeter = ArduinoPolarimeter()
-    polarimeter.start_normalizing()
+    def read(self) -> PolarizationMeasurement: 
+        return self.ap.read()
 
-    try:
-        while True:
-            result = polarimeter.read()
-            sys.stdout.write(f"\r{result:.2f} {result.theta=:+.2f}")
-            sys.stdout.flush()
-            time.sleep(0.1)
-    except KeyboardInterrupt:
-        sys.stdout.write("\n")
-    finally:
-        polarimeter.close()
+    def info(self) -> DeviceInfo:
+        return DeviceInfo(
+            name = self.name,
+            desc = self.desc,
+            dtype = self.DEVICE_CLASS,
+            status = self.status,
+            address = self.address
+        )
+
+    def close(self) -> None:
+        return self.ap.close()        
+
+    def start(self) -> None:
+        self.status = DeviceStatus.READY
+

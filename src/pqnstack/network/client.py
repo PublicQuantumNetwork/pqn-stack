@@ -3,6 +3,7 @@ import pickle
 import random
 import string
 from types import TracebackType
+from typing import Self
 
 import zmq
 
@@ -35,12 +36,12 @@ class ClientBase:
         self.timeout = timeout
 
         self.connected = False
-        self.context: zmq.Context | None = None
-        self.socket: zmq.Socket | None = None  # Has the instance of the socket talking to the router.
+        self.context: zmq.Context[zmq.Socket[bytes]] | None = None
+        self.socket: zmq.Socket[bytes] | None = None
 
         self.connect()
 
-    def __enter__(self) -> "ClientBase":
+    def __enter__(self) -> Self:
         if not self.connected:
             self.connect()
         return self
@@ -102,7 +103,7 @@ class ClientBase:
             logger.error("Timeout occurred.")
             return None
 
-        ret = pickle.loads(response)
+        ret: Packet = pickle.loads(response)
         logger.debug("Response received.")
         logger.debug("Response: %s", str(ret))
         return ret

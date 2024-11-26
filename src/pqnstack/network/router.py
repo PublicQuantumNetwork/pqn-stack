@@ -30,8 +30,8 @@ class Router:
         self.nodes: dict[str, bytes] = {}
         self.clients: dict[str, bytes] = {}
 
-        self.context: zmq.Context | None = None
-        self.socket: zmq.Socket | None = None  # Has the instance of the socket talking to the router.
+        self.context: zmq.Context[zmq.Socket[bytes]] | None = None
+        self.socket: zmq.Socket[bytes] | None = None
         self.running = False
 
     def start(self) -> None:

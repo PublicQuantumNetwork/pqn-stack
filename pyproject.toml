@@ -1,5 +1,10 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+
 [project]
-name = "pqn"
+name = "pqnstack"
 version = "0.1.0"
 description = "Illinois Computes work on software stack for PQN."
 readme = "README.md"
@@ -16,6 +21,10 @@ dependencies = [
     "pyzmq>=26.2.0",
     "thorlabs-apt-device>=0.3.8",
 ]
+
+[project.scripts]
+pqn = "pqnstack:main"
+
 
 [dependency-groups]
 dev = ["mypy>=1.13.0", "pytest-cov>=6.0.0", "ruff>=0.8.0"]

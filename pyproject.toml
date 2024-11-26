@@ -24,11 +24,13 @@ dev = ["ruff>=0.8.0", "pytest-cov>=6.0.0", "mypy>=1.13.0", "jupyterlab>=4.3.1"]
 
 
 [tool.mypy]
+files = ["src"]
 strict = true
 pretty = true
 
-show_error_codes = true
 enable_error_code = ["ignore-without-code"]
+
+ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "tests.*"

@@ -53,9 +53,9 @@ class Node:
             logger.info("Node %s is connected to router at %s", self.name, self.address)
             self.running = True
         # TODO: Handle connection error properly.
-        except zmq.error.ZMQError as e:
-            logger.error("Could not connect to router at %s", self.address)
-            raise e
+        except zmq.error.ZMQError:
+            logger.exception("Could not connect to router at %s", self.address)
+            raise
         try:
             while self.running:
                 _, pickled_packet = self.socket.recv_multipart()

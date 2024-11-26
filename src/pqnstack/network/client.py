@@ -100,7 +100,7 @@ class ClientBase:
         try:
             response = self.socket.recv()
         except zmq.error.Again:
-            logger.error("Timeout occurred.")
+            logger.exception("Timeout occurred.")
             return None
 
         ret: Packet = pickle.loads(response)

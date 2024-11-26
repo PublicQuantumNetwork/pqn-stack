@@ -74,19 +74,12 @@ def log_operation(func: Callable) -> Callable:
     @wraps(func)
     def wrapper(*args: tuple, **kwargs: dict) -> Callable:
         if len(args) == 0:
-            msg = (
-                "log_operation has 0 args, "
-                "this usually indicates that it has been used to decorate something that is not a class method. "
-                "This is not allowed."
-            )
+            msg = "log_operation has 0 args, this usually indicates that it has been used to decorate something that is not a class method. This is not allowed."
             raise LogDecoratorOutsideOfClassError(msg)
 
         ins = args[0]
         if not isinstance(ins, DeviceDriver):
-            msg = (
-                "log_operation has been used to decorate something that is not a DeviceDriver method. "
-                "This is not allowed."
-            )
+            msg = "log_operation has been used to decorate something that is not a DeviceDriver method. This is not allowed."
             raise LogDecoratorOutsideOfClassError(msg)
 
         start_time = datetime.datetime.now(tz=datetime.UTC)

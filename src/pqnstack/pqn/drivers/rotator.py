@@ -150,9 +150,8 @@ class APTRotator(Rotator):
 
 
 class HBRotator(Rotator):
-    def __init__(self, name: str, desc: str, address: str, offset_degrees: float = 0.0, block_while_moving: bool = True) -> None:
-        super.__init__(name, desc, address)
-        self.block_while_moving = block_while_moving
+    def __init__(self, name: str, desc: str, address: str, offset_degrees: float = 0.0) -> None:
+        super().__init__(self, name, desc, address)
         self.offset_degrees = offset_degrees
         self._degrees = 0
         
@@ -160,9 +159,9 @@ class HBRotator(Rotator):
         self.parameters.add("degrees")
 
     def close(self) -> None:
-        if self._device is not None:
+        if self._ard is not None:
             logger.info("Closing house-built rotator")
-            self._device.close()
+            self.ard.close()
         self.status = DeviceStatus.OFF
 
     def start(self) -> None:
@@ -185,12 +184,29 @@ class HBRotator(Rotator):
             address=self.address,
             offset_degrees=self.offset_degrees,
             degrees=self.degrees,
-            rotator_status=self._device.status if self._device is not None else None,
-        )
+            rotator_status = self.DeviceStatus)
+    
+    @property
+    @log_parameter
+    def degrees(self) -> float:
+        return self._degrees
 
-    def wait_for_stop(self) -> None:
-        while(self.status == DeviceStatus.BUSY):
-            continue
+    @degrees.setter
+    @log_parameter
+    def degrees(self, degrees: float) -> None:
+        if self._device is None:
+            msg = "Start the device before setting parameters"
+            raise DeviceNotStartedError(msg)
+        self._degrees = degrees
+        self.status = DeviceStatus.BUSY
+        self.move_to(degrees)
+
+    def move_to(degrees: float) -> str:
+        tmp = angle - self._degrees
+        temp = f"SRA {angle}"
+        self.ard.write(temp.encode())
+        print("sra done")
+        return self.ard.readline().decode()
 
 
 
@@ -200,5 +216,9 @@ class HBRotator(Rotator):
      
 
 if __name__ == "__main__":
+    rotator = HBRotator("test", "testing if it works", "/dev/ttyUSB0")
+    rotator.start()
+    rotator.degrees(25)
+    rotator.degrees()
+    rotator.close()
    
-

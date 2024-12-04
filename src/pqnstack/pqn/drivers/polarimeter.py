@@ -170,3 +170,14 @@ class ArduinoPolarimeterDevice(PolarimeterDevice):
 
     def start(self) -> None:
         self.status = DeviceStatus.READY
+
+if __name__ == "__main__":
+    polarimeter = ArduinoPolarimeter()
+
+    try:
+        while True:
+            sys.stdout.write("\r" + polarimeter.read)
+            sys.stdout.flush()
+            time.sleep(0.1)
+    except KeyboardInterrupt:
+        sys.stdout.write("\n")

@@ -1,7 +1,6 @@
 import logging
 import math
-import sys
-import time
+from abc import abstractmethod
 from collections import deque
 from dataclasses import dataclass
 from dataclasses import field
@@ -14,8 +13,6 @@ from pqnstack.base.driver import DeviceDriver
 from pqnstack.base.driver import DeviceInfo
 from pqnstack.base.driver import DeviceStatus
 from pqnstack.base.driver import log_operation
-from pqnstack.base.driver import log_parameter
-from pqnstack.base.errors import DeviceNotStartedError
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +21,8 @@ logger = logging.getLogger(__name__)
 class Buffer:
     _buffer: deque[float]
     normalizing: bool = field(default=False)
-    _min: float = field(default=float("inf"), init=False)
-    _max: float = field(default=float("-inf"), init=False)
+    min: float = field(default=float("inf"), init=False)
+    max: float = field(default=float("-inf"), init=False)
 
     def __post_init__(self) -> None:
         self.flush()
@@ -46,12 +43,8 @@ class Buffer:
             self.max = max(self.max, value)
 
     @property
-    def average(self) -> float:
+    def read(self) -> float:
         return sum(self._buffer) / len(self._buffer)
-
-    @property
-    def last(self) -> float:
-        return self._buffer[-1]
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,7 +75,8 @@ class PolarizationMeasurement:
 class Polarimeter(Protocol):
     def read(self) -> PolarizationMeasurement: ...
 
-@dataclass(slots = True)
+
+@dataclass(slots=True)
 class ArduinoPolarimeter(Polarimeter):
     board: Arduino = field(default_factory=lambda: Arduino(Arduino.AUTODETECT))
     pins: dict[str, int] = field(default_factory=lambda: dict(zip("hvda", range(4), strict=False)))
@@ -95,7 +89,7 @@ class ArduinoPolarimeter(Polarimeter):
         for pin in self.pins.values():
             buffer = Buffer(deque(maxlen=self.average_width))
             self._buffers.append(buffer)
-            self.board.analog[pin].register_callback(buffer.write)
+            self.board.analog[pin].register_callback(buffer.append)
             self.board.analog[pin].enable_reporting()
         logger.info("Polarimeter started")
 
@@ -107,11 +101,11 @@ class ArduinoPolarimeter(Polarimeter):
 
     def reset(self) -> None:
         for buffer in self._buffers:
-            buffer.reset()
+            buffer.flush()
 
     def start_normalizing(self) -> None:
         for buffer in self._buffers:
-            buffer.reset()
+            buffer.flush()
             buffer.normalizing = True
 
     def stop_normalizing(self) -> None:
@@ -119,10 +113,11 @@ class ArduinoPolarimeter(Polarimeter):
             buffer.normalizing = False
 
     def read(self) -> PolarizationMeasurement:
-        hvda = [buffer.read() for buffer in self._buffers]
+        hvda = [buffer.read for buffer in self._buffers]
         return PolarizationMeasurement(*hvda)
-    
-class PolarimeterDevice(DeviceDriver, Polarimeter):
+
+
+class PolarimeterDevice(DeviceDriver):
     DEVICE_CLASS = DeviceClass.SENSOR
 
     def __init__(self, name: str, desc: str, address: str) -> None:
@@ -133,7 +128,7 @@ class PolarimeterDevice(DeviceDriver, Polarimeter):
         self.operations["stop_normalizing"] = self.stop_normalizing
         self.operations["close"] = self.close
         self.operations["start"] = self.start
-    
+
     @log_operation
     def read(self) -> PolarizationMeasurement: ...
 
@@ -142,7 +137,7 @@ class PolarimeterDevice(DeviceDriver, Polarimeter):
 
     @log_operation
     def start_normalizing(self) -> None: ...
-    
+
     @log_operation
     def stop_normalizing(self) -> None: ...
 
@@ -155,27 +150,23 @@ class PolarimeterDevice(DeviceDriver, Polarimeter):
     @abstractmethod
     def start(self) -> None: ...
 
-class ArduinoPolarimeterDevice(PolarimeterDevice): 
+
+class ArduinoPolarimeterDevice(PolarimeterDevice):
     def __init__(self, name: str, desc: str, address: str, ap: ArduinoPolarimeter) -> None:
         super().__init__(name, desc, address)
 
         self.ap = ap
 
-    def read(self) -> PolarizationMeasurement: 
+    def read(self) -> PolarizationMeasurement:
         return self.ap.read()
 
     def info(self) -> DeviceInfo:
         return DeviceInfo(
-            name = self.name,
-            desc = self.desc,
-            dtype = self.DEVICE_CLASS,
-            status = self.status,
-            address = self.address
+            name=self.name, desc=self.desc, dtype=self.DEVICE_CLASS, status=self.status, address=self.address
         )
 
     def close(self) -> None:
-        return self.ap.close()        
+        return self.ap.close()
 
     def start(self) -> None:
         self.status = DeviceStatus.READY
-

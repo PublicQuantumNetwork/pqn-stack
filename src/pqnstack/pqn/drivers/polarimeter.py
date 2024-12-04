@@ -178,7 +178,7 @@ if __name__ == "__main__":
 
     try:
         while True:
-            sys.stdout.write("\r" + polarimeter.read)
+            sys.stdout.write("\r" , polarimeter.read)
             sys.stdout.flush()
             time.sleep(0.1)
     except KeyboardInterrupt:

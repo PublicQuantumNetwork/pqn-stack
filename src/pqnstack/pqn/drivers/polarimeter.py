@@ -117,6 +117,11 @@ class ArduinoPolarimeter(Polarimeter):
     def read(self) -> PolarizationMeasurement:
         hvda = [buffer.read for buffer in self._buffers]
         return PolarizationMeasurement(*hvda)
+    
+    @property
+    def summary(self) -> str:
+        """A summary of the polarimeter data."""
+        return f"h: {self.h:.2f} v: {self.v:.2f} d: {self.d:.2f} a: {self.a:.2f} theta: {self.theta:.2f} phi: {self.phi:.2f}"
 
 
 class PolarimeterDevice(DeviceDriver):

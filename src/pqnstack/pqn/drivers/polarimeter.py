@@ -44,6 +44,7 @@ class Buffer:
             self.min = min(self.min, value)
             self.max = max(self.max, value)
 
+    @property
     def read(self) -> float:
         # if len(self._buffer) == 0:
         #     return 0

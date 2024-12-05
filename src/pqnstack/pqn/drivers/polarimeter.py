@@ -21,7 +21,6 @@ logger = logging.getLogger(__name__)
 
 @dataclass(slots=True)
 class Buffer:
-    maxlen = 10 
     _buffer: deque[float]
     normalizing: bool = field(default=False)
     min: float = field(default=float("inf"), init=False)
@@ -45,9 +44,10 @@ class Buffer:
             self.min = min(self.min, value)
             self.max = max(self.max, value)
 
-    @property
     def read(self) -> float:
-        return sum(self._buffer) / self.maxlen
+        # if len(self._buffer) == 0:
+        #     return 0
+        return sum(self._buffer) / 10
 
 
 @dataclass(frozen=True, slots=True)
@@ -193,6 +193,8 @@ if __name__ == "__main__":
         sys.stdout.write("\n")
     finally:
         polarimeter.close()
+
+
 
 
 

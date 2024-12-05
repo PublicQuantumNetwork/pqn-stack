@@ -46,9 +46,9 @@ class Buffer:
 
     @property
     def read(self) -> float:
-        # if len(self._buffer) == 0:
-        #     return 0
-        return sum(self._buffer) / 10
+        if len(self._buffer) == 0:
+             return 10
+        return sum(self._buffer) / len(self._buffer)
 
 
 @dataclass(frozen=True, slots=True)

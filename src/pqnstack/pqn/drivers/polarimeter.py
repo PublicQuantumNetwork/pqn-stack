@@ -46,8 +46,8 @@ class Buffer:
 
     @property
     def read(self) -> float:
-        # if len(self._buffer) == 0:
-        #      return 0
+        if len(self._buffer) == 0:
+            return 10
         return sum(self._buffer) / 10
 
 
@@ -187,7 +187,7 @@ if __name__ == "__main__":
     try:
         while True:
             result = polarimeter.read()
-            sys.stdout.write(f"\r{result:.2f} {result.theta=:+.2f}")
+            sys.stdout.write(f"\r{result} {result.theta}")
             sys.stdout.flush()
             time.sleep(0.1)
     except KeyboardInterrupt:

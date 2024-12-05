@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass(slots=True)
 class Buffer:
+    maxlen = 10 
     _buffer: deque[float]
     normalizing: bool = field(default=False)
     min: float = field(default=float("inf"), init=False)
@@ -46,7 +47,7 @@ class Buffer:
 
     @property
     def read(self) -> float:
-        return sum(self._buffer) / len(self._buffer)
+        return sum(self._buffer) / self.maxlen
 
 
 @dataclass(frozen=True, slots=True)

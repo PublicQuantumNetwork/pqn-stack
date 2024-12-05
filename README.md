@@ -52,6 +52,17 @@ All rules are enabled by default, and I have disabled a few redundant ones as a 
 Feel free to modify the list as needed for your project.
 See the [documentation](https://docs.astral.sh/ruff/tutorial/) or command help output for additional information.
 
+### Type Checking
+
+Use [mypy](https://www.mypy-lang.org/) for type checking: `uv run mypy`.
+
+### Testing
+
+Use [pytest](https://docs.pytest.org/en/stable/) to run tests:
+
+- `uv run pytest`
+- Use `uv run pytest --cov` to check code coverage.
+
 ### Alternate Manual Setup
 
 If it is not possible to use uv for installation, there is a workaround using `virtualenv` and `pip`.

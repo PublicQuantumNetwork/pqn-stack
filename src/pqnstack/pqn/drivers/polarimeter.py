@@ -1,5 +1,6 @@
 import logging
 import math
+import sys
 import time
 from abc import abstractmethod
 from collections import deque
@@ -177,15 +178,19 @@ class ArduinoPolarimeterDevice(PolarimeterDevice):
     def start(self) -> None:
         self.status = DeviceStatus.READY
 
-if __name__ == "_main_": 
-    polarimeter = ArduinoPolarimeter() 
-    
-    try: 
-        while True: print(polarimeter.summary()) 
-        time.sleep(0.1) 
-        
-    except KeyboardInterrupt: 
-        print("\nExiting...") 
+if __name__ == "__main__":
+    polarimeter = ArduinoPolarimeter()
+    polarimeter.start_normalizing()
+
+    try:
+        while True:
+            result = polarimeter.read()
+            sys.stdout.write(f"\r{result:.2f} {result.theta=:+.2f}")
+            sys.stdout.flush()
+            time.sleep(0.1)
+    except KeyboardInterrupt:
+        sys.stdout.write("\n")
+    finally:
         polarimeter.close()
 
 

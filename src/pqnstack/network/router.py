@@ -30,8 +30,8 @@ class Router:
         self.nodes: dict[str, bytes] = {}
         self.clients: dict[str, bytes] = {}
 
-        self.context: zmq.Context | None = None
-        self.socket: zmq.Socket | None = None  # Has the instance of the socket talking to the router.
+        self.context: zmq.Context[zmq.Socket[bytes]] | None = None
+        self.socket: zmq.Socket[bytes] | None = None
         self.running = False
 
     def start(self) -> None:
@@ -83,7 +83,7 @@ class Router:
 
                         elif packet.destination in self.nodes:
                             logger.info(
-                                "Packet destination is a node called %s, routing message " "there", packet.destination
+                                "Packet destination is a node called %s, routing message there", packet.destination
                             )
                             forward_packet = copy.copy(packet)
                             forward_packet.hops += 1
@@ -94,11 +94,11 @@ class Router:
                             identity_binary, reply_packet = self.listen()
                             if reply_packet is None or identity_binary is None:
                                 logger.error(
-                                    "Error listening to packets. Either the packet is None or the identity is " "None."
+                                    "Error listening to packets. Either the packet is None or the identity is None."
                                 )
                                 continue
                             logger.info(
-                                "Received reply from %s: %s. Responding to " "original sender",
+                                "Received reply from %s: %s. Responding to original sender",
                                 identity_binary,
                                 reply_packet,
                             )

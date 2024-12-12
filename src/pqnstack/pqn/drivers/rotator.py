@@ -8,8 +8,7 @@ import time
 from abc import abstractmethod
 from dataclasses import dataclass
 
-# No typehints available for this import
-from thorlabs_apt_device import TDC001  # type: ignore
+from thorlabs_apt_device import TDC001
 
 from pqnstack.base.driver import DeviceClass
 from pqnstack.base.driver import DeviceDriver

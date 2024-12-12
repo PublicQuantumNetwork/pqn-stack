@@ -56,8 +56,8 @@ class Node:
         self.address = f"tcp://{host}:{port}"
         self.router_name = router_name
 
-        self.context: zmq.Context | None = None
-        self.socket: zmq.Socket | None = None  # Has the instance of the socket talking to the router.
+        self.context: zmq.Context[zmq.Socket[bytes]] | None = None
+        self.socket: zmq.Socket[bytes] | None = None  # Has the instance of the socket talking to the router.
 
         # Verify that every instrument contains the minimum required keys.
         for ins_name, ins_dict in instruments.items():
@@ -129,11 +129,9 @@ class Node:
             logger.info("Node %s is connected to router at %s", self.name, self.address)
             self.running = True
         # TODO: Handle connection error properly.
-        except zmq.error.ZMQError as e:
-            logger.error("Could not connect to router at %s", self.address)
-            raise e
-
-        # FIXME: change this into a context manager.
+        except zmq.error.ZMQError:
+            logger.exception("Could not connect to router at %s", self.address)
+            raise
         try:
             while self.running:
                 packet = self._listen()

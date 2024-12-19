@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from thorlabs_apt_device import TDC001
+from dataclasses import field
+import atexit
 
 from pqnstack.base.driver import DeviceClass
 from pqnstack.base.driver import DeviceDriver
@@ -31,7 +33,7 @@ class RotatorInfo(DeviceInfo):
     rotator_status: dict[str, Any] | None = None
 
 
-class Rotator(DeviceDriver):
+class RotatorDevice(DeviceDriver):
     DEVICE_CLASS = DeviceClass.MOTOR
 
     def __init__(self, name: str, desc: str, address: str) -> None:
@@ -149,76 +151,62 @@ class APTRotator(Rotator):
         self.status = DeviceStatus.READY
 
 
-class HBRotator(Rotator):
-    def __init__(self, name: str, desc: str, address: str, offset_degrees: float = 0.0) -> None:
-        super().__init__(self, name, desc, address)
-        self.offset_degrees = offset_degrees
-        self._degrees = 0
-        
+@dataclass(slots=True)
+class SerialRotator:
+    label: str
+    address: str
+    offset_degrees: float = 0.0
+    _degrees: float = 0.0  # The hardware doesn't support position tracking
+    _controller: serial.Serial = field(init=False, repr=False)
 
-        self.parameters.add("degrees")
+    def __post_init__(self) -> None:
+        self._controller = serial.Serial(self.address, baudrate=115200, timeout=1)
+        self._controller.write(b"open_channel")
+        self._controller.read(100)
+        self._controller.write(b"motor_ready")
+        self._controller.read(100)
 
-    def close(self) -> None:
-        if self._ard is not None:
-            logger.info("Closing house-built rotator")
-            self.ard.close()
-        self.status = DeviceStatus.OFF
+        self.degrees = self.offset_degrees
+        atexit.register(self._cleanup)
 
-    def start(self) -> None:
-        self.ard = serial.Serial(address, baudrate = 11520, timeout = 1)
-        self.ard.write(b'open_channel')
-        self.ard.read(100)
-        self.ard.write(b'motor_ready')
-        self.ard.read(100)
-        if self.block_while_moving:
-            time.sleep(0.5)
-            self.wait_for_stop()
-        self.status = DeviceStatus.READY
+    def _cleanup(self) -> None:
+        self.degrees = 0
+        self._controller.close()
 
-    def info(self) -> RotatorInfo:
-        return RotatorInfo(
-            name=self.name,
-            desc=self.desc,
-            dtype=self.DEVICE_CLASS,
-            status=self.status,
-            address=self.address,
-            offset_degrees=self.offset_degrees,
-            degrees=self.degrees,
-            rotator_status = self.DeviceStatus)
-    
     @property
-    @log_parameter
     def degrees(self) -> float:
         return self._degrees
 
     @degrees.setter
+    def degrees(self, degrees: float) -> None:
+        self._controller.write(f"SRA {degrees}".encode())
+        self._degrees = degrees
+        _ = self._controller.readline().decode()
+
+
+class SerialRotatorDevice(RotatorDevice):
+    def __init__(self, name: str, desc: str, address: str, hb_rotator: SerialRotator, offset_degrees: float = 0.0):
+        super().__init__(name, desc, address)
+        self.hb_rotator = hb_rotator
+
+    def info(self) -> DeviceInfo:
+        return DeviceInfo(
+            name=self.name, desc=self.desc, dtype=self.DEVICE_CLASS, status=self.status, address=self.address
+        )
+
+    def start(self) -> None:
+        self.status = DeviceStatus.READY
+
+    def close(self) -> None:
+        self.status = DeviceStatus.OFF
+        return self.hb_rotator._cleanup()
+
+    @property
+    @log_parameter
+    def degrees(self) -> float:
+        return self.hb_rotator.degrees
+
+    @degrees.setter
     @log_parameter
     def degrees(self, degrees: float) -> None:
-        if self._device is None:
-            msg = "Start the device before setting parameters"
-            raise DeviceNotStartedError(msg)
-        self._degrees = degrees
-        self.status = DeviceStatus.BUSY
-        self.move_to(degrees)
-
-    def move_to(degrees: float) -> str:
-        tmp = angle - self._degrees
-        temp = f"SRA {angle}"
-        self.ard.write(temp.encode())
-        print("sra done")
-        return self.ard.readline().decode()
-
-
-
-
-
-
-     
-
-if __name__ == "__main__":
-    rotator = HBRotator("test", "testing if it works", "/dev/ttyUSB0")
-    rotator.start()
-    rotator.degrees(25)
-    rotator.degrees()
-    rotator.close()
-   
+        self.hb_rotator.degrees = degrees

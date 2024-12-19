@@ -7,6 +7,7 @@ import logging
 import time
 from abc import abstractmethod
 from dataclasses import dataclass
+from typing import Any
 
 from thorlabs_apt_device import TDC001
 
@@ -26,7 +27,7 @@ class RotatorInfo(DeviceInfo):
     offset_degrees: float
     degrees: float
     encoder_units_per_degree: float | None = None
-    rotator_status: dict | None = None
+    rotator_status: dict[str, Any] | None = None
 
 
 class Rotator(DeviceDriver):

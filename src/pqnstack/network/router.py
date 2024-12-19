@@ -60,7 +60,7 @@ class Router:
         finally:
             self.socket.close()
 
-    def handle_registration(self, identity_binary, packet):
+    def handle_registration(self, identity_binary: bytes, packet: Packet) -> None:
         if packet.destination != self.name:
             self.handle_packet_error(identity_binary, f"Router {self.name} is not the destination")
             return
@@ -85,7 +85,7 @@ class Router:
         )
         self._send(identity_binary, ack_packet)
 
-    def handle_pass_packet(self, identity_binary, packet):
+    def handle_pass_packet(self, identity_binary: bytes, packet: Packet) -> None:
         """Handle all the logic to get a packet from one place to another."""
         if packet.destination == self.name:
             logger.info("Packet destination is self, dropping")
@@ -98,17 +98,17 @@ class Router:
             #  message.
             self._send(self.nodes[packet.destination], forward_packet)
             logger.info("Sent packet to %s, awaiting reply", packet.destination)
-            identity_binary, reply_packet = self.listen()
-            if reply_packet is None or identity_binary is None:
+            identity_binary_response, reply_packet_response = self.listen()
+            if reply_packet_response is None or identity_binary_response is None:
                 logger.error("Error listening to packets. Either the packet is None or the identity is None.")
                 return
             logger.info(
                 "Received reply from %s: %s. Responding to original sender",
-                identity_binary,
-                reply_packet,
+                identity_binary_response,
+                reply_packet_response,
             )
-            reply_packet.hops += 1
-            self._send(self.clients[reply_packet.destination], reply_packet)
+            reply_packet_response.hops += 1
+            self._send(self.clients[reply_packet_response.destination], reply_packet_response)
 
         else:
             logger.info("Packet destination is not a node will ask other routers in system")

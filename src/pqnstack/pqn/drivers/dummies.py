@@ -22,9 +22,9 @@ class DummyInstrument(DeviceDriver):
     def __init__(self, name: str, desc: str, address: str) -> None:
         super().__init__(name, desc, address)
 
-        self._param_int = 2
-        self._param_str = "hello"
-        self._param_bool = True
+        self._param_int: int = 2
+        self._param_str: str = "hello"
+        self._param_bool: bool = True
 
         self.parameters = {"param_int", "param_str", "param_bool"}
         self.operations = {

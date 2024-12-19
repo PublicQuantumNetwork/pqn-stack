@@ -7,6 +7,7 @@
 from dataclasses import dataclass
 from enum import Enum
 from enum import auto
+from typing import Any
 
 from pqnstack.base.errors import PacketError
 
@@ -46,7 +47,7 @@ class Packet:
         return self.source, self.destination
 
 
-def create_registration_packet(**kwargs) -> Packet:
+def create_registration_packet(**kwargs: Any) -> Packet:
     if "payload" not in kwargs:
         msg = "payload argument not present when creating registration packet."
         raise PacketError(msg)

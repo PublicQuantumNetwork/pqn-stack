@@ -120,7 +120,9 @@ class ClientBase:
 
         return ret
 
-    def create_control_packet(self, destination: str, request: str, payload: tuple[tuple, dict[str, Any]]) -> Packet:
+    def create_control_packet(
+        self, destination: str, request: str, payload: tuple[tuple[Any, ...], dict[str, Any]]
+    ) -> Packet:
         return Packet(
             intent=PacketIntent.CONTROL,
             request=request,
@@ -155,7 +157,7 @@ class InstrumentClient(ClientBase):
         self.instrument_name = init_args.instrument_name
         self.node_name = init_args.node_name
 
-    def trigger_operation(self, operation: str, *args, **kwargs) -> Any:
+    def trigger_operation(self, operation: str, *args: Any, **kwargs: Any) -> Any:
         packet = self.create_control_packet(
             self.node_name, self.instrument_name + ":OPERATION:" + operation, (args, kwargs)
         )
@@ -163,7 +165,7 @@ class InstrumentClient(ClientBase):
 
         return response.payload
 
-    def trigger_parameter(self, parameter: str, *args, **kwargs) -> Any:
+    def trigger_parameter(self, parameter: str, *args: Any, **kwargs: Any) -> Any:
         packet = self.create_control_packet(
             self.node_name, self.instrument_name + ":PARAMETER:" + parameter, (args, kwargs)
         )
@@ -192,7 +194,7 @@ class ProxyInstrumentInit(NamedTuple):
     desc: str
     address: str
     parameters: set[str]
-    operations: dict[str, Callable]
+    operations: dict[str, Callable[[Any], Any]]
 
 
 class ProxyInstrument(DeviceDriver):

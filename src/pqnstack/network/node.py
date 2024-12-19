@@ -5,27 +5,28 @@
 import importlib
 import logging
 import pickle
-from typing import TYPE_CHECKING
 from typing import Any
 
 import zmq
 
+from pqnstack.base.driver import DeviceDriver
 from pqnstack.base.errors import InvalidInstrumentsConfigurationError
 from pqnstack.network.packet import NetworkElementClass
 from pqnstack.network.packet import Packet
 from pqnstack.network.packet import PacketIntent
 from pqnstack.network.packet import create_registration_packet
 
-if TYPE_CHECKING:
-    from pqnstack.base.driver import DeviceDriver
-
-
 logger = logging.getLogger(__name__)
 
 
 class Node:
     def __init__(
-        self, name: str, host: str = "localhost", port: int = 5555, router_name: str = "router1", **instruments
+        self,
+        name: str,
+        host: str = "localhost",
+        port: int = 5555,
+        router_name: str = "router1",
+        **instruments: dict[str, Any],
     ) -> None:
         """
         Node class for PQN.
@@ -177,6 +178,11 @@ class Node:
             raise RuntimeError(msg)
 
         logger.info("Received packet: %s", packet)
+
+        if not isinstance(packet, Packet):
+            msg = f"Received packet is not a Packet object, got {type(packet)}"
+            raise TypeError(msg)
+
         return packet
 
     def _handle_ping(self, packet: Packet) -> Packet:
@@ -223,7 +229,9 @@ class Node:
             payload=payload,
         )
 
-    def _validate_instrument_control_packet(self, packet: Packet):
+    def _validate_instrument_control_packet(
+        self, packet: Packet
+    ) -> tuple[str, str, str, DeviceDriver, tuple[Any, ...], dict[str, Any]] | Packet:
         request_parts = packet.request.split(":")
         correct_request_len = 3
         if len(request_parts) != correct_request_len:
@@ -254,7 +262,9 @@ class Node:
         args, kwargs = packet.payload
         return ins_name, request_type, request_name, instrument, args, kwargs
 
-    def _handle_operation_control(self, request_name, instrument, packet, args, kwargs):
+    def _handle_operation_control(
+        self, request_name: str, instrument: DeviceDriver, packet: Packet, args: tuple[Any, ...], kwargs: dict[str, Any]
+    ) -> Packet:
         if request_name not in instrument.operations:
             return self._create_error_packet(
                 packet.source, f"Operation '{request_name}' not found in '{instrument.name}'"
@@ -264,12 +274,14 @@ class Node:
             operation_ret = instrument.operations[request_name](*args, **kwargs)
         # Adding ruff exception due to not know what type of exceptions instruments can raise.
         except Exception as e:  # noqa:BLE001
-            msg = f"Error executing operation '{request_name}' in '{instrument.ins_name}'. Error: {e}"
+            msg = f"Error executing operation '{request_name}' in '{instrument.name}'. Error: {e}"
             return self._create_error_packet(packet.source, msg)
 
         return self._create_control_packet(packet.source, f"{instrument.name}:OPERATION:{request_name}", operation_ret)
 
-    def _handle_parameter_control(self, request_name, instrument, packet, args, kwargs):
+    def _handle_parameter_control(
+        self, request_name: str, instrument: DeviceDriver, packet: Packet, args: tuple[Any, ...], kwargs: dict[str, Any]
+    ) -> Packet:
         if request_name not in instrument.parameters:
             return self._create_error_packet(
                 packet.source, f"Parameter '{request_name}' not found in '{instrument.name}'"

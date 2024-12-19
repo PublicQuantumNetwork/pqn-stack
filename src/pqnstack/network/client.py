@@ -1,9 +1,11 @@
 import logging
 import pickle
-import random
+import secrets
 import string
 from collections.abc import Callable
 from types import TracebackType
+from typing import Any
+from typing import NamedTuple
 from typing import Self
 
 import zmq
@@ -30,7 +32,9 @@ class ClientBase:
         timeout: int = 5000,
     ) -> None:
         if name == "":
-            name = "".join(random.choices(string.ascii_uppercase + string.ascii_lowercase + string.digits, k=6))
+            name = "".join(
+                secrets.choice(string.ascii_uppercase + string.ascii_lowercase + string.digits) for _ in range(6)
+            )
         self.name = name
 
         self.host = host
@@ -105,8 +109,8 @@ class ClientBase:
         try:
             response = self.socket.recv()
         except zmq.error.Again as e:
-            logger.error("Timeout occurred.")
-            raise TimeoutError() from e
+            logger.exception("Timeout occurred.")
+            raise TimeoutError from e
 
         ret: Packet = pickle.loads(response)
         logger.debug("Response received.")
@@ -135,12 +139,21 @@ class ClientBase:
         )
 
 
-class InstrumentClient(ClientBase):
-    def __init__(self, name: str, host: str, port: int, router_name: str, instrument_name: str, node_name: str) -> None:
-        super().__init__(name, host, port, router_name)
+class InstrumentClientInit(NamedTuple):
+    name: str
+    host: str
+    port: int
+    router_name: str
+    instrument_name: str
+    node_name: str
 
-        self.instrument_name = instrument_name
-        self.node_name = node_name
+
+class InstrumentClient(ClientBase):
+    def __init__(self, init_args: InstrumentClientInit) -> None:
+        super().__init__(init_args.name, init_args.host, init_args.port, init_args.router_name)
+
+        self.instrument_name = init_args.instrument_name
+        self.node_name = init_args.node_name
 
     def trigger_operation(self, operation: str, *args, **kwargs) -> Any:
         packet = self.create_control_packet(
@@ -169,53 +182,55 @@ class InstrumentClient(ClientBase):
         return response.payload
 
 
+class ProxyInstrumentInit(NamedTuple):
+    name: str
+    host: str
+    port: int
+    router_name: str
+    instrument_name: str
+    node_name: str
+    desc: str
+    address: str
+    parameters: set[str]
+    operations: dict[str, Callable]
+
+
 class ProxyInstrument(DeviceDriver):
     """The address here is the zmq address of the router that the InstrumentClient will talk to."""
 
     DEVICE_CLASS = DeviceClass.PROXY
 
-    def __init__(
-        self,
-        name: str,
-        desc: str,
-        address: str,
-        host: str,
-        port: int,
-        node_name: str,
-        router_name: str,
-        parameters: set[str],
-        operations: dict[str, Callable],
-    ) -> None:
+    def __init__(self, init_args: ProxyInstrumentInit) -> None:
         # Boolean used to control when new attributes are being set.
         self._instantiating = True
 
-        super().__init__(name, desc, address)
+        super().__init__(init_args.name, init_args.desc, init_args.address)
 
-        self.host = host
-        self.port = port
+        self.host = init_args.host
+        self.port = init_args.port
 
-        self.parameters = parameters
-        self.operations = operations
+        self.parameters = init_args.parameters
+        self.operations = init_args.operations
 
-        self.node_name = node_name
-        self.router_name = router_name
+        self.node_name = init_args.node_name
+        self.router_name = init_args.router_name
 
         # The client's name is the instrument name with "_client" appended and a random 6 character string appended.
         # This is to avoid any potential conflicts with other clients.
         client_name = (
-            name
+            self.name
             + "_client_"
-            + "".join(random.choices(string.ascii_uppercase + string.ascii_lowercase + string.digits, k=6))
+            + "".join(secrets.choice(string.ascii_uppercase + string.ascii_lowercase + string.digits) for _ in range(6))
         )
-
-        self.client = InstrumentClient(
+        instrument_client_init = InstrumentClientInit(
             name=client_name,
             host=self.host,
             port=self.port,
             router_name=self.router_name,
-            instrument_name=name,
+            instrument_name=self.name,
             node_name=self.node_name,
         )
+        self.client = InstrumentClient(instrument_client_init)
 
         self._instantiating = False
 
@@ -259,7 +274,10 @@ class Client(ClientBase):
         packet = self.create_data_packet(node_name, "GET_DEVICES", None)
         response = self.ask(packet)
 
-        assert isinstance(response.payload, dict)
+        if not isinstance(response.payload, dict):
+            msg = "Payload is not a dictionary."
+            raise PacketError(msg)
+
         return response.payload
 
     def get_device(self, node_name: str, device_name: str) -> DeviceDriver:
@@ -270,8 +288,20 @@ class Client(ClientBase):
         if response.intent == PacketIntent.ERROR:
             raise PacketError(str(response))
 
-        assert isinstance(response.payload, dict)
+        if not isinstance(response.payload, dict):
+            msg = "Payload is not a dictionary."
+            raise PacketError(msg)
 
-        return ProxyInstrument(
-            host=self.host, port=self.port, node_name=node_name, router_name=self.router_name, **response.payload
+        proxy_ins_init = ProxyInstrumentInit(
+            name=response.payload["name"],
+            desc=response.payload["desc"],
+            address=response.payload["address"],
+            host=self.host,
+            port=self.port,
+            router_name=self.router_name,
+            instrument_name=response.payload["name"],
+            node_name=node_name,
+            parameters=set(response.payload["parameters"]),
+            operations=response.payload["operations"],
         )
+        return ProxyInstrument(proxy_ins_init)

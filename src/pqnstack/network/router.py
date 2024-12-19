@@ -51,67 +51,69 @@ class Router:
 
                 match packet.intent:
                     case PacketIntent.REGISTRATION:
-                        if packet.destination != self.name:
-                            self.handle_packet_error(identity_binary, f"Router {self.name} is not the destination")
-                            continue
-                        match packet.payload:
-                            case NetworkElementClass.NODE:
-                                self.nodes[packet.source] = identity_binary
-                                logger.info("Node %s registered", identity_binary)
-                            case NetworkElementClass.CLIENT:
-                                self.clients[packet.source] = identity_binary
-                                logger.info("Client %s registered", identity_binary)
-                            case NetworkElementClass.ROUTER:
-                                self.routers[packet.source] = identity_binary
-                                logger.info("Router %s registered", identity_binary)
-
-                        ack_packet = Packet(
-                            intent=PacketIntent.REGISTRATION_ACK,
-                            source=self.name,
-                            destination=identity_binary.decode("utf-8"),
-                            hops=0,
-                            request="ACKNOWLEDGE",
-                            payload=None,
-                        )
-                        self._send(identity_binary, ack_packet)
-
+                        self.handle_registration(identity_binary, packet)
                     case PacketIntent.ROUTING:
                         logger.info("Got routing packet from %s", identity_binary)
                     case _:
-                        if packet.destination == self.name:
-                            logger.info("Packet destination is self, dropping")
-
-                        elif packet.destination in self.nodes:
-                            logger.info(
-                                "Packet destination is a node called %s, routing message there", packet.destination
-                            )
-                            forward_packet = copy.copy(packet)
-                            forward_packet.hops += 1
-                            # FIXME: What happens if get a message from something else than the node I expect the
-                            #  message.
-                            self._send(self.nodes[packet.destination], forward_packet)
-                            logger.info("Sent packet to %s, awaiting reply", packet.destination)
-                            identity_binary, reply_packet = self.listen()
-                            if reply_packet is None or identity_binary is None:
-                                logger.error(
-                                    "Error listening to packets. Either the packet is None or the identity is None."
-                                )
-                                continue
-                            logger.info(
-                                "Received reply from %s: %s. Responding to original sender",
-                                identity_binary,
-                                reply_packet,
-                            )
-                            reply_packet.hops += 1
-                            self._send(self.clients[reply_packet.destination], reply_packet)
-
-                        else:
-                            logger.info("Packet destination is not a node will ask other routers in system")
-                            # FIXME: This is temporary and should be replaced with the routing algorithm.
-                            self.handle_packet_error(identity_binary, "Routing not implemented yet.")
+                        self.handle_pass_packet(identity_binary, packet)
 
         finally:
             self.socket.close()
+
+    def handle_registration(self, identity_binary, packet):
+        if packet.destination != self.name:
+            self.handle_packet_error(identity_binary, f"Router {self.name} is not the destination")
+            return
+        match packet.payload:
+            case NetworkElementClass.NODE:
+                self.nodes[packet.source] = identity_binary
+                logger.info("Node %s registered", identity_binary)
+            case NetworkElementClass.CLIENT:
+                self.clients[packet.source] = identity_binary
+                logger.info("Client %s registered", identity_binary)
+            case NetworkElementClass.ROUTER:
+                self.routers[packet.source] = identity_binary
+                logger.info("Router %s registered", identity_binary)
+
+        ack_packet = Packet(
+            intent=PacketIntent.REGISTRATION_ACK,
+            source=self.name,
+            destination=identity_binary.decode("utf-8"),
+            hops=0,
+            request="ACKNOWLEDGE",
+            payload=None,
+        )
+        self._send(identity_binary, ack_packet)
+
+    def handle_pass_packet(self, identity_binary, packet):
+        """Handle all the logic to get a packet from one place to another."""
+        if packet.destination == self.name:
+            logger.info("Packet destination is self, dropping")
+
+        elif packet.destination in self.nodes:
+            logger.info("Packet destination is a node called %s, routing message there", packet.destination)
+            forward_packet = copy.copy(packet)
+            forward_packet.hops += 1
+            # FIXME: What happens if get a message from something else than the node I expect the
+            #  message.
+            self._send(self.nodes[packet.destination], forward_packet)
+            logger.info("Sent packet to %s, awaiting reply", packet.destination)
+            identity_binary, reply_packet = self.listen()
+            if reply_packet is None or identity_binary is None:
+                logger.error("Error listening to packets. Either the packet is None or the identity is None.")
+                return
+            logger.info(
+                "Received reply from %s: %s. Responding to original sender",
+                identity_binary,
+                reply_packet,
+            )
+            reply_packet.hops += 1
+            self._send(self.clients[reply_packet.destination], reply_packet)
+
+        else:
+            logger.info("Packet destination is not a node will ask other routers in system")
+            # FIXME: This is temporary and should be replaced with the routing algorithm.
+            self.handle_packet_error(identity_binary, "Routing not implemented yet.")
 
     def listen(self) -> tuple[bytes, Packet] | tuple[None, None]:
         # This should never happen, but mypy complains if the check is not done
@@ -122,10 +124,12 @@ class Router:
 
         # Depending on who is sending a request, the number of items received will be different. This is not
         # DEALER sockets send 2 items, REQ sockets send an empty delimiter.
+        dealer_parts = 2
+        req_parts = 3
         request = self.socket.recv_multipart()
-        if len(request) == 2:
+        if len(request) == dealer_parts:
             identity_binary, pickled_packet = request
-        elif len(request) == 3:
+        elif len(request) == req_parts:
             identity_binary, _, pickled_packet = request
         else:
             self.handle_packet_error(request[0], f"Requests can only have 2 or 3 parts, not {len(request)}")

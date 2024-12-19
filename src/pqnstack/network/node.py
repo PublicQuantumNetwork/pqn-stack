@@ -5,16 +5,20 @@
 import importlib
 import logging
 import pickle
+from typing import TYPE_CHECKING
 from typing import Any
 
 import zmq
 
-from pqnstack.base.driver import DeviceDriver
 from pqnstack.base.errors import InvalidInstrumentsConfigurationError
 from pqnstack.network.packet import NetworkElementClass
 from pqnstack.network.packet import Packet
 from pqnstack.network.packet import PacketIntent
 from pqnstack.network.packet import create_registration_packet
+
+if TYPE_CHECKING:
+    from pqnstack.base.driver import DeviceDriver
+
 
 logger = logging.getLogger(__name__)
 
@@ -219,9 +223,10 @@ class Node:
             payload=payload,
         )
 
-    def _handle_instrument_control(self, packet: Packet) -> Packet:
+    def _validate_instrument_control_packet(self, packet: Packet):
         request_parts = packet.request.split(":")
-        if len(request_parts) != 3:
+        correct_request_len = 3
+        if len(request_parts) != correct_request_len:
             msg = (
                 f"CONTROL packets should have a request field with 3 parts divided by a ':', "
                 f"not {len(request_parts)}, formatted as: "
@@ -247,45 +252,69 @@ class Node:
             return self._create_error_packet(packet.source, msg)
 
         args, kwargs = packet.payload
+        return ins_name, request_type, request_name, instrument, args, kwargs
 
-        if request_type == "OPERATION":
-            if request_name not in instrument.operations:
-                return self._create_error_packet(packet.source, f"Operation '{request_name}' not found in '{ins_name}'")
+    def _handle_operation_control(self, request_name, instrument, packet, args, kwargs):
+        if request_name not in instrument.operations:
+            return self._create_error_packet(
+                packet.source, f"Operation '{request_name}' not found in '{instrument.name}'"
+            )
 
-            try:
-                operation_ret = instrument.operations[request_name](*args, **kwargs)
-            except Exception as e:
-                msg = f"Error executing operation '{request_name}' in '{ins_name}'. Error: {e}"
-                return self._create_error_packet(packet.source, msg)
+        try:
+            operation_ret = instrument.operations[request_name](*args, **kwargs)
+        # Adding ruff exception due to not know what type of exceptions instruments can raise.
+        except Exception as e:  # noqa:BLE001
+            msg = f"Error executing operation '{request_name}' in '{instrument.ins_name}'. Error: {e}"
+            return self._create_error_packet(packet.source, msg)
 
-            return self._create_control_packet(packet.source, f"{ins_name}:OPERATION:{request_name}", operation_ret)
+        return self._create_control_packet(packet.source, f"{instrument.name}:OPERATION:{request_name}", operation_ret)
 
-        if request_type == "PARAMETER":
-            if request_name not in instrument.parameters:
-                return self._create_error_packet(packet.source, f"Parameter '{request_name}' not found in '{ins_name}'")
+    def _handle_parameter_control(self, request_name, instrument, packet, args, kwargs):
+        if request_name not in instrument.parameters:
+            return self._create_error_packet(
+                packet.source, f"Parameter '{request_name}' not found in '{instrument.name}'"
+            )
 
             # Check if this is just reading the parameter or setting it.
-            if len(args) == 0 and len(kwargs) == 0:
-                try:
-                    parameter_ret = getattr(instrument, request_name)
-                except AttributeError as e:
-                    msg = f"Error reading parameter '{request_name}' in '{ins_name}'. Error: {e}"
-                    return self._create_error_packet(packet.source, msg)
-
-                return self._create_control_packet(packet.source, f"{ins_name}:PARAMETER:{request_name}", parameter_ret)
-
+        if len(args) == 0 and len(kwargs) == 0:
             try:
-                setattr(instrument, request_name, *args, **kwargs)
-            # TODO: Double check this exception type, I am not entirely sure this would work.
+                parameter_ret = getattr(instrument, request_name)
             except AttributeError as e:
-                msg = f"Error setting parameter '{request_name}' in '{ins_name}'. Error: {e}"
+                msg = f"Error reading parameter '{request_name}' in '{instrument.name}'. Error: {e}"
                 return self._create_error_packet(packet.source, msg)
 
-            return self._create_control_packet(packet.source, f"{ins_name}:PARAMETER:{request_name}", "OK")
+            return self._create_control_packet(
+                packet.source, f"{instrument.name}:PARAMETER:{request_name}", parameter_ret
+            )
+
+        try:
+            setattr(instrument, request_name, *args, **kwargs)
+            # TODO: Double check this exception type, I am not entirely sure this would work.
+        except AttributeError as e:
+            msg = f"Error setting parameter '{request_name}' in '{instrument.name}'. Error: {e}"
+            return self._create_error_packet(packet.source, msg)
+
+        return self._create_control_packet(packet.source, f"{instrument.name}:PARAMETER:{request_name}", "OK")
+
+    def _handle_instrument_control(self, packet: Packet) -> Packet:
+        validated_packet = self._validate_instrument_control_packet(packet)
+
+        # If it's a packet it means that there was an error with the incoming packet so return the error packet.
+        if isinstance(validated_packet, Packet):
+            return validated_packet
+
+        ins_name, request_type, request_name, instrument, args, kwargs = validated_packet
+
+        if request_type == "OPERATION":
+            return self._handle_operation_control(request_name, instrument, packet, args, kwargs)
+
+        if request_type == "PARAMETER":
+            return self._handle_parameter_control(request_name, instrument, packet, args, kwargs)
 
         if request_type == "INFO":
             return self._create_control_packet(packet.source, f"{ins_name}:INFO", instrument.info())
 
+        # All the possible packet options should have been handled by now, so if we get here, something went wrong.
         msg = f"Something inside node {self.name} went wrong. Check that your packet is correct and try again."
         return self._create_error_packet(packet.source, msg)
 

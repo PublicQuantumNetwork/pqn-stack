@@ -1,6 +1,6 @@
 def invoke() -> None:
-    # TODO:
-    print(f"Hello from the PQN CLI entrypoint in {__name__}!")
+    # TODO: Implement the invoke function
+    pass
 
 
 if __name__ == "__main__":

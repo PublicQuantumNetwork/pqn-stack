@@ -27,12 +27,12 @@ class Buffer:
     max: float = field(default=float("-inf"), init=False)
 
     def __post_init__(self) -> None:
-        self.flush()
+        self.clear()
 
     def __len__(self) -> int:
         return len(self._buffer)
 
-    def flush(self) -> None:
+    def clear(self) -> None:
         """Clear all values in the buffer."""
         self._buffer.clear()
         self.min = float("inf")
@@ -44,10 +44,9 @@ class Buffer:
             self.min = min(self.min, value)
             self.max = max(self.max, value)
 
-    @property
     def read(self) -> float:
         if len(self._buffer) == 0:
-            return 10
+            return 0
         return sum(self._buffer) / len(self._buffer)
 
 
@@ -105,11 +104,11 @@ class ArduinoPolarimeter(Polarimeter):
 
     def reset(self) -> None:
         for buffer in self._buffers:
-            buffer.flush()
+            buffer.clear()
 
     def start_normalizing(self) -> None:
         for buffer in self._buffers:
-            buffer.flush()
+            buffer.clear()
             buffer.normalizing = True
 
     def stop_normalizing(self) -> None:
@@ -117,13 +116,8 @@ class ArduinoPolarimeter(Polarimeter):
             buffer.normalizing = False
 
     def read(self) -> PolarizationMeasurement:
-        hvda = [buffer.read for buffer in self._buffers]
+        hvda = [buffer.read() for buffer in self._buffers]
         return PolarizationMeasurement(*hvda)
-    
-    @property
-    def summary(self) -> str:
-        """A summary of the polarimeter data."""
-        return f"h: {self.h:.2f} v: {self.v:.2f} d: {self.d:.2f} a: {self.a:.2f} theta: {self.theta:.2f} phi: {self.phi:.2f}"
 
 
 class PolarimeterDevice(DeviceDriver):
@@ -138,6 +132,7 @@ class PolarimeterDevice(DeviceDriver):
         self.operations["close"] = self.close
         self.operations["start"] = self.start
 
+    @abstractmethod
     @log_operation
     def read(self) -> PolarizationMeasurement: ...
 
@@ -180,6 +175,7 @@ class ArduinoPolarimeterDevice(PolarimeterDevice):
     def start(self) -> None:
         self.status = DeviceStatus.READY
 
+
 if __name__ == "__main__":
     polarimeter = ArduinoPolarimeter()
     polarimeter.start_normalizing()
@@ -194,12 +190,3 @@ if __name__ == "__main__":
         sys.stdout.write("\n")
     finally:
         polarimeter.close()
-
-
-
-
-
-
-
-
-

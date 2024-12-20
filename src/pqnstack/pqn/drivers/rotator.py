@@ -3,16 +3,16 @@
 #
 # NCSA/Illinois Computes
 
+import atexit
 import logging
 import time
-import serial
 from abc import abstractmethod
 from dataclasses import dataclass
+from dataclasses import field
 from typing import Any
 
+import serial
 from thorlabs_apt_device import TDC001
-from dataclasses import field
-import atexit
 
 from pqnstack.base.driver import DeviceClass
 from pqnstack.base.driver import DeviceDriver
@@ -62,7 +62,7 @@ class RotatorDevice(DeviceDriver):
     def start(self) -> None: ...
 
 
-class APTRotator(Rotator):
+class APTRotatorDevice(RotatorDevice):
     def __init__(
         self, name: str, desc: str, address: str, offset_degrees: float = 0.0, *, block_while_moving: bool = True
     ) -> None:
@@ -167,9 +167,9 @@ class SerialRotator:
         self._controller.read(100)
 
         self.degrees = self.offset_degrees
-        atexit.register(self._cleanup)
+        atexit.register(self.cleanup)
 
-    def _cleanup(self) -> None:
+    def cleanup(self) -> None:
         self.degrees = 0
         self._controller.close()
 
@@ -185,7 +185,7 @@ class SerialRotator:
 
 
 class SerialRotatorDevice(RotatorDevice):
-    def __init__(self, name: str, desc: str, address: str, hb_rotator: SerialRotator, offset_degrees: float = 0.0):
+    def __init__(self, name: str, desc: str, address: str, hb_rotator: SerialRotator):
         super().__init__(name, desc, address)
         self.hb_rotator = hb_rotator
 
@@ -199,7 +199,7 @@ class SerialRotatorDevice(RotatorDevice):
 
     def close(self) -> None:
         self.status = DeviceStatus.OFF
-        return self.hb_rotator._cleanup()
+        return self.hb_rotator.cleanup()
 
     @property
     @log_parameter

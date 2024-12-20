@@ -16,7 +16,6 @@ from enum import auto
 from functools import wraps
 from time import perf_counter
 from typing import Any
-from typing import TypeVar
 
 from pqnstack.base.errors import LogDecoratorOutsideOfClassError
 
@@ -88,12 +87,9 @@ class DeviceDriver(ABC):
         super().__setattr__(key, value)
 
 
-T = TypeVar("T")
-
-
-def log_operation(func: Callable[..., T]) -> Callable[..., T]:
+def log_operation[T](func: Callable[..., T]) -> Callable[..., T]:
     @wraps(func)
-    def wrapper(*args: Any, **kwargs: Any) -> Any:
+    def wrapper(*args: Any, **kwargs: Any) -> T:
         if len(args) == 0:
             msg = "log_operation has 0 args, this usually indicates that it has been used to decorate something that is not a class method. This is not allowed."
             raise LogDecoratorOutsideOfClassError(msg)
@@ -119,7 +115,12 @@ def log_operation(func: Callable[..., T]) -> Callable[..., T]:
         end_time = perf_counter()
         duration = end_time - start_time
         logger.info(
-            "%s | %s, %s | Completed operation %s. Duration: %s", end_time, ins.name, type(ins), func.__name__, duration
+            "%s | %s, %s | Completed operation %s. Duration: %s",
+            end_time,
+            ins.name,
+            type(ins),
+            func.__name__,
+            duration,
         )
 
         return result
@@ -127,9 +128,9 @@ def log_operation(func: Callable[..., T]) -> Callable[..., T]:
     return wrapper
 
 
-def log_parameter(func: Callable[..., T]) -> Callable[..., T]:
+def log_parameter[T](func: Callable[..., T]) -> Callable[..., T]:
     @wraps(func)
-    def wrapper(*args: Any, **kwargs: Any) -> Any:
+    def wrapper(*args: Any, **kwargs: Any) -> T:
         if len(args) == 0:
             msg = (
                 "log_parameter has 0 args, "

@@ -31,17 +31,13 @@ dev = ["mypy>=1.13.0", "pytest-cov>=6.0.0", "ruff>=0.8.0"]
 
 
 [tool.mypy]
-files = ["src", "tests"]
+files = ["src"]
 strict = true
 pretty = true
 
 enable_error_code = ["ignore-without-code"]
 
 ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = "tests.*"
-ignore_errors = true
 
 
 [tool.ruff]

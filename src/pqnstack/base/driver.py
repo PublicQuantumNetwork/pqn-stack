@@ -14,6 +14,7 @@ from enum import Enum
 from enum import StrEnum
 from enum import auto
 from functools import wraps
+from time import perf_counter
 from typing import Any
 from typing import TypeVar
 
@@ -102,7 +103,7 @@ def log_operation(func: Callable[..., T]) -> Callable[..., T]:
             msg = "log_operation has been used to decorate something that is not a DeviceDriver method. This is not allowed."
             raise LogDecoratorOutsideOfClassError(msg)
 
-        start_time = datetime.datetime.now(tz=datetime.UTC)
+        start_time = perf_counter()
         logger.info(
             "%s| %s, %s |Starting operation '%s' with args: '%s' and kwargs '%s'",
             start_time,
@@ -115,7 +116,7 @@ def log_operation(func: Callable[..., T]) -> Callable[..., T]:
 
         result = func(*args, **kwargs)
 
-        end_time = datetime.datetime.now(tz=datetime.UTC)
+        end_time = perf_counter()
         duration = end_time - start_time
         logger.info(
             "%s | %s, %s | Completed operation %s. Duration: %s", end_time, ins.name, type(ins), func.__name__, duration
@@ -159,9 +160,9 @@ def log_parameter(func: Callable[..., T]) -> Callable[..., T]:
             )
 
         else:
-            start_time = datetime.datetime.now(tz=datetime.UTC)
+            start_time = perf_counter()
             result = func(*args, **kwargs)  # Always return None
-            end_time = datetime.datetime.now(tz=datetime.UTC)
+            end_time = perf_counter()
             duration = end_time - start_time
             logger.info(
                 "%s | %s, %s | Parameter '%s' got updated to '%s', parameter update took %s long ",

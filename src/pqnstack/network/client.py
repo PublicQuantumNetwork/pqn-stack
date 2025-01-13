@@ -212,7 +212,7 @@ class ProxyInstrument(DeviceDriver):
 
         self.host = init_args.host
         self.port = init_args.port
-        self.timeout = init_args.timeoutfix
+        self.timeout = init_args.timeout
 
         self.parameters = init_args.parameters
         self.operations = init_args.operations

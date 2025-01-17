@@ -100,7 +100,6 @@ class ArduinoPolarimeter(Polarimeter):
         if self.board is not None:
             logger.info("Polarimeter stopped")
             self.board.exit()
-        self.status = DeviceStatus.OFF
 
     def reset(self) -> None:
         for buffer in self._buffers:
@@ -127,21 +126,23 @@ class PolarimeterDevice(DeviceDriver):
         super().__init__(name, desc, address)
 
         self.operations["read"] = self.read
+        self.operations["reset"] = self.reset
         self.operations["start_normalizing"] = self.start_normalizing
         self.operations["stop_normalizing"] = self.stop_normalizing
-        self.operations["close"] = self.close
-        self.operations["start"] = self.start
 
     @abstractmethod
     @log_operation
     def read(self) -> PolarizationMeasurement: ...
 
+    @abstractmethod
     @log_operation
     def reset(self) -> None: ...
 
+    @abstractmethod
     @log_operation
     def start_normalizing(self) -> None: ...
 
+    @abstractmethod
     @log_operation
     def stop_normalizing(self) -> None: ...
 
@@ -164,29 +165,23 @@ class ArduinoPolarimeterDevice(PolarimeterDevice):
     def read(self) -> PolarizationMeasurement:
         return self.ap.read()
 
+    def reset(self) -> None:
+        self.ap.reset()
+
+    def start_normalizing(self) -> None:
+        self.ap.start_normalizing()
+
+    def stop_normalizing(self) -> None:
+        self.ap.stop_normalizing()
+
     def info(self) -> DeviceInfo:
         return DeviceInfo(
             name=self.name, desc=self.desc, dtype=self.DEVICE_CLASS, status=self.status, address=self.address
         )
 
     def close(self) -> None:
-        return self.ap.close()
+        self.ap.close()
+        self.status = DeviceStatus.OFF
 
     def start(self) -> None:
         self.status = DeviceStatus.READY
-
-
-if __name__ == "__main__":
-    polarimeter = ArduinoPolarimeter()
-    polarimeter.start_normalizing()
-
-    try:
-        while True:
-            result = polarimeter.read()
-            sys.stdout.write(f"\r{result:.2f} {result.theta:.2f}")
-            sys.stdout.flush()
-            time.sleep(0.1)
-    except KeyboardInterrupt:
-        sys.stdout.write("\n")
-    finally:
-        polarimeter.close()

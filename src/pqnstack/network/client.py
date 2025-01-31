@@ -29,7 +29,7 @@ class ClientBase:
         host: str = "127.0.0.1",
         port: int = 5555,
         router_name: str = "router1",
-        timeout: int = 5000,
+        timeout: int = 30000,
     ) -> None:
         if name == "":
             name = "".join(

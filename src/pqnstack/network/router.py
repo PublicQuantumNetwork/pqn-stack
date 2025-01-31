@@ -95,6 +95,9 @@ class Router:
             forward_packet = copy.copy(packet)
             forward_packet.hops += 1
             dest = self.nodes.get(packet.destination) or self.clients.get(packet.destination)
+            if dest is None:
+                self.handle_packet_error(identity_binary, f"Destination {packet.destination} not found.")
+                return
             self._send(dest, forward_packet)
             logger.info("Sent packet to %s", packet.destination)
 

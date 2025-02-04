@@ -23,7 +23,7 @@ dependencies = [
 ]
 
 [project.scripts]
-pqn = "pqnstack.cli:invoke"
+router = "pqnstack.cli:start_router"
 
 
 [dependency-groups]

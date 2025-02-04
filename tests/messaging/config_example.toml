@@ -1,0 +1,6 @@
+
+[router]
+name = "pqnstack-router"
+host = "localhost"
+port = 5556
+

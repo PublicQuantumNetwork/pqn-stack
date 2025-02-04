@@ -24,6 +24,7 @@ dependencies = [
 
 [project.scripts]
 router = "pqnstack.cli:start_router"
+node = "pqnstack.cli:start_node"
 
 
 [dependency-groups]

@@ -29,7 +29,7 @@ class DeviceClass(Enum):
     TIMETAGR = auto()
     PROXY = auto()
     TESTING = auto()
-
+    PROTOCOL = auto()
 
 class DeviceStatus(StrEnum):
     OFF = auto()

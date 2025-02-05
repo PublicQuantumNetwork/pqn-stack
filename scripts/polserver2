@@ -5,7 +5,7 @@ from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler
 from http.server import HTTPServer
 
-from pqnstack.pqn.drivers.polarimeter import ArduinoPolarimeter
+from pqnstack.pqn.drivers.polarimeter2 import ArduinoPolarimeter
 
 HOST = "127.0.0.1"
 PORT = 8000
@@ -30,9 +30,8 @@ def get_handler(polarimeter: ArduinoPolarimeter) -> Callable[..., BaseHTTPReques
             response_content = ""
 
             if self.path == "/polarimeter":
-                angle = polarimeter.read().theta
-                print(polarimeter.read())
-                print(polarimeter._buffers)
+                angle = polarimeter.theta
+                print(polarimeter.summary)
                 response_content = str(f"{angle:.2f}")
             else:
                 status = 404
@@ -52,9 +51,9 @@ def get_handler(polarimeter: ArduinoPolarimeter) -> Callable[..., BaseHTTPReques
             if self.path == "/polarimeter/start_normalizing":
                 print("post set normalizing")
                 polarimeter.reset()
-                polarimeter.start_normalizing()
+                polarimeter.set_calibration(True)
             elif self.path == "/polarimeter/stop_normalizing":
-                polarimeter.stop_normalizing()
+                polarimeter.set_calibration(False)
             else:
                 status = 404
 
@@ -71,7 +70,6 @@ if __name__ == "__main__":
     sys.stdout.write("Initializing ArduinoPolarimeter...\n")
     try:
         polarimeter = ArduinoPolarimeter()
-        polarimeter.start_normalizing()
     except Exception:
         sys.stderr.write("Could not connect the ArduinoPolarimeter. Is it plugged in?\n")
         raise

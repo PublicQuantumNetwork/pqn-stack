@@ -20,12 +20,11 @@ dependencies = [
     "pyfirmata2>=2.5.0",
     "pyzmq>=26.2.0",
     "thorlabs-apt-device>=0.3.8",
+    "typer>=0.15.1",
 ]
 
 [project.scripts]
-router = "pqnstack.cli:start_router"
-node = "pqnstack.cli:start_node"
-
+pqn = "pqnstack.cli:app"
 
 [dependency-groups]
 dev = ["mypy>=1.13.0", "pytest-cov>=6.0.0", "ruff>=0.8.0"]

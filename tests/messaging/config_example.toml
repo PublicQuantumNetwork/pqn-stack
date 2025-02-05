@@ -1,4 +1,3 @@
-
 [router]
 name = "pqnstack-router"
 host = "localhost"
@@ -21,7 +20,3 @@ name = "dummy2"
 import = "pqnstack.pqn.drivers.dummies.DummyInstrument"
 desc = "Dummy instrument2 for testing purposes"
 address = "1234"
-
-
-
-

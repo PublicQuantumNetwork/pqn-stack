@@ -14,11 +14,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def _verify_instruments_config(instruments:  list[dict[str, str]]) -> dict[str, dict[str, str]]:
-
+def _verify_instruments_config(instruments: list[dict[str, str]]) -> dict[str, dict[str, str]]:
     ins = {}
     for i, item in enumerate(instruments):
-
         if "name" not in item:
             msg = f"Instrument number #{i + 1} configuration is missing the field 'name'"
             raise InvalidNetworkConfigurationError(msg)
@@ -38,14 +36,17 @@ def _verify_instruments_config(instruments:  list[dict[str, str]]) -> dict[str, 
     return ins
 
 
-def _load_and_parse_node_config(config_path: Path | str, kwargs: dict[str, str | int], instruments: dict[str, dict[str, str]]) -> tuple[dict[str, str | int], dict[str, dict[str, str]]]:
-
+def _load_and_parse_node_config(
+    config_path: Path | str, kwargs: dict[str, str | int], instruments: dict[str, dict[str, str]]
+) -> tuple[dict[str, str | int], dict[str, dict[str, str]]]:
     path = Path(config_path)
     with path.open("rb") as f:
         config = tomllib.load(f)
 
     if "node" not in config:
-        msg = f"Config file {config_path} does not contain a node section. Add node configuration under '[node]' section."
+        msg = (
+            f"Config file {config_path} does not contain a node section. Add node configuration under '[node]' section."
+        )
         raise InvalidNetworkConfigurationError(msg)
 
     node = config["node"]
@@ -65,15 +66,46 @@ def _load_and_parse_node_config(config_path: Path | str, kwargs: dict[str, str |
 
 
 def start_node() -> None:
-
-    parser = argparse.ArgumentParser(description="Start a node",
-                                     epilog="Starts a PQN Node. Can be configured by passing arguments directly into the command line but it is recommended to use a config file if instruments will added.")
+    parser = argparse.ArgumentParser(
+        description="Start a node",
+        epilog="Starts a PQN Node. Can be configured by passing arguments directly into the command line but it is recommended to use a config file if instruments will added.",
+    )
     parser.add_argument("-n", "--name", type=str, required=False, help="Name of the node")
-    parser.add_argument("-rn", "--router_name", type=str, required=False, help="Name of the router this node will talk to (default: 'router1').")
-    parser.add_argument("-ho", "--host", type=str, required=False, help="Host address (IP) of the node (default: 'localhost'). Usually the IP address of the Router this node will talk to.")
-    parser.add_argument("-p", "--port", type=int, required=False, help="Port of the node (default: 5555). Has to be the same port as the Router.")
-    parser.add_argument("-i", "--instruments", type=str, required=False, help="JSON formatted string with necessary arguments to instantiate instruments. Example: '{\"dummy1\": {\"import\": \"pqnstack.pqn.drivers.dummies.DummyInstrument\", \"desc\": \"Dummy Instrument 1\", \"address\": \"123456\"}}'")
-    parser.add_argument("-c", "--config", type=str, required=False, help="Path to the config file, will get overridden by command line arguments.")
+    parser.add_argument(
+        "-rn",
+        "--router_name",
+        type=str,
+        required=False,
+        help="Name of the router this node will talk to (default: 'router1').",
+    )
+    parser.add_argument(
+        "-ho",
+        "--host",
+        type=str,
+        required=False,
+        help="Host address (IP) of the node (default: 'localhost'). Usually the IP address of the Router this node will talk to.",
+    )
+    parser.add_argument(
+        "-p",
+        "--port",
+        type=int,
+        required=False,
+        help="Port of the node (default: 5555). Has to be the same port as the Router.",
+    )
+    parser.add_argument(
+        "-i",
+        "--instruments",
+        type=str,
+        required=False,
+        help='JSON formatted string with necessary arguments to instantiate instruments. Example: \'{"dummy1": {"import": "pqnstack.pqn.drivers.dummies.DummyInstrument", "desc": "Dummy Instrument 1", "address": "123456"}}\'',
+    )
+    parser.add_argument(
+        "-c",
+        "--config",
+        type=str,
+        required=False,
+        help="Path to the config file, will get overridden by command line arguments.",
+    )
 
     args = parser.parse_args()
 
@@ -82,7 +114,6 @@ def start_node() -> None:
 
     if args.config:
         kwargs, instruments = _load_and_parse_node_config(args.config, kwargs, instruments)
-
 
     if args.name:
         kwargs["name"] = args.name
@@ -122,13 +153,27 @@ def _load_and_parse_router_config(config_path: Path | str, kwargs: dict[str, str
 
 
 def start_router() -> None:
-    parser = argparse.ArgumentParser(description="Start a router",
-                                     epilog="Starts a PQN Router. Can be configured by passing arguments directly into the command line or through a config file. ")
+    parser = argparse.ArgumentParser(
+        description="Start a router",
+        epilog="Starts a PQN Router. Can be configured by passing arguments directly into the command line or through a config file. ",
+    )
 
     parser.add_argument("-n", "--name", type=str, required=False, help="Name of the router")
-    parser.add_argument("-ho", "--host", type=str, required=False, help="Host address (IP) of the router (default: 'localhost'). Usually the IP address of the machine running the router.")
+    parser.add_argument(
+        "-ho",
+        "--host",
+        type=str,
+        required=False,
+        help="Host address (IP) of the router (default: 'localhost'). Usually the IP address of the machine running the router.",
+    )
     parser.add_argument("-p", "--port", type=int, required=False, help="Port of the router (default: 5555)")
-    parser.add_argument("-c", "--config", type=str, required=False, help="Path to the config file, will get overridden by command line arguments.")
+    parser.add_argument(
+        "-c",
+        "--config",
+        type=str,
+        required=False,
+        help="Path to the config file, will get overridden by command line arguments.",
+    )
 
     args = parser.parse_args()
     kwargs: dict[str, str | int] = {}

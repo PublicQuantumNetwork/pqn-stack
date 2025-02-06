@@ -24,12 +24,11 @@ dependencies = [
     "python-dotenv>=1.0.1",
     "pyyaml>=6.0.2",
     "thorlabs-apt-device>=0.3.8",
-    "zmq>=0.0.0",
+    "typer>=0.15.1",
 ]
 
 [project.scripts]
-pqn = "pqnstack.cli:invoke"
-
+pqn = "pqnstack.cli:app"
 
 [dependency-groups]
 dev = ["mypy>=1.13.0", "pytest-cov>=6.0.0", "ruff>=0.8.0"]

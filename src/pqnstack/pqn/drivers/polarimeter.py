@@ -44,8 +44,13 @@ class Buffer:
 
     def read(self) -> float:
         if len(self._buffer) == 0:
-            return 0
-        return sum(self._buffer) / len(self._buffer)
+            return 0.0
+
+        if self.max <= self.min:
+            return 0.0
+
+        avg = sum(self._buffer) / len(self._buffer)
+        return (avg - self.min) / (self.max - self.min)
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,6 +59,7 @@ class PolarizationMeasurement:
     v: float
     d: float
     a: float
+    _last_theta: float = field(default=0.0, repr=False, kw_only=True)  # HACK: Allow reporting of full 2pi angle
 
     def __format__(self, spec: str, /) -> str:
         if not spec:
@@ -63,10 +69,27 @@ class PolarizationMeasurement:
     @property
     def theta(self) -> float:
         """Return the calculated polarization angle in degrees."""
-        cosine = min(math.sqrt(self.h), 1)
-        radians = 1 / math.pi * math.acos(cosine)
-        sign = math.copysign(1, self.d - self.a)
-        return sign * math.degrees(radians)
+        if self.h + self.v == 0 or self.d + self.a == 0:
+            return 0.0
+
+        # Read polarization angle from photodiodes
+        h = self.h / (self.h + self.v)
+        radians = math.acos(math.sqrt(h))
+        sign = math.copysign(1, self.a - self.d)
+        degrees = sign * math.degrees(radians) % 180
+
+        # Shift based on previous angle to allow full 0-360 range
+        shifted = self._last_theta // 180
+        prev_wedge = self._last_theta % 180 // 60
+        new_wedge = degrees // 60
+
+        if abs(new_wedge - prev_wedge) > 1:
+            shifted = not shifted
+
+        if shifted:
+            degrees += 180
+
+        return degrees % 360
 
     @property
     def phi(self) -> float:
@@ -84,6 +107,7 @@ class ArduinoPolarimeter(Polarimeter):
     sample_rate: int = 10
     average_width: int = 10
     _buffers: list[Buffer] = field(default_factory=list, init=False)
+    _last_theta: float = field(default=0.0, init=False, repr=False)  # HACK: Allow reporting of full 2pi angle
 
     def __post_init__(self) -> None:
         self.board.samplingOn(1000 // self.sample_rate)
@@ -100,10 +124,12 @@ class ArduinoPolarimeter(Polarimeter):
             self.board.exit()
 
     def reset(self) -> None:
+        self._last_theta = 0.0
         for buffer in self._buffers:
             buffer.clear()
 
     def start_normalizing(self) -> None:
+        self._last_theta = 0.0
         for buffer in self._buffers:
             buffer.clear()
             buffer.normalizing = True
@@ -114,7 +140,9 @@ class ArduinoPolarimeter(Polarimeter):
 
     def read(self) -> PolarizationMeasurement:
         hvda = [buffer.read() for buffer in self._buffers]
-        return PolarizationMeasurement(*hvda)
+        pm = PolarizationMeasurement(*hvda, _last_theta=self._last_theta)
+        self._last_theta = pm.theta
+        return pm
 
 
 class PolarimeterDevice(DeviceDriver):

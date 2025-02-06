@@ -2,6 +2,7 @@
 # Public Quantum Network
 #
 # NCSA/Illinois Computes
+import datetime
 import importlib
 import logging
 import pickle
@@ -10,6 +11,7 @@ from typing import Any
 import zmq
 
 from pqnstack.base.driver import DeviceDriver
+from pqnstack.base.errors import CouldNotConnectToNetworkElementError
 from pqnstack.base.errors import InvalidInstrumentsConfigurationError
 from pqnstack.network.packet import NetworkElementClass
 from pqnstack.network.packet import Packet
@@ -26,18 +28,22 @@ class Node:
         host: str = "localhost",
         port: int = 5555,
         router_name: str = "router1",
+        beat_period: int = 1000,
         **instruments: dict[str, Any],
     ) -> None:
         """
         Node class for PQN.
 
         A Node is the class that talks with real hardware and performs experiments. It talks to a
-        single `Router` instance through zqm and awaits for instructions from it.
+        single `Router` instance through zqm and awaits for instructions from it. Every `beat_interval` milliseconds,
+        sends a registration packet to the router.
+        This is done so if the router goes offline, the node can reconnect to the router automatically.
 
         :param name: Name for the Node.
         :param host: Hostname or IP address of the Router this node talks to.
         :param port: Port of the name of the Router this node talks to.
         :param router_name: Name of the Router this node talks to.
+        :param beat_period: Interval in milliseconds to send a beat to the Router.
         :param instruments: Instruments is a Dictionary holding the necessary instructions to initialize any hardware
          the Node talks to. The keys are the names of the instruments, every key has another dictionary as its value
          with all the necessary instructions to initialize the instrument. Inside of the dictionary for the specific
@@ -60,6 +66,11 @@ class Node:
         self.port = port
         self.address = f"tcp://{host}:{port}"
         self.router_name = router_name
+        self.beat_period = beat_period
+        self._beats_since_reply = 0
+        self._last_received_beat: datetime.datetime | None = None
+        # How many sent beats with no replies do we start logging warnings for disconnected routers.
+        self._disconnected_threshold = 3
 
         self.context: zmq.Context[zmq.Socket[bytes]] | None = None
         self.socket: zmq.Socket[bytes] | None = None  # Has the instance of the socket talking to the router.
@@ -121,30 +132,35 @@ class Node:
         self.socket = self.context.socket(zmq.DEALER)
         self.socket.setsockopt_string(zmq.IDENTITY, self.name)
 
+        # Wait 10 beats for the first check before timing out
+        self.socket.setsockopt(zmq.RCVTIMEO, self.beat_period * 10)
         try:
-            self.socket.connect(self.address)
-            reg_packet = create_registration_packet(
-                source=self.name, destination=self.router_name, payload=NetworkElementClass.NODE, hops=0
-            )
-            self.socket.send(pickle.dumps(reg_packet))
-            packet = self._listen()
-            if packet.intent != PacketIntent.REGISTRATION_ACK:
-                msg = f"Registration failed. Packet: {packet}"
-                raise RuntimeError(msg)
-            logger.info("Node %s is connected to router at %s", self.name, self.address)
-            self.running = True
-        # TODO: Handle connection error properly.
-        except zmq.error.ZMQError:
+            self._beat()
+        except zmq.error.Again as er:
             logger.exception("Could not connect to router at %s", self.address)
-            raise
+            msg = "Could not connect to router."
+            raise CouldNotConnectToNetworkElementError(msg) from er
+
+        # Set the beat interval to the normal value.
+        self.socket.setsockopt(zmq.RCVTIMEO, self.beat_period)
+        self.running = True
+
         try:
             while self.running:
-                packet = self._listen()
+                try:
+                    packet = self._listen()
+                except zmq.error.ZMQError:
+                    logger.debug("Time interval happened, sending a beat.")
+                    self._beat()
+                    continue
 
                 match packet.intent:
                     case PacketIntent.PING:
                         response = self._handle_ping(packet)
                         self.socket.send(pickle.dumps(response))
+
+                    case PacketIntent.REGISTRATION_ACK:
+                        self._handle_reg_acknowledge()
 
                     case PacketIntent.DATA:
                         match packet.request:
@@ -184,6 +200,47 @@ class Node:
             raise TypeError(msg)
 
         return packet
+
+    def _beat(self) -> None:
+        """
+        Execute a single beat to the ROUTER.
+
+         This is the same process as initial registration. If the Router cannot be reached, logs the message and keeps going.
+
+        :return:
+        """
+        if self._beats_since_reply > self._disconnected_threshold:
+            local_time = self._last_received_beat.astimezone() if self._last_received_beat else None
+            logger.warning(
+                "Router at %s did not reply to heartbeat, router seems offline. Will keep trying to reconnect. \n Beats since reply: %s. Time at last reply %s",
+                self.address,
+                self._beats_since_reply,
+                local_time,
+            )
+
+        try:
+            # This should never happen, but mypy complains if the check is not done
+            if self.socket is None:
+                msg = "Socket is None, cannot listen."
+                logger.error(msg)
+                raise RuntimeError(msg)
+
+            self.socket.connect(self.address)
+            reg_packet = create_registration_packet(
+                source=self.name, destination=self.router_name, payload=NetworkElementClass.NODE, hops=0
+            )
+            self.socket.send(pickle.dumps(reg_packet))
+            logger.info("Sent registration packet to router at %s", self.address)
+            self._beats_since_reply += 1
+
+        except zmq.error.Again:
+            logger.warning("Error while sending beat to router at %s", self.address)
+
+    def _handle_reg_acknowledge(self) -> None:
+        logger.info("Node %s is connected to router at %s", self.name, self.address)
+        self.running = True
+        self._beats_since_reply = 0
+        self._last_received_beat = datetime.datetime.now(tz=datetime.UTC)
 
     def _handle_ping(self, packet: Packet) -> Packet:
         return Packet(

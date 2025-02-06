@@ -1,75 +1,85 @@
 #!/usr/bin/env python
 
+import json
 import sys
-import threading
 from collections.abc import Callable
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from dataclasses import dataclass
+from http.server import BaseHTTPRequestHandler
+from http.server import HTTPServer
 
 HOST = "127.0.0.1"
 PORT = 8000
 ADDRESS = (HOST, PORT)
 
-# Global theta value that updates via user input
-theta_value = 0.0
 
-def update_theta():
-    """Continuously asks the user for a new theta value."""
-    global theta_value
-    while True:
-        try:
-            new_value = input("\nEnter new theta value: ")
-            theta_value = float(new_value)
-            print(f"Updated theta to: {theta_value:.2f}")
-        except ValueError:
-            print("Invalid input! Please enter a valid number.")
+@dataclass
+class MockPolarimeter:
+    angle: float = 0.0
 
-def get_handler() -> Callable[..., BaseHTTPRequestHandler]:
-    """Creates an HTTP request handler that returns the latest theta value."""
-    
+
+def get_handler(mp: MockPolarimeter) -> Callable[..., BaseHTTPRequestHandler]:
     class RequestHandler(BaseHTTPRequestHandler):
-        def do_OPTIONS(self):
-            """Handles CORS preflight requests."""
-            self.send_response(200)
-            self.send_header("Access-Control-Allow-Origin", "*")
+        angle: float = 0.0
+
+        def do_OPTIONS(self) -> None:  # noqa: N802
+            status = 200
+            self.send_response(status)
+            self.send_header("Access-Control-Allow-Origin", "https://pqnetwork.web.illinois.edu")
             self.send_header("Access-Control-Allow-Methods", "GET, POST, HEAD, OPTIONS")
             self.send_header("Access-Control-Allow-Headers", "Content-Type, Cache-Control, Authorization")
+            self.send_header("Access-Control-Allow-Credentials", "true")
+            self.send_header("Access-Control-Allow-Private-Network", "true")
             self.end_headers()
 
-        def do_GET(self):
-            """Handles GET requests for the theta value."""
+        def do_GET(self) -> None:  # noqa: N802
             status = 200
             content_type = "text/plain"
             response_content = ""
 
             if self.path == "/polarimeter":
-                global theta_value
-                response_content = f"{theta_value:.2f}"
+                response_content = str(f"{mp.angle:.2f}")
             else:
-                status = 404  # Not Found
+                status = 404
 
             self.send_response(status)
-            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Origin", "https://pqnetwork.web.illinois.edu")
             self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Type", content_type)
+            self.end_headers()
+            self.wfile.write(bytes(response_content, "utf-8"))
+
+        def do_POST(self) -> None:  # noqa: N802
+            status = 200
+            content_type = "text/plain"
+            response_content = ""
+
+            if self.path == "/polarimeter":
+                content_length = int(self.headers["Content-Length"])
+                post_data = self.rfile.read(content_length)
+                json_data = json.loads(post_data.decode())
+                angle = json_data["angle"]
+
+                response_content = f"Setting angle to {angle:.2f}"
+                mp.angle = angle
+            else:
+                status = 404
+
+            self.send_response(status)
+            self.send_header("Access-Control-Allow-Origin", "https://pqnetwork.web.illinois.edu")
             self.send_header("Content-Type", content_type)
             self.end_headers()
             self.wfile.write(bytes(response_content, "utf-8"))
 
     return RequestHandler
 
+
 if __name__ == "__main__":
-    sys.stdout.write("Starting manual theta input server...\n")
+    sys.stdout.write("Initializing server...\n")
+    httpd = HTTPServer(ADDRESS, get_handler(MockPolarimeter()))
 
-    # Start a separate thread to handle user input
-    input_thread = threading.Thread(target=update_theta, daemon=True)
-    input_thread.start()
-
-    # Initialize and start the HTTP server
-    httpd = HTTPServer(ADDRESS, get_handler())
-
-    sys.stdout.write(f"Server started at http://{HOST}:{PORT}/\n")
+    sys.stdout.write("Starting server...\n")
     try:
+        sys.stdout.write(f"Server started at http://{HOST}:{PORT}/\n")
         httpd.serve_forever()
     except KeyboardInterrupt:
-        sys.stdout.write("\nShutting down server...\n")
         httpd.shutdown()
-

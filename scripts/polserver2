@@ -4,8 +4,11 @@ import sys
 from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler
 from http.server import HTTPServer
+import json
 
 from pqnstack.pqn.drivers.polarimeter2 import ArduinoPolarimeter
+from pqnstack.network.client import Client
+from pqnstack.pqn.protocols.chsh import measure_chsh
 
 HOST = "127.0.0.1"
 PORT = 8000
@@ -23,6 +26,9 @@ def get_handler(polarimeter: ArduinoPolarimeter) -> Callable[..., BaseHTTPReques
             self.send_header("Access-Control-Allow-Credentials", "true")
             self.send_header("Access-Control-Allow-Private-Network", "true")
             self.end_headers()
+
+            self.angle1 = None
+            self.angle2 = None
 
         def do_GET(self) -> None:  # noqa: N802
             status = 200
@@ -54,6 +60,40 @@ def get_handler(polarimeter: ArduinoPolarimeter) -> Callable[..., BaseHTTPReques
                 polarimeter.set_calibration(True)
             elif self.path == "/polarimeter/stop_normalizing":
                 polarimeter.set_calibration(False)
+            elif self.path == "/polarimeter/set_angle1":
+                content_length = int(self.headers["Content-Length"])
+                post_data = self.rfile.read(content_length).decode("utf-8")
+                try:
+                    data = json.loads(post_data)
+                    angle1 = float(data.get("angle1", 0))
+                    print(f"angle1 set to {angle1}")
+                except (json.JSONDecodeError, ValueError) as e:
+                    self.send_response(400)
+                    self.end_headers()
+                    self.wfile.write(bytes("Invalid JSON data", "utf-8"))
+                    return
+            elif self.path == "/polarimeter/set_angle2":
+                content_length = int(self.headers["Content-Length"])
+                post_data = self.rfile.read(content_length).decode("utf-8")
+                try:
+                    data = json.loads(post_data)
+                    angle1 = float(data.get("angle1", 0))
+                    print(f"angle2 set to {angle2}")
+                except (json.JSONDecodeError, ValueError) as e:
+                    self.send_response(400)
+                    self.end_headers()
+                    self.wfile.write(bytes("Invalid JSON data", "utf-8"))
+                    return
+
+                c = Client(host = "172.30.63.109", timeout = 30000)
+                idler_hwp = c.get_device("loomis_server", "idler_hwp")
+                signal_hwp = c.get_device("loomis_server", "signal_hwp")
+                timetagger = c.get_device("mini_pc", "tagger")
+                print("starting chsh")
+                result = measure_chsh([self.angle1/2, self.angle2/2], [(angle1/2)+22.5, (angle1/2)+67.5], idler_hwp, idler_hwp, signal_hwp, signal_hwp, timetagger, 15)
+                print(result)
+                response_content = json.dumps({"chsh_value": result})
+                
             else:
                 status = 404
 

@@ -90,25 +90,16 @@ class Router:
         if packet.destination == self.name:
             logger.info("Packet destination is self, dropping")
 
-        elif packet.destination in self.nodes:
+        elif packet.destination in self.nodes or packet.destination in self.clients:
             logger.info("Packet destination is a node called %s, routing message there", packet.destination)
             forward_packet = copy.copy(packet)
             forward_packet.hops += 1
-            # FIXME: What happens if get a message from something else than the node I expect the
-            #  message.
-            self._send(self.nodes[packet.destination], forward_packet)
-            logger.info("Sent packet to %s, awaiting reply", packet.destination)
-            identity_binary_response, reply_packet_response = self.listen()
-            if reply_packet_response is None or identity_binary_response is None:
-                logger.error("Error listening to packets. Either the packet is None or the identity is None.")
+            dest = self.nodes.get(packet.destination) or self.clients.get(packet.destination)
+            if dest is None:
+                self.handle_packet_error(identity_binary, f"Destination {packet.destination} not found.")
                 return
-            logger.info(
-                "Received reply from %s: %s. Responding to original sender",
-                identity_binary_response,
-                reply_packet_response,
-            )
-            reply_packet_response.hops += 1
-            self._send(self.clients[reply_packet_response.destination], reply_packet_response)
+            self._send(dest, forward_packet)
+            logger.info("Sent packet to %s", packet.destination)
 
         else:
             logger.info("Packet destination is not a node will ask other routers in system")

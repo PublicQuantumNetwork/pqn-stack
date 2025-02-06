@@ -12,5 +12,5 @@ if __name__ == "__main__":
             "address": "2410001AE",
         }
     }
-    node = Node("node1", "172.30.63.109", 5555, **instruments)
+    node = Node("mini_pc", "172.30.63.109", 5555, **instruments)
     node.start()

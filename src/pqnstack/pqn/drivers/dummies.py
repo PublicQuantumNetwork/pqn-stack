@@ -31,7 +31,7 @@ class DummyInstrument(DeviceDriver):
             "double_int": self.double_int,
             "lowercase_str": self.lowercase_str,
             "uppercase_str": self.uppercase_str,
-            "toggle_bool": self.toggle_bool,
+            "toggle_bool_long": self.toggle_bool_long,
             "set_half_input_int": self.set_half_input_int,
         }
 
@@ -108,7 +108,7 @@ class DummyInstrument(DeviceDriver):
         return self._param_str
 
     @log_operation
-    def toggle_bool(self) -> bool:
-        time.sleep(1.4)  # Simulate a long operation
+    def toggle_bool_long(self) -> bool:
+        time.sleep(10)  # Simulate a long operation
         self._param_bool = not self._param_bool
         return self._param_bool

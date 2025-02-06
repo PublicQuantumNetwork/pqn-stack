@@ -9,11 +9,12 @@ import time
 from abc import abstractmethod
 from dataclasses import dataclass
 from dataclasses import field
-from typing import Any
 
 import serial
-from thorlabs_apt_device import TDC001
+# No typehints available for this import
+from thorlabs_apt_device import TDC001  # type: ignore
 
+# No typehints available for this import
 from pqnstack.base.driver import DeviceClass
 from pqnstack.base.driver import DeviceDriver
 from pqnstack.base.driver import DeviceInfo
@@ -30,13 +31,13 @@ class RotatorInfo(DeviceInfo):
     offset_degrees: float
     degrees: float
     encoder_units_per_degree: float | None = None
-    rotator_status: dict[str, Any] | None = None
+    rotator_status: dict | None = None
 
 
 class RotatorDevice(DeviceDriver):
     DEVICE_CLASS = DeviceClass.MOTOR
 
-    def __init__(self, name: str, desc: str, address: str) -> None:
+    def __init__(self, name: str, desc: str, address: str, *args, **kwargs) -> None:
         super().__init__(name, desc, address)
 
         self.operations["move_to"] = self.move_to
@@ -64,7 +65,7 @@ class RotatorDevice(DeviceDriver):
 
 class APTRotatorDevice(RotatorDevice):
     def __init__(
-        self, name: str, desc: str, address: str, offset_degrees: float = 0.0, *, block_while_moving: bool = True
+        self, name: str, desc: str, address: str, offset_degrees: float = 0.0, block_while_moving: bool = True
     ) -> None:
         super().__init__(name, desc, address)
 
@@ -73,6 +74,7 @@ class APTRotatorDevice(RotatorDevice):
         self.offset_degrees = offset_degrees
         self.encoder_units_per_degree = 86384 / 45
 
+        self.operations["move_to"] = self.move_to
         # Instrument does not seem to keep track of its position.
         self._degrees = 0.0
         self._device: TDC001 | None = None
@@ -129,7 +131,7 @@ class APTRotatorDevice(RotatorDevice):
             ):
                 continue
         except KeyboardInterrupt:
-            self._device.stop(immediate=True)
+            self._device.stop(True)
 
     @property
     @log_parameter
@@ -150,12 +152,15 @@ class APTRotatorDevice(RotatorDevice):
             self._wait_for_stop()
         self.status = DeviceStatus.READY
 
+    @log_parameter
+    def move_to(self, degrees: float) -> None:
+        self.degrees = degrees
+
 
 @dataclass(slots=True)
 class SerialRotator:
     label: str
     address: str
-    offset_degrees: float = 0.0
     _degrees: float = 0.0  # The hardware doesn't support position tracking
     _controller: serial.Serial = field(init=False, repr=False)
 
@@ -166,7 +171,6 @@ class SerialRotator:
         self._controller.write(b"motor_ready")
         self._controller.read(100)
 
-        self.degrees = self.offset_degrees
         atexit.register(self.cleanup)
 
     def cleanup(self) -> None:
@@ -185,9 +189,13 @@ class SerialRotator:
 
 
 class SerialRotatorDevice(RotatorDevice):
-    def __init__(self, name: str, desc: str, address: str, hb_rotator: SerialRotator):
-        super().__init__(name, desc, address)
-        self.hb_rotator = hb_rotator
+    def __init__(self, name: str, desc: str, address: str, offset_degrees: float = 0.0, **kwargs):
+        super().__init__(name, desc, address, **kwargs)
+        self.hb_rotator = None
+        self.name = name
+        self.address = address
+        self.offset_degrees = offset_degrees
+        self.operations["move_to"] = self.move_to
 
     def info(self) -> DeviceInfo:
         return DeviceInfo(
@@ -196,6 +204,7 @@ class SerialRotatorDevice(RotatorDevice):
 
     def start(self) -> None:
         self.status = DeviceStatus.READY
+        self.hb_rotator = SerialRotator(self.name, self.address)
 
     def close(self) -> None:
         self.status = DeviceStatus.OFF
@@ -209,4 +218,8 @@ class SerialRotatorDevice(RotatorDevice):
     @degrees.setter
     @log_parameter
     def degrees(self, degrees: float) -> None:
-        self.hb_rotator.degrees = degrees
+        self.hb_rotator.degrees = degrees + self.offset_degrees
+
+    @log_parameter
+    def move_to(self, degrees: float) -> None:
+        self.degrees = degrees

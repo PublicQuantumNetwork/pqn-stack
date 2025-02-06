@@ -8,6 +8,7 @@ name = "pqnstack-node"
 router_name = "pqnstack-router"
 host = "localhost"
 port = 5556
+beat_period = 2000
 
 [[node.instruments]]
 name = "dummy1"

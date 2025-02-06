@@ -50,3 +50,9 @@ class InvalidNetworkConfigurationError(Exception):
     def __init__(self, message: str = "Invalid network configuration") -> None:
         self.message = message
         super().__init__(self.message)
+
+
+class CouldNotConnectToNetworkElementError(Exception):
+    def __init__(self, message: str = "Could not connect to network element") -> None:
+        self.message = message
+        super().__init__(self.message)

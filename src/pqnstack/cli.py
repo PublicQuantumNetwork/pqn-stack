@@ -62,6 +62,8 @@ def _load_and_parse_node_config(
         kwargs["host"] = str(node["host"])
     if "port" in node:
         kwargs["port"] = int(node["port"])
+    if "beat_period" in node:
+        kwargs["beat_period"] = int(node["beat_period"])
 
     if "instruments" in node:
         instruments = _verify_instruments_config(node["instruments"])
@@ -84,13 +86,14 @@ def start_node(  # noqa: PLR0913
     port: Annotated[
         int | None, typer.Option(help="Port of the node (default: 5555). Has to be the same port as the Router.")
     ] = None,
+    beat_period: Annotated[int | None, typer.Option(help="Heartbeat period in milliseconds (default: 1000)")] = None,
     instruments: Annotated[
         str | None,
         typer.Option(
             help='JSON formatted string with necessary arguments to instantiate instruments. Example: \'{"dummy1": {"import": "pqnstack.pqn.drivers.dummies.DummyInstrument", "desc": "Dummy Instrument 1", "address": "123456"}}\''
         ),
     ] = None,
-    config_path: Annotated[
+    config: Annotated[
         str | None, typer.Option(help="Path to the config file, will get overridden by command line arguments.")
     ] = None,
 ) -> None:
@@ -102,8 +105,8 @@ def start_node(  # noqa: PLR0913
     kwargs: dict[str, str | int] = {}
     ins: dict[str, dict[str, str]] = {}
 
-    if config_path:
-        kwargs, ins = _load_and_parse_node_config(config_path, kwargs, ins)
+    if config:
+        kwargs, ins = _load_and_parse_node_config(config, kwargs, ins)
 
     if name:
         kwargs["name"] = name
@@ -113,6 +116,8 @@ def start_node(  # noqa: PLR0913
         kwargs["host"] = host
     if port:
         kwargs["port"] = port
+    if beat_period:
+        kwargs["beat_period"] = beat_period
     if instruments:
         # We don't want to override instruments, instead combining them with the ones from config file is cleaner behaviour.
         ins = {**ins, **json.loads(instruments)}

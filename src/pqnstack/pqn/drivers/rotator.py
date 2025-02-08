@@ -218,7 +218,7 @@ class SerialRotatorDevice(RotatorDevice):
     @degrees.setter
     @log_parameter
     def degrees(self, degrees: float) -> None:
-        self.hb_rotator.degrees = degrees + self.offset_degrees
+        self.hb_rotator.degrees = -1 * (degrees + self.offset_degrees)
 
     @log_parameter
     def move_to(self, degrees: float) -> None:

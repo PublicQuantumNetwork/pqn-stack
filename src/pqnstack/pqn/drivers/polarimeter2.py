@@ -43,6 +43,7 @@ class DataBuffer:
     @property
     def last(self) -> float:
         return self._buffer[-1]
+
 @dataclass
 class ArduinoPolarimeter(Polarimeter):
     #device: Arduino = Arduino(Arduino.AUTODETECT)

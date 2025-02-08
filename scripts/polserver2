@@ -34,8 +34,8 @@ def get_handler(polarimeter: ArduinoPolarimeter) -> Callable[..., BaseHTTPReques
             status = 200
             content_type = "text/plain"
             response_content = ""
-
-            if self.path == "/polarimeter":
+            parts = self.path.split("?")
+            if parts[0] == "/polarimeter":
                 angle = polarimeter.theta
                 print(polarimeter.summary)
                 response_content = str(f"{angle:.2f}")

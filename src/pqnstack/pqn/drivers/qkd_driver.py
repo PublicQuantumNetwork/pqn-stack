@@ -1,4 +1,3 @@
-from typing import List, Tuple
 
 from pqnstack.base.driver import DeviceClass
 from pqnstack.base.driver import DeviceDriver
@@ -24,6 +23,8 @@ class QKDDevice(DeviceDriver):
 
         self.tagger = None
         self.motors = None
+        self.player1 = False
+        self.player2 = False
         self.values = [] 
 
     @log_operation
@@ -33,7 +34,18 @@ class QKDDevice(DeviceDriver):
     @log_operation
     def set_tagger(self, tagger) -> None:
         self.tagger = tagger
-    
+
+    @log_operation
+    def add_player(self) -> str:
+        if not self.player1:
+            self.player1 = True
+            return "player1"
+        elif not self.player2:
+            self.player2 = True
+            return "player2"
+        else:
+            return ""
+
     @log_operation
     def measure_pass(self, signal_basis: list, idler_basis: list) -> bool:
         """If basis is in the form [(hwp value, qwp value)], then self.motors need to include qwps, else should be in form [hwp value]"""

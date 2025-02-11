@@ -1,0 +1,15 @@
+#!/usr/bin/env python
+
+from pqnstack.pqn.protocols.visibility import measure_visibility
+from pqnstack.network.client import Client
+
+if __name__ == "__main__":
+    c = Client(host = "172.30.63.109", timeout = 300000)
+    idler_hwp = c.get_device("loomis_server", "signal_hwp")
+    signal_hwp = c.get_device("ufl_closet", "signal_hwp") 
+
+    tagger = c.get_device("mini_pc", "tagger")
+
+    motors = {"idler_hwp": idler_hwp, "signal_hwp": signal_hwp}
+
+    print(measure_visibility(motors, tagger))

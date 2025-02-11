@@ -18,8 +18,8 @@ def main():
     file_path2 = os.path.join(data_dir, "chsh_long_results.txt")
     
     c = Client(host="172.30.63.109", timeout=30000)
-    idler_hwp = c.get_device("loomis_server", "idler_hwp")
-    signal_hwp = c.get_device("loomis_server", "signal_hwp")
+    signal_hwp = c.get_device("ufl_closet", "signal_hwp")
+    idler_hwp = c.get_device("loomis_server", "signal_hwp")
     timetagger = c.get_device("mini_pc", "tagger")
     
     results_list = []

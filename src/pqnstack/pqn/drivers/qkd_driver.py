@@ -23,14 +23,16 @@ class QKDDevice(DeviceDriver):
         super().__init__(name, desc, address)
 
         self.tagger = None
-        self.motors = None
-        self.player1, self.player2 = False, False
-        self.player1_submission, self.player2_submisson = False, False
-        self.player_values = {"player1": [], "player2": []} 
+        self.motors = {}
+        self.players = {"player1": False, "player2": False}
+        self.submissions = {"player1": False, "player2": False}
+        self.value_gathered = {"player1": False, "player2": False}
+        self.player_values = {"player1": [], "player2": []}
+        self.value: int = None
 
     @log_operation
     def set_motors(self, **kwargs) -> None:
-        self.motors = kwargs
+        self.motors.update(kwargs)
 
     @log_operation
     def set_tagger(self, tagger) -> None:
@@ -38,40 +40,57 @@ class QKDDevice(DeviceDriver):
 
     @log_operation
     def add_player(self) -> str:
-        for player in ["player1", "player2"]:
-            if not getattr(self, player):
-                setattr(self, player, True)
+        for player, active in self.players.items():
+            if not active:
+                self.players[player] = True
                 return player
         return ""
 
     @log_operation
     def remove_player(self, player: str) -> None:
-        setattr(self, player, False)
+        if player in self.players:
+            self.players[player] = False
 
     @log_operation
     def get_motors(self, player: str) -> dict:
-        if player == "player1":
-            return {k: v for k, v in self.motors.items() if "signal" in k}
-        elif player == "player2":
-            return {k: v for k, v in self.motors.items() if "idler" in k}
-        else:
-            return {}
-
-    @log_operation
-    def get_tagger(self) -> None:
-        return self.tagger
+        if player in self.players:
+            key_filter = "signal" if player == "player1" else "idler"
+            return {k: v for k, v in self.motors.items() if key_filter in k}
+        return {}
 
     @log_operation
     def submit(self, player: str) -> None:
-        setattr(self, f"{player}_submission", True)
-        
+        if player in self.submissions:
+            self.submissions[player] = True
+
+        if self._check_submission():
+            self.value = self.tagger.measure_coincidence()
+            
     @log_operation
-    def check_submission(self):
-        return all(getattr(self, f"player{i}_submission") for i in (1, 2))
+    def _measured(self, player: str) -> None:
+        if player in self.value_gathered:
+            self.value_gathered[player] = True
+
+    def _check_submission(self) -> bool:
+        return all(self.submissions.values())
+
+    def _check_measured(self) -> bool:
+        return all(self.value_gathered.values())
 
     @log_operation
-    def measured(self, player: str) -> None:
-        setattr(self, f"{player}_submission", False)
+    def get_counts(self, player: str) -> int:
+        counts = None
+        if self._check_submission():
+            self._measured(player)
+            counts = self.value
+        if self._check_measured():
+            self.value = None
+            self.submissions["player1"] = False
+            self.submissions["player2"] = False
+            self.value_gathered["player1"] = False
+            self.value_gathered["player2"] = False
+       
+        return counts
 
     @log_operation
     def measure_pass(self, player: str, signal_basis: list, idler_basis: list) -> bool:
@@ -85,19 +104,3 @@ class QKDDevice(DeviceDriver):
 
             self.values.append()
             return(self.tagger.measure_coincidence())
-  
-def qkd_run(qkd_device: QKDDevice, basis: list, player: str = None, finished: bool = False) -> str, bool:
-    """basis is in the form [(hwp value, qwp value)] or [hwp value]"""
-    if player = None:
-        player = qkd_device.add_player()
-
-    motors = qkd_device.get_motors(player)
-
-    qkd_device.submit(player)
-
-    while(qkd_device.check_submission()):
-        sleep(0.5)
-        
-    for k, v in motors.items():
-        if "signal" in k:
-            v.move_to(basis[])

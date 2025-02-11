@@ -14,6 +14,10 @@ HOST = "127.0.0.1"
 PORT = 8000
 ADDRESS = (HOST, PORT)
 
+# Global theta value that updates via user input
+theta_value = 0.0
+angle1 = 0.0
+angle2 = 0.0
 
 @dataclass
 class MockPolarimeter:
@@ -70,6 +74,7 @@ def get_handler(mp: MockPolarimeter) -> Callable[..., BaseHTTPRequestHandler]:
                 try:
                     data = json.loads(post_data)
                     print(f"data = {data}")
+                    global angle1
                     angle1 = float(data.get("option", 0))
                     print(f"angle1 set to {angle1}")
                 except (json.JSONDecodeError, ValueError) as e:
@@ -82,6 +87,7 @@ def get_handler(mp: MockPolarimeter) -> Callable[..., BaseHTTPRequestHandler]:
                 post_data = self.rfile.read(content_length).decode("utf-8")
                 try:
                     data = json.loads(post_data)
+                    global angle2
                     angle2 = float(data.get("option", 0))
                     print(f"angle2 set to {angle2}")
                 except (json.JSONDecodeError, ValueError) as e:
@@ -91,13 +97,14 @@ def get_handler(mp: MockPolarimeter) -> Callable[..., BaseHTTPRequestHandler]:
                     return
 
                 c = Client(host = "172.30.63.109", timeout = 30000)
-                idler_hwp = c.get_device("loomis_server", "idler_hwp")
-                signal_hwp = c.get_device("loomis_server", "signal_hwp")
+                idler_hwp = c.get_device("loomis_server", "signal_hwp")
+                signal_hwp = c.get_device("ufl_closet", "signal_hwp")
                 timetagger = c.get_device("mini_pc", "tagger")
                 print("starting chsh")
-                result = measure_chsh([self.angle1/2, self.angle2/2], [(angle1/2)+22.5, (angle1/2)+67.5], idler_hwp, idler_hwp, signal_hwp, signal_hwp, timetagger, 15)
+                result = measure_chsh([angle1/2, angle2/2], [(angle1/2)+22.5, (angle1/2)+67.5], idler_hwp, idler_hwp, signal_hwp, signal_hwp, timetagger, 15)
                 print(result)
                 response_content = json.dumps({"chsh_value": result})
+                angle1, angle2 = None, None
 
             else:
                 status = 404

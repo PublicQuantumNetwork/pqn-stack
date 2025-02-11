@@ -1,4 +1,5 @@
 import time
+import math
 
 def measure_visibility(motors: dict, tagger: object, basis: str = 'HV',
                        custom_basis: list[tuple[str, str]] = None,
@@ -61,6 +62,10 @@ def calculate_visibility(coincidence_counts: dict[tuple[str, str], int],
                          pairs: list[tuple[str, str]]) -> float:
     C_max: int = max(coincidence_counts[pair] for pair in pairs)
     C_min: int = min(coincidence_counts[pair] for pair in pairs)
-    
+    error = calculate_visibility_error(C_min, C_max)
+    print(f"min count = {C_min}, max count = {C_max}, error in visibility = {error}")
+
     return (C_max - C_min) / (C_max + C_min) if C_max + C_min > 0 else 0  
 
+def calculate_visibility_error(c_min: int, c_max: int):
+   return 2 * math.sqrt(c_min**2 * c_max + c_max**2 * c_min) / (c_max + c_min)**2 

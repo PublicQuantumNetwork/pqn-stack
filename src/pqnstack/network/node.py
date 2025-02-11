@@ -2,6 +2,7 @@
 # Public Quantum Network
 #
 # NCSA/Illinois Computes
+import datetime
 import importlib
 import logging
 import pickle
@@ -66,6 +67,10 @@ class Node:
         self.address = f"tcp://{host}:{port}"
         self.router_name = router_name
         self.beat_period = beat_period
+        self._beats_since_reply = 0
+        self._last_received_beat: datetime.datetime | None = None
+        # How many sent beats with no replies do we start logging warnings for disconnected routers.
+        self._disconnected_threshold = 3
 
         self.context: zmq.Context[zmq.Socket[bytes]] | None = None
         self.socket: zmq.Socket[bytes] | None = None  # Has the instance of the socket talking to the router.
@@ -138,13 +143,14 @@ class Node:
 
         # Set the beat interval to the normal value.
         self.socket.setsockopt(zmq.RCVTIMEO, self.beat_period)
+        self.running = True
 
         try:
             while self.running:
                 try:
                     packet = self._listen()
                 except zmq.error.ZMQError:
-                    logger.debug("Time inverval happened, sending a beat.")
+                    logger.debug("Time interval happened, sending a beat.")
                     self._beat()
                     continue
 
@@ -152,6 +158,9 @@ class Node:
                     case PacketIntent.PING:
                         response = self._handle_ping(packet)
                         self.socket.send(pickle.dumps(response))
+
+                    case PacketIntent.REGISTRATION_ACK:
+                        self._handle_reg_acknowledge()
 
                     case PacketIntent.DATA:
                         match packet.request:
@@ -200,6 +209,15 @@ class Node:
 
         :return:
         """
+        if self._beats_since_reply > self._disconnected_threshold:
+            local_time = self._last_received_beat.astimezone() if self._last_received_beat else None
+            logger.warning(
+                "Router at %s did not reply to heartbeat, router seems offline. Will keep trying to reconnect. \n Beats since reply: %s. Time at last reply %s",
+                self.address,
+                self._beats_since_reply,
+                local_time,
+            )
+
         try:
             # This should never happen, but mypy complains if the check is not done
             if self.socket is None:
@@ -212,16 +230,17 @@ class Node:
                 source=self.name, destination=self.router_name, payload=NetworkElementClass.NODE, hops=0
             )
             self.socket.send(pickle.dumps(reg_packet))
-            packet = self._listen()
-            if packet.intent != PacketIntent.REGISTRATION_ACK:
-                msg = f"Registration failed. Packet: {packet}"
-                raise RuntimeError(msg)
-            logger.info("Node %s is connected to router at %s", self.name, self.address)
-            self.running = True
+            logger.info("Sent registration packet to router at %s", self.address)
+            self._beats_since_reply += 1
 
-        # This indicates that the router is down, raise a warning but do not crash. Keep trying until its manually stopped.
         except zmq.error.Again:
-            logger.warning("Router at %s did not reply to heartbeat, router seems offline", self.address)
+            logger.warning("Error while sending beat to router at %s", self.address)
+
+    def _handle_reg_acknowledge(self) -> None:
+        logger.info("Node %s is connected to router at %s", self.name, self.address)
+        self.running = True
+        self._beats_since_reply = 0
+        self._last_received_beat = datetime.datetime.now(tz=datetime.UTC)
 
     def _handle_ping(self, packet: Packet) -> Packet:
         return Packet(

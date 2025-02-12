@@ -54,6 +54,7 @@ class PolarizationMeasurement:
     v: float
     d: float
     a: float
+    _last_theta: float = field(default=0.0, repr=False)  # HACK: Allow reporting of full 2pi angle
 
     def __format__(self, spec: str, /) -> str:
         if not spec:
@@ -63,10 +64,35 @@ class PolarizationMeasurement:
     @property
     def theta(self) -> float:
         """Return the calculated polarization angle in degrees."""
-        cosine = min(math.sqrt(self.h), 1)
-        radians = 1 / math.pi * math.acos(cosine)
-        sign = math.copysign(1, self.d - self.a)
-        return sign * math.degrees(radians)
+
+        # Primary branch for inverse trig function
+        def _h_deg():
+            h = self.h / (self.h + self.v)
+            cosine = min(math.sqrt(h), 1)
+            radians = 1 / math.pi * math.acos(cosine)
+            sign = math.copysign(1, self.a - self.d)
+            return sign * math.degrees(radians)
+
+        # Alternate branch for inverse trig for access to full 2pi range.
+        # Requires caller to pass a `_last_theta` value.
+        # NOTE: The branch jump may not be smooth in both directions.
+        def _a_deg():
+            a = self.a / (self.a + self.d)
+            sine = min(math.sqrt(a), 1)
+            radians = 1 / math.pi * math.asin(sine) - 1 / 4
+            sign = math.copysign(1, self.h - self.v)
+            return sign * math.degrees(radians)
+
+        lth = self._last_theta % 360
+        if 0 <= lth < 45:
+            degrees = _h_deg()
+        elif 45 <= lth < 180:
+            degrees = _a_deg() + 180
+        elif 180 <= lth < 270:
+            degrees = _h_deg() + 180
+        else:
+            degrees = _a_deg() + 360
+        return degrees % 360
 
     @property
     def phi(self) -> float:
@@ -84,6 +110,7 @@ class ArduinoPolarimeter(Polarimeter):
     sample_rate: int = 10
     average_width: int = 10
     _buffers: list[Buffer] = field(default_factory=list, init=False)
+    _last_theta: float = field(default=0.0, init=False, repr=False)  # HACK: Allow reporting of full 2pi angle
 
     def __post_init__(self) -> None:
         self.board.samplingOn(1000 // self.sample_rate)
@@ -100,10 +127,12 @@ class ArduinoPolarimeter(Polarimeter):
             self.board.exit()
 
     def reset(self) -> None:
+        self._last_theta = 0.0
         for buffer in self._buffers:
             buffer.clear()
 
     def start_normalizing(self) -> None:
+        self._last_theta = 0.0
         for buffer in self._buffers:
             buffer.clear()
             buffer.normalizing = True
@@ -114,7 +143,9 @@ class ArduinoPolarimeter(Polarimeter):
 
     def read(self) -> PolarizationMeasurement:
         hvda = [buffer.read() for buffer in self._buffers]
-        return PolarizationMeasurement(*hvda)
+        pm = PolarizationMeasurement(*hvda, _last_theta=self._last_theta)
+        self._last_theta = pm.theta
+        return pm
 
 
 class PolarimeterDevice(DeviceDriver):

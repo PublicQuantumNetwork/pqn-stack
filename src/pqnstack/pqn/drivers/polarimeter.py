@@ -54,6 +54,7 @@ class PolarizationMeasurement:
     v: float
     d: float
     a: float
+    _last_theta: float = field(default=0.0, repr=False, kw_only=True)  # HACK: Allow reporting of full 2pi angle
 
     def __format__(self, spec: str, /) -> str:
         if not spec:
@@ -63,10 +64,47 @@ class PolarizationMeasurement:
     @property
     def theta(self) -> float:
         """Return the calculated polarization angle in degrees."""
-        cosine = min(math.sqrt(self.h), 1)
-        radians = 1 / math.pi * math.acos(cosine)
-        sign = math.copysign(1, self.d - self.a)
-        return sign * math.degrees(radians)
+
+        def _h_deg() -> float:
+            h = self.h / (self.h + self.v)
+            cosine = min(math.sqrt(h), 1)
+            radians = 1 / math.pi * math.acos(cosine)
+            sign = math.copysign(1, self.a - self.d)
+            return sign * math.degrees(radians)
+
+        def _a_deg() -> float:
+            a = self.a / (self.a + self.d)
+            cosine = min(math.sqrt(a), 1)
+            radians = 1 / math.pi * math.acos(cosine) + 1 / 4
+            sign = math.copysign(1, self.v - self.h)
+            return sign * math.degrees(radians)
+
+        def _v_deg() -> float:
+            v = self.v / (self.h + self.v)
+            cosine = min(math.sqrt(v), 1)
+            radians = 1 / math.pi * math.acos(cosine) + 1 / 2
+            sign = math.copysign(1, self.d - self.a)
+            return sign * math.degrees(radians)
+
+        def _d_deg() -> float:
+            d = self.d / (self.a + self.d)
+            cosine = min(math.sqrt(d), 1)
+            radians = 1 / math.pi * math.acos(cosine) + 3 / 4
+            sign = math.copysign(1, self.h - self.v)
+            return sign * math.degrees(radians)
+
+        _sector_count = 8
+        _sector_size = 360 / _sector_count
+
+        # Sector k is centered at `k * _sector_size` degrees.
+        sector = round((self._last_theta % 360) / _sector_size) % _sector_count
+        degrees = [_h_deg, _a_deg, _v_deg, _d_deg][sector % (_sector_count // 2)]()
+
+        # Disambiguate sectors 180 degrees apart (which use the same function)
+        if sector > _sector_count / 2:
+            degrees += 180
+
+        return degrees % 360
 
     @property
     def phi(self) -> float:
@@ -84,6 +122,7 @@ class ArduinoPolarimeter(Polarimeter):
     sample_rate: int = 10
     average_width: int = 10
     _buffers: list[Buffer] = field(default_factory=list, init=False)
+    _last_theta: float = field(default=0.0, init=False, repr=False)  # HACK: Allow reporting of full 2pi angle
 
     def __post_init__(self) -> None:
         self.board.samplingOn(1000 // self.sample_rate)
@@ -100,10 +139,12 @@ class ArduinoPolarimeter(Polarimeter):
             self.board.exit()
 
     def reset(self) -> None:
+        self._last_theta = 0.0
         for buffer in self._buffers:
             buffer.clear()
 
     def start_normalizing(self) -> None:
+        self._last_theta = 0.0
         for buffer in self._buffers:
             buffer.clear()
             buffer.normalizing = True
@@ -114,7 +155,9 @@ class ArduinoPolarimeter(Polarimeter):
 
     def read(self) -> PolarizationMeasurement:
         hvda = [buffer.read() for buffer in self._buffers]
-        return PolarizationMeasurement(*hvda)
+        pm = PolarizationMeasurement(*hvda, _last_theta=self._last_theta)
+        self._last_theta = pm.theta
+        return pm
 
 
 class PolarimeterDevice(DeviceDriver):

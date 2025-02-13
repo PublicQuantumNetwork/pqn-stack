@@ -44,8 +44,13 @@ class Buffer:
 
     def read(self) -> float:
         if len(self._buffer) == 0:
-            return 0
-        return sum(self._buffer) / len(self._buffer)
+            return 0.0
+
+        if self.max <= self.min:
+            return 0.0
+
+        avg = sum(self._buffer) / len(self._buffer)
+        return (avg - self.min) / (self.max - self.min)
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,6 +69,8 @@ class PolarizationMeasurement:
     @property
     def theta(self) -> float:
         """Return the calculated polarization angle in degrees."""
+        if self.h + self.v == 0 or self.d + self.a == 0:
+            return 0.0
 
         def _h_deg() -> float:
             h = self.h / (self.h + self.v)

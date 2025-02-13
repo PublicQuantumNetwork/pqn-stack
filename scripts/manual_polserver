@@ -44,7 +44,7 @@ def get_handler(mp: MockPolarimeter) -> Callable[..., BaseHTTPRequestHandler]:
             response_content = ""
             parts = self.path.split("?")
 
-            if parts[0] == "/polarimeter":
+            if parts[0] == "/polarimeter/theta":
                 global theta_value
                 response_content = f"{theta_value:.2f}"
             else:

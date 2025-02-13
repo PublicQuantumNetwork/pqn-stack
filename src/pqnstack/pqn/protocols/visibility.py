@@ -4,7 +4,7 @@ import math
 def measure_visibility(motors: dict, tagger: object, basis: str = 'HV',
                        custom_basis: list[tuple[str, str]] = None,
                        custom_settings: dict[str, tuple[float, float]] = None,
-                       wait_time: float = 10.0) -> float:
+                       wait_time: float = 12.0) -> float:
 
     default_settings: dict[str, tuple[float, float]] = {
         "H": (0, 0), "V": (45, 0),
@@ -17,7 +17,8 @@ def measure_visibility(motors: dict, tagger: object, basis: str = 'HV',
     basis_pairs: dict[str, list[tuple[str, str]]] = {
         "HV": [("H", "H"), ("H", "V"), ("V", "H"), ("V", "V")],
         "DA": [("D", "D"), ("D", "A"), ("A", "D"), ("A", "A")],
-        "RL": [("R", "R"), ("R", "L"), ("L", "R"), ("L", "L")]
+        "RL": [("R", "R"), ("R", "L"), ("L", "R"), ("L", "L")],
+        "HD": [("H", "D"), ("H", "A"), ("V", "D"), ("V", "A")],
     }
 
     pairs: list[tuple[str, str]] = basis_pairs.get(basis, custom_basis)
@@ -55,8 +56,9 @@ def move_and_measure(motors: dict, tagger: object, s_state: str, i_state: str,
     print(f"Moved motors to: Signal = {s_state} ({settings[s_state]}), Idler = {i_state} ({settings[i_state]})")
 
     time.sleep(wait_time)
-
-    return tagger.measure_coincidence(1, 2, 100, int(10e12))
+    value = tagger.measure_coincidence(1, 2, 500, int(10e12)) 
+    print(f"Value is {value}")
+    return value
 
 def calculate_visibility(coincidence_counts: dict[tuple[str, str], int], 
                          pairs: list[tuple[str, str]]) -> float:
@@ -69,3 +71,16 @@ def calculate_visibility(coincidence_counts: dict[tuple[str, str], int],
 
 def calculate_visibility_error(c_min: int, c_max: int):
    return 2 * math.sqrt(c_min**2 * c_max + c_max**2 * c_min) / (c_max + c_min)**2 
+
+
+if __name__ == "__main__":
+    from pqnstack.network.client import Client
+    c = Client(host = "172.30.63.109", timeout = 300000)
+    idler_hwp = c.get_device("loomis_server", "signal_hwp")
+    signal_hwp = c.get_device("ufl_closet", "signal_hwp")
+
+    tagger = c.get_device("mini_pc", "tagger")
+
+    motors = {"idler_hwp": idler_hwp, "signal_hwp": signal_hwp}
+
+    print(measure_visibility(motors, tagger))

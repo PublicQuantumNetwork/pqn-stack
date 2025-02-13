@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 
 import sys
-import json
 import threading
+import json
 from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, HTTPServer
+
+# Adjust or remove the imports below to match your local modules
 from pqnstack.pqn.drivers.polarimeter2 import ArduinoPolarimeter
 from pqnstack.network.client import Client
 from pqnstack.pqn.protocols.chsh import measure_chsh
@@ -12,128 +14,244 @@ from pqnstack.pqn.protocols.chsh import measure_chsh
 HOST = "127.0.0.1"
 PORT = 8000
 ADDRESS = (HOST, PORT)
-ALLOWED_ORIGIN = "https://pqnetwork.web.illinois.edu"
 
-theta_value = 0
+class PolarimeterServerState:
+    """
+    This class holds all the variables that used to be global.
+    You can add more attributes here as your application grows.
+    """
+    def __init__(self):
+        # If the polarimeter is unavailable, we still maintain this manual theta as a fallback.
+        self.theta_value = 0.0
+        self.angle1 = 0.0
+        self.angle2 = 0.0
 
-def keyboard_input():
-    global theta_value
+class PolarimeterRequestHandler(BaseHTTPRequestHandler):
+    """
+    A request handler that uses a shared state object (server_state) and an optional polarimeter object.
+    """
+    def __init__(self, *args, server_state=None, polarimeter=None, **kwargs):
+        self.server_state = server_state
+        self.polarimeter = polarimeter
+        super().__init__(*args, **kwargs)
+
+    def do_OPTIONS(self):
+        """
+        Handles CORS preflight requests.
+        """
+        self.send_response(200)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, HEAD, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Cache-Control, Authorization")
+        self.end_headers()
+
+    def do_GET(self):
+        """
+        Handles GET requests. In particular:
+          - /polarimeter -> returns the polarimeter's theta if available,
+                            otherwise falls back to the user-input theta_value.
+        """
+        status = 200
+        content_type = "text/plain"
+        response_content = ""
+
+        parts = self.path.split("?")
+
+        if parts[0] == "/polarimeter":
+            # If the ArduinoPolarimeter was initialized successfully, use its theta.
+            # If not, fall back to whatever the user manually entered (server_state.theta_value).
+            if self.polarimeter is not None:
+                try:
+                    angle = self.polarimeter.theta
+                    # Example of reading some sort of summary from the device:
+                    # print(self.polarimeter.summary)  # if the device provides a .summary attribute
+                    response_content = f"{angle:.2f}"
+                except Exception as e:
+                    # If something goes wrong in reading from the device, also fall back
+                    print(f"Polarimeter read error: {e}")
+                    angle = self.server_state.theta_value
+                    response_content = f"{angle:.2f}"
+            else:
+                # No polarimeter device available; use the fallback user-input value
+                angle = self.server_state.theta_value
+                response_content = f"{angle:.2f}"
+        else:
+            status = 404  # Not Found
+
+        self.send_response(status)
+        self.send_header("Access-Control-Allow-Origin", "https://pqnetwork.web.illinois.edu")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Type", content_type)
+        self.end_headers()
+        self.wfile.write(bytes(response_content, "utf-8"))
+
+    def do_POST(self):
+        """
+        Handles POST requests for various endpoints. We:
+          - start or stop normalizing for the polarimeter,
+          - set angle1 or angle2 for CHSH measurements,
+          - run measure_chsh and return both result and error in the JSON response.
+        """
+        status = 200
+        content_type = "text/plain"
+        response_content = ""
+
+        if self.path == "/polarimeter/start_normalizing":
+            print("POST: start_normalizing triggered")
+            if self.polarimeter is not None:
+                self.polarimeter.reset()
+                self.polarimeter.set_calibration(True)
+            else:
+                print("No polarimeter object available to normalize.")
+
+        elif self.path == "/polarimeter/stop_normalizing":
+            print("POST: stop_normalizing triggered")
+            if self.polarimeter is not None:
+                self.polarimeter.set_calibration(False)
+            else:
+                print("No polarimeter object available to stop normalizing.")
+
+        elif self.path == "/chsh/set_angle1":
+            content_length = int(self.headers["Content-Length"])
+            post_data = self.rfile.read(content_length).decode("utf-8")
+            try:
+                data = json.loads(post_data)
+                self.server_state.angle1 = float(data.get("option", 0.0))
+                print(f"angle1 set to {self.server_state.angle1}")
+            except (json.JSONDecodeError, ValueError):
+                self.send_response(400)
+                self.end_headers()
+                self.wfile.write(bytes("Invalid JSON data", "utf-8"))
+                return
+
+        elif self.path == "/chsh/set_angle2":
+            content_length = int(self.headers["Content-Length"])
+            post_data = self.rfile.read(content_length).decode("utf-8")
+            try:
+                data = json.loads(post_data)
+                self.server_state.angle2 = float(data.get("option", 0.0))
+                print(f"angle2 set to {self.server_state.angle2}")
+            except (json.JSONDecodeError, ValueError):
+                self.send_response(400)
+                self.end_headers()
+                self.wfile.write(bytes("Invalid JSON data", "utf-8"))
+                return
+
+            # Perform the measure_chsh operation, expecting to return two values: result and error
+            # Depending on how measure_chsh works, you might get them as a tuple or dictionary.
+            # Here we assume measure_chsh returns something like (result, error).
+            # If measure_chsh only returns one value, you can tweak this code to suit your needs.
+            print("starting CHSH measurement")
+            try:
+                c = Client(host="172.30.63.109", timeout=30000)
+                idler_hwp = c.get_device("loomis_server", "signal_hwp")
+                signal_hwp = c.get_device("ufl_closet", "signal_hwp")
+                timetagger = c.get_device("mini_pc", "tagger")
+
+                # If measure_chsh only returns one value, adapt accordingly. 
+                # Otherwise, if it returns multiple, expand them:
+                chsh_result = measure_chsh(
+                    [self.server_state.angle1 / 2, self.server_state.angle2 / 2],
+                    [(self.server_state.angle1 / 2) + 22.5, (self.server_state.angle1 / 2) + 67.5],
+                    idler_hwp, idler_hwp, signal_hwp, signal_hwp, timetagger, 15
+                )
+
+                # You might have something like:
+                # chsh_value, chsh_error = measure_chsh(...) 
+                # or measure_chsh might return a dict like {"value": 2.5, "error": 0.1}.
+                #
+                # For illustration, let's assume measure_chsh returns (value, error).
+                # If your actual function is different, adjust the code below:
+                #  chsh_value, chsh_error = chsh_result
+
+                # If measure_chsh only returns a single value, you can define "error" yourself
+                # or store None or 0.0. We’ll show an example with two placeholders:
+
+                if isinstance(chsh_result, tuple) and len(chsh_result) == 2:
+                    chsh_value, chsh_error = chsh_result
+                else:
+                    # Fallback if measure_chsh returns something else (e.g. a single float).
+                    chsh_value = chsh_result
+                    chsh_error = 0.0
+
+                print(f"CHSH result: {chsh_value}, error: {chsh_error}")
+
+                # Return both in JSON
+                response_data = {
+                    "chsh_value": chsh_value,
+                    "error": chsh_error
+                }
+                response_content = json.dumps(response_data)
+
+            except Exception as e:
+                print(f"Error during measure_chsh: {e}")
+                # Return an error JSON with placeholders
+                response_content = json.dumps({"chsh_value": None, "error": str(e)})
+
+            # Reset the angles after measurement, if you want them always cleared:
+            self.server_state.angle1 = 0.0
+            self.server_state.angle2 = 0.0
+
+        else:
+            # No matching path
+            status = 404
+
+        self.send_response(status)
+        self.send_header("Access-Control-Allow-Origin", "https://pqnetwork.web.illinois.edu")
+        self.send_header("Content-Type", content_type)
+        self.end_headers()
+        self.wfile.write(bytes(response_content, "utf-8"))
+
+def create_request_handler(server_state, polarimeter) -> Callable[..., BaseHTTPRequestHandler]:
+    """
+    Creates a request handler with access to the shared server_state and optional polarimeter.
+    """
+    def handler(*args, **kwargs):
+        PolarimeterRequestHandler(*args, server_state=server_state, polarimeter=polarimeter, **kwargs)
+    return handler
+
+def update_theta(server_state):
+    """
+    Continuously prompts the user to set a new theta value. This is the fallback
+    if the real polarimeter is not available or not functioning.
+    """
     while True:
         try:
-            theta_value = float(input("Enter new theta value: "))
+            new_value = input("\nEnter new theta value: ")
+            server_state.theta_value = float(new_value)
+            print(f"Updated fallback theta to: {server_state.theta_value:.2f}")
         except ValueError:
-            print("Invalid input, please enter a numerical value.")
+            print("Invalid input! Please enter a valid number.")
 
-def set_cors_headers(handler):
-    handler.send_header("Access-Control-Allow-Origin", ALLOWED_ORIGIN)
-    handler.send_header("Access-Control-Allow-Methods", "GET, POST, HEAD, OPTIONS")
-    handler.send_header("Access-Control-Allow-Headers", "Content-Type, Cache-Control, Authorization")
-    handler.send_header("Access-Control-Allow-Credentials", "true")
-    handler.send_header("Access-Control-Allow-Private-Network", "true")
+if __name__ == "__main__":
+    sys.stdout.write("Starting manual theta input server...\n")
 
-def parse_json(handler):
+    server_state = PolarimeterServerState()
+
+    # Attempt to create the polarimeter device. If it fails, we set polarimeter=None.
     try:
-        content_length = int(handler.headers.get("Content-Length", 0))
-        return json.loads(handler.rfile.read(content_length).decode("utf-8"))
-    except (json.JSONDecodeError, ValueError):
-        handler.send_error(400, "Invalid JSON data")
-        return None
-
-def get_handler(polarimeter):
-    class RequestHandler(BaseHTTPRequestHandler):
-        def do_OPTIONS(self):
-            self.send_response(200)
-            set_cors_headers(self)
-            self.end_headers()
-
-        def do_GET(self):
-            global theta_value
-            response_content, status = "", 200
-            parts = self.path.split("?")
-            
-            if parts[0] == "/polarimeter":
-                angle = polarimeter.theta if polarimeter else theta_value
-                response_content = json.dumps({"angle": round(angle, 2)})
-            elif parts[0] == "/status":
-                response_content = json.dumps({"status": "Server is running"})
-            else:
-                status = 404
-                response_content = json.dumps({"error": "Not found"})
-            
-            self.send_response(status)
-            set_cors_headers(self)
-            self.send_header("Cache-Control", "no-store")
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(response_content.encode("utf-8"))
-
-        def do_POST(self):
-            global theta_value
-            response_content, status = "", 200
-            data = parse_json(self)
-            if data is None:
-                return
-            
-            if self.path == "/polarimeter/start_normalizing":
-                if polarimeter:
-                    polarimeter.reset()
-                    polarimeter.set_calibration(True)
-            elif self.path == "/polarimeter/stop_normalizing":
-                if polarimeter:
-                    polarimeter.set_calibration(False)
-            elif self.path == "/polarimeter/set_theta":
-                try:
-                    theta_value = float(data.get("theta", 0))
-                    response_content = json.dumps({"message": "Theta updated successfully"})
-                except ValueError:
-                    self.send_error(400, "Invalid theta value")
-                    return
-            elif self.path == "/polarimeter/set_angle1" or self.path == "/polarimeter/set_angle2":
-                try:
-                    angle = float(data.get("option", 0))
-                    print(f"{self.path.split('/')[-1]} set to {angle}")
-                    
-                    if self.path == "/polarimeter/set_angle2" and polarimeter:
-                        c = Client(host="172.30.63.109", timeout=30000)
-                        idler_hwp, signal_hwp = c.get_device("loomis_server", "idler_hwp"), c.get_device("loomis_server", "signal_hwp")
-                        timetagger = c.get_device("mini_pc", "tagger")
-                        result = measure_chsh([angle / 2, angle / 2], [(angle / 2) + 22.5, (angle / 2) + 67.5], idler_hwp, idler_hwp, signal_hwp, signal_hwp, timetagger, 15)
-                        response_content = json.dumps({"chsh_value": result})
-                except ValueError:
-                    self.send_error(400, "Invalid angle value")
-                    return
-            else:
-                status = 404
-                response_content = json.dumps({"error": "Not found"})
-
-            self.send_response(status)
-            set_cors_headers(self)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(response_content.encode("utf-8"))
-
-    return RequestHandler
-
-def main():
-    sys.stdout.write("Initializing ArduinoPolarimeter...\n")
-    try:
+        # Adjust the constructor and parameters to match your environment.
         polarimeter = ArduinoPolarimeter()
-    except Exception:
-        sys.stderr.write("Could not connect the ArduinoPolarimeter. Using virtual polarimeter.\n")
+        # If it connects successfully, we can use polarimeter in GET. 
+        # If it fails, the except block sets it to None.
+    except Exception as e:
+        print(f"Polarimeter could not be initialized: {e}")
         polarimeter = None
 
-    threading.Thread(target=keyboard_input, daemon=True).start()
-    sys.stdout.write("ArduinoPolarimeter initialized\n")
+    # Start a background thread to update the fallback theta_value
+    input_thread = threading.Thread(target=update_theta, args=(server_state,), daemon=True)
+    input_thread.start()
 
-    sys.stdout.write("Initializing server...\n")
-    httpd = HTTPServer(ADDRESS, get_handler(polarimeter))
+    # Create a custom request handler factory that includes our shared state and polarimeter.
+    handler_factory = create_request_handler(server_state, polarimeter)
+
+    # Start the HTTP server
+    httpd = HTTPServer(ADDRESS, handler_factory)
     sys.stdout.write(f"Server started at http://{HOST}:{PORT}/\n")
+
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
+        sys.stdout.write("\nShutting down server...\n")
         httpd.shutdown()
-        sys.stdout.write("Server stopped.\n")
-
-if __name__ == "__main__":
-    main()
 

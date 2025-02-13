@@ -2,14 +2,40 @@
 
 from pqnstack.pqn.protocols.visibility import measure_visibility
 from pqnstack.network.client import Client
+import os
+import time
+from datetime import datetime
 
-if __name__ == "__main__":
+def main():
     c = Client(host = "172.30.63.109", timeout = 300000)
     idler_hwp = c.get_device("loomis_server", "signal_hwp")
-    signal_hwp = c.get_device("ufl_closet", "signal_hwp") 
+    signal_hwp = c.get_device("ufl_closet", "signal_hwp")
 
     tagger = c.get_device("mini_pc", "tagger")
 
     motors = {"idler_hwp": idler_hwp, "signal_hwp": signal_hwp}
+    bases = ["HV", "DA", "HD"]
+    home_dir = os.path.expanduser("~")
+    data_dir = os.path.join(home_dir, "data")
+    os.makedirs(data_dir, exist_ok=True)
 
-    print(measure_visibility(motors, tagger))
+    start_time = time.time()
+    duration = 6 * 60 * 60  # 6 hours in seconds
+
+    while time.time() - start_time < duration:
+        for basis in bases:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            visibility = measure_visibility(motors, tagger, basis=basis)
+            log_entry = f"{timestamp} - Visibility: {visibility:.6f}\n"
+
+            file_path = os.path.join(data_dir, f"{basis}_visibility.log")
+            with open(file_path, "a") as file:
+                file.write(log_entry)
+
+            print(f"[{timestamp}] {basis} Basis - Visibility: {visibility:.6f}")
+
+            time.sleep(1)  # Short delay to prevent excessive CPU usage
+
+if __name__ == "__main__":
+    main()
+

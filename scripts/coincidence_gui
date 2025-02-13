@@ -52,7 +52,7 @@ class Worker(QtCore.QObject):
             coincidence = 100 * self.device.measure_coincidence(
                 self.active_channels[0],
                 self.active_channels[1],
-                100,
+                500,
                 500_000_000_000
             )
         self.dataReady.emit(singles, coincidence)

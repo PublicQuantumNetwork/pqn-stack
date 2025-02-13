@@ -62,8 +62,8 @@ def qkd_run(qd: ProxyInstrument, c: Client, basis: str = "HV",
         print(f"{player} moved motors to {move_state}")
         
         qd.submit(player)
-        while qd.check_submission():  # DOUBLE CHECK LOGIC TO SEE IF IT WORKS THE WAY I WANT IT TO ON FUTURE ROUNDS
-            sleep(0.1)
+#        while qd.check_submission():  # DOUBLE CHECK LOGIC TO SEE IF IT WORKS THE WAY I WANT IT TO ON FUTURE ROUNDS
+#            sleep(0.1)
 
         while (counts := qd.get_counts(player)) is None:
             sleep(0.5)

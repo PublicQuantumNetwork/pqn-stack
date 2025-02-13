@@ -72,43 +72,21 @@ class PolarizationMeasurement:
         if self.h + self.v == 0 or self.d + self.a == 0:
             return 0.0
 
-        def _h_deg() -> float:
-            h = self.h / (self.h + self.v)
-            cosine = min(math.sqrt(h), 1)
-            radians = 1 / math.pi * math.acos(cosine)
-            sign = math.copysign(1, self.a - self.d)
-            return sign * math.degrees(radians)
+        # Read polarization angle from photodiodes
+        h = self.h / (self.h + self.v)
+        radians = math.acos(math.sqrt(h))
+        sign = math.copysign(1, self.a - self.d)
+        degrees = sign * math.degrees(radians) % 180
 
-        def _a_deg() -> float:
-            a = self.a / (self.a + self.d)
-            cosine = min(math.sqrt(a), 1)
-            radians = 1 / math.pi * math.acos(cosine) + 1 / 4
-            sign = math.copysign(1, self.v - self.h)
-            return sign * math.degrees(radians)
+        # Shift based on previous angle to allow full 0-360 range
+        shifted = self._last_theta // 180
+        prev_wedge = self._last_theta % 180 // 60
+        new_wedge = degrees // 60
 
-        def _v_deg() -> float:
-            v = self.v / (self.h + self.v)
-            cosine = min(math.sqrt(v), 1)
-            radians = 1 / math.pi * math.acos(cosine) + 1 / 2
-            sign = math.copysign(1, self.d - self.a)
-            return sign * math.degrees(radians)
+        if abs(new_wedge - prev_wedge) > 1:
+            shifted = not shifted
 
-        def _d_deg() -> float:
-            d = self.d / (self.a + self.d)
-            cosine = min(math.sqrt(d), 1)
-            radians = 1 / math.pi * math.acos(cosine) + 3 / 4
-            sign = math.copysign(1, self.h - self.v)
-            return sign * math.degrees(radians)
-
-        _sector_count = 8
-        _sector_size = 360 / _sector_count
-
-        # Sector k is centered at `k * _sector_size` degrees.
-        sector = round((self._last_theta % 360) / _sector_size) % _sector_count
-        degrees = [_h_deg, _a_deg, _v_deg, _d_deg][sector % (_sector_count // 2)]()
-
-        # Disambiguate sectors 180 degrees apart (which use the same function)
-        if sector > _sector_count / 2:
+        if shifted:
             degrees += 180
 
         return degrees % 360

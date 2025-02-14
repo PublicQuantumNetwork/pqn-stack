@@ -82,7 +82,7 @@ class QKDDevice(DeviceDriver):
             self.submissions[player] = True
 
         if self._check_submission():
-            self.value = self.tagger.measure_coincidence(1, 2, 500, int(10e12))
+            self.value = self.tagger.measure_coincidence(1, 2, 500, int(5e12))
             
     @log_operation
     def _measured(self, player: str) -> None:

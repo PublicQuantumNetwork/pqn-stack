@@ -70,7 +70,7 @@ def qkd_run(qd: ProxyInstrument, c: Client, basis: str = "HV",
         if f"{key_filter}_qwp" in motors:
             motors[f"{key_filter}_qwp"].move_to(settings[move_state][0])
 
-        sleep(3)
+        sleep(2)
         print(f"{player} moved motors to {move_state}")
         
         qd.submit(player)

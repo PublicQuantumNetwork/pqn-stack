@@ -3,6 +3,7 @@
 import sys
 import threading
 import json
+import queue
 from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import time
@@ -10,6 +11,7 @@ import time
 from pqnstack.pqn.drivers.polarimeter2 import ArduinoPolarimeter
 from pqnstack.network.client import Client
 from pqnstack.pqn.protocols.chsh import measure_chsh
+from pqnstack.pqn.protocols.qkd import qkd_run
 
 HOST = "127.0.0.1"
 PORT = 8000
@@ -18,16 +20,40 @@ ADDRESS = (HOST, PORT)
 class PolarimeterServerState:
     """
     This class holds all the variables that used to be global.
-    You can add more attributes here as your application grows.
     """
     def __init__(self):
-        # If the polarimeter is unavailable, we still maintain this manual theta as a fallback.
         self.theta_value = 0.0
         self.angle1 = 0.0
         self.angle2 = 0.0
+        self.parity_agreement = None
+        self.parity_queue = queue.Queue()
+        self.parity_thread = None
+        self.lock = threading.Lock()
+
+
+def parity_worker(server_state):
+    """
+    Worker thread that continuously calls qkd_run and collects results.
+    """
+    c = Client(host="172.30.63.109", timeout=30000)
+    qd = c.get_device("qkd_device", "qd")
+    collected_values = []
+
+    while True:
+        value = qkd_run(qd, c, final=True)
+        if value is not None:
+            collected_values.append(value[1])
+
+        if len(collected_values) > 0:
+            with server_state.lock:                                                                                                                                                   
+                threshold = 0.6
+                server_state.parity_agreement = sum(1 for v in collected_values if v > threshold) / len(collected_values)
+            collected_values.clear()
+
+        time.sleep(0.1)  
 
 class PolarimeterRequestHandler(BaseHTTPRequestHandler):
-    """
+    """                                                                                                                                                                               
     A request handler that uses a shared state object (server_state) and an optional polarimeter object.
     """
     def __init__(self, *args, server_state=None, polarimeter=None, **kwargs):
@@ -36,9 +62,6 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
         super().__init__(*args, **kwargs)
 
     def do_OPTIONS(self):
-        """
-        Handles CORS preflight requests.
-        """
         self.send_response(200)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, HEAD, OPTIONS")
@@ -46,32 +69,29 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        """
-        Handles GET requests. In particular:
-          - /polarimeter -> returns the polarimeter's theta if available,
-                            otherwise falls back to the user-input theta_value.
-        """
         status = 200
         content_type = "text/plain"
         response_content = ""
 
-        parts = self.path.split("?")
-
-        if parts[0] == "/polarimeter/theta":
+        if self.path == "/polarimeter/theta":
             if self.polarimeter is not None:
                 try:
                     angle = self.polarimeter.theta
                     response_content = f"{angle:.2f}"
                 except Exception as e:
                     print(f"Polarimeter read error: {e}")
-                    angle = self.server_state.theta_value
-                    response_content = f"{angle:.2f}"
+                    response_content = f"{self.server_state.theta_value:.2f}"
             else:
-                angle = self.server_state.theta_value
-                response_content = f"{angle:.2f}"
-        else:
-            status = 404  # Not Found
+                response_content = f"{self.server_state.theta_value:.2f}"
 
+        elif self.path == "/parity/agreement":
+            with self.server_state.lock:
+                response_content = json.dumps({"parity_agreement": self.server_state.parity_agreement})
+                content_type = "application/json"
+
+        else:
+            status = 404
+                                                                                                                                                                            
         self.send_response(status)
         self.send_header("Access-Control-Allow-Origin", "https://pqnetwork.web.illinois.edu")
         self.send_header("Cache-Control", "no-store")
@@ -80,13 +100,7 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
         self.wfile.write(bytes(response_content, "utf-8"))
 
     def do_POST(self):
-        """
-        Handles POST requests for various endpoints. We:
-          - start or stop normalizing for the polarimeter,
-          - set angle1 or angle2 for CHSH measurements,
-          - run measure_chsh and return both result and error in the JSON response.
-        """
-        status = 200
+        status = 200                                                                                                                                                                  
         content_type = "text/plain"
         response_content = ""
 
@@ -95,15 +109,11 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
             if self.polarimeter is not None:
                 self.polarimeter.reset()
                 self.polarimeter.set_calibration(True)
-            else:
-                print("No polarimeter object available to normalize.")
-
+    
         elif self.path == "/polarimeter/stop_normalizing":
             print("POST: stop_normalizing triggered")
             if self.polarimeter is not None:
                 self.polarimeter.set_calibration(False)
-            else:
-                print("No polarimeter object available to stop normalizing.")
 
         elif self.path == "/chsh/set_angle1":
             content_length = int(self.headers["Content-Length"])
@@ -161,6 +171,18 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
 
             self.server_state.angle1 = 0.0
             self.server_state.angle2 = 0.0
+
+        elif self.path == "/parity/basis":
+            with self.server_state.lock:
+                if self.server_state.parity_thread is None or not self.server_state.parity_thread.is_alive():
+                    self.server_state.parity_thread = threading.Thread(target=parity_worker, args=(self.server_state,), daemon=True)
+                    self.server_state.parity_thread.start()
+
+        elif self.path == "/parity/done":
+            with self.server_state.lock:
+                self.server_state.parity_agreement = None
+
+
 
         else:
             status = 404

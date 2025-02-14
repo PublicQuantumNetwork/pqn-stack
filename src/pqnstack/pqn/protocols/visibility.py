@@ -1,7 +1,7 @@
 import time
 import math
 
-def measure_visibility(motors: dict, tagger: object, basis: str = 'HV',
+def measure_visibility(motors: dict, tagger: object, basis: str = 'DA',
                        custom_basis: list[tuple[str, str]] = None,
                        custom_settings: dict[str, tuple[float, float]] = None,
                        wait_time: float = 12.0) -> float:
@@ -55,8 +55,8 @@ def move_and_measure(motors: dict, tagger: object, s_state: str, i_state: str,
 
     print(f"Moved motors to: Signal = {s_state} ({settings[s_state]}), Idler = {i_state} ({settings[i_state]})")
 
-    time.sleep(wait_time)
-    value = tagger.measure_coincidence(1, 2, 500, int(10e12)) 
+    time.sleep(2)
+    value = tagger.measure_coincidence(1, 2, 500, int(wait_time * 1e12)) 
     print(f"Value is {value}")
     return value
 

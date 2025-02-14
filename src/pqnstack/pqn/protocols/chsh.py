@@ -18,6 +18,7 @@ def basis_to_wp(basis):
     return [basis / 2, 0]
 
 def expectation_value(idler_hwp, idler_qwp, signal_hwp, signal_qwp, timetagger, measurement_duration, binwidth, idler_hwp_angle, idler_qwp_angle, signal_hwp_angle, signal_qwp_angle, channel1 =1, channel2 = 2, dark_count=0):
+    print(f"starting expectation value with basis ({idler_hwp_angle}, {idler_qwp_angle}), ({signal_hwp_angle}, {signal_qwp_angle})")
     angles1 = [
         [idler_hwp_angle, idler_qwp_angle],
         [idler_hwp_angle + 45, idler_qwp_angle]
@@ -33,7 +34,7 @@ def expectation_value(idler_hwp, idler_qwp, signal_hwp, signal_qwp, timetagger, 
             #idler_qwp.move_to(angle1[1])
             signal_hwp.move_to(angle2[0])
             #signal_qwp.move_to(angle2[1])
-            sleep(3)
+            sleep(2)
             counts = timetagger.measure_coincidence(channel1, channel2, int(binwidth * 1e12), int(measurement_duration * 1e12))
             coincidence_counts.append(counts)
     numerator = coincidence_counts[0] - coincidence_counts[1] - coincidence_counts[2] + coincidence_counts[3]
@@ -52,7 +53,7 @@ def expectation_value(idler_hwp, idler_qwp, signal_hwp, signal_qwp, timetagger, 
 def measure_chsh(basis1, basis2, 
                 idler_hwp, idler_qwp, 
                 signal_hwp, signal_qwp, 
-                timetagger, measurement_duration, binwidth = 100e-12, 
+                timetagger, measurement_duration, binwidth = 500e-12, 
                 channel1 = 1, channel2 = 2, dark_count=0):
     angles1 = [basis_to_wp(element) for element in basis1]
     angles2 = [basis_to_wp(element) for element in basis2]
@@ -98,8 +99,9 @@ def measure_chsh(basis1, basis2,
 
 if __name__ == "__main__":
     from pqnstack.network.client import Client
-    c = Client(host = "172.30.63.109", timeout = 30000)
-    idler_hwp = c.get_device("loomis_server", "idler_hwp")
-    signal_hwp = c.get_device("loomis_server", "signal_hwp")
+    c = Client(host="172.30.63.109", timeout=30000)
+    signal_hwp = c.get_device("ufl_closet", "signal_hwp")
+    idler_hwp = c.get_device("loomis_server", "signal_hwp")
     timetagger = c.get_device("mini_pc", "tagger")
-    print(measure_chsh([0, 45], [22.5, 67.5], idler_hwp, idler_hwp, signal_hwp, signal_hwp, timetagger, 15))
+
+    print(measure_chsh([0, 45], [22.5, 67.5], idler_hwp, idler_hwp, signal_hwp, signal_hwp, timetagger, 5))

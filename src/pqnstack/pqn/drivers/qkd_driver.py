@@ -5,6 +5,9 @@ from pqnstack.base.driver import DeviceStatus
 from pqnstack.base.driver import log_operation
 from pqnstack.base.driver import log_parameter
 from pqnstack.base.errors import DeviceNotStartedError
+from pqnstack.network.client import Client
+import logging
+from dataclasses import dataclass
 
 from time import sleep
 
@@ -19,24 +22,39 @@ class QKDInfo(DeviceInfo):
 class QKDDevice(DeviceDriver):
     DEVICE_CLASS = DeviceClass.PROTOCOL
 
-    def __init__(self, address: str, name: str = "QKD Device", desc: str = "Device used for managing QKD Protocol") -> None:    
+    def __init__(self, address: str, motors: dict[str: dict[str: str]], tagger_config: dict[str, str], name: str = "QKD Device", desc: str = "Device used for managing QKD Protocol") -> None:    
         super().__init__(name, desc, address)
-
-        self.tagger = None
-        self.motors = {}
+        self.c = Client(host="172.30.63.109", timeout=30000)
+        self.tagger_config = tagger_config
+        self.tagger = {}
+        self.motors = motors
         self.players = {"player1": False, "player2": False}
         self.submissions = {"player1": False, "player2": False}
         self.value_gathered = {"player1": False, "player2": False}
-        self.player_values = {"player1": [], "player2": []}
         self.value: int = None
+        self.operations["add_player"] = self.add_player
+        self.operations["submit"] = self.submit
+        self.operations["get_counts"] = self.get_counts
+        self.operations["get_motors"] = self.get_motors
+        self.operations["remove_player"] = self.remove_player
+
+    def start(self):
+        self._set_tagger(self.tagger_config)
+        return
+
+    def close(self):
+        return
+
+    def info(self):
+        return QKDInfo(number_trials = 0, trial_values = [0])
 
     @log_operation
-    def set_motors(self, **kwargs) -> None:
+    def _set_motors(self, **kwargs) -> None:
         self.motors.update(kwargs)
 
     @log_operation
-    def set_tagger(self, tagger) -> None:
-        self.tagger = tagger
+    def _set_tagger(self, tagger: dict) -> None:
+        self.tagger = self.c.get_device(tagger["location"], tagger["name"])
 
     @log_operation
     def add_player(self) -> str:
@@ -64,7 +82,7 @@ class QKDDevice(DeviceDriver):
             self.submissions[player] = True
 
         if self._check_submission():
-            self.value = self.tagger.measure_coincidence()
+            self.value = self.tagger.measure_coincidence(1, 2, 500, int(10e12))
             
     @log_operation
     def _measured(self, player: str) -> None:

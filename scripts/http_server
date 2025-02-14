@@ -5,8 +5,8 @@ import threading
 import json
 from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, HTTPServer
+import time
 
-# Adjust or remove the imports below to match your local modules
 from pqnstack.pqn.drivers.polarimeter2 import ArduinoPolarimeter
 from pqnstack.network.client import Client
 from pqnstack.pqn.protocols.chsh import measure_chsh
@@ -57,22 +57,16 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
 
         parts = self.path.split("?")
 
-        if parts[0] == "/polarimeter":
-            # If the ArduinoPolarimeter was initialized successfully, use its theta.
-            # If not, fall back to whatever the user manually entered (server_state.theta_value).
+        if parts[0] == "/polarimeter/theta":
             if self.polarimeter is not None:
                 try:
                     angle = self.polarimeter.theta
-                    # Example of reading some sort of summary from the device:
-                    # print(self.polarimeter.summary)  # if the device provides a .summary attribute
                     response_content = f"{angle:.2f}"
                 except Exception as e:
-                    # If something goes wrong in reading from the device, also fall back
                     print(f"Polarimeter read error: {e}")
                     angle = self.server_state.theta_value
                     response_content = f"{angle:.2f}"
             else:
-                # No polarimeter device available; use the fallback user-input value
                 angle = self.server_state.theta_value
                 response_content = f"{angle:.2f}"
         else:
@@ -137,10 +131,6 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
                 self.wfile.write(bytes("Invalid JSON data", "utf-8"))
                 return
 
-            # Perform the measure_chsh operation, expecting to return two values: result and error
-            # Depending on how measure_chsh works, you might get them as a tuple or dictionary.
-            # Here we assume measure_chsh returns something like (result, error).
-            # If measure_chsh only returns one value, you can tweak this code to suit your needs.
             print("starting CHSH measurement")
             try:
                 c = Client(host="172.30.63.109", timeout=30000)
@@ -148,52 +138,31 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
                 signal_hwp = c.get_device("ufl_closet", "signal_hwp")
                 timetagger = c.get_device("mini_pc", "tagger")
 
-                # If measure_chsh only returns one value, adapt accordingly. 
-                # Otherwise, if it returns multiple, expand them:
                 chsh_result = measure_chsh(
-                    [self.server_state.angle1 / 2, self.server_state.angle2 / 2],
-                    [(self.server_state.angle1 / 2) + 22.5, (self.server_state.angle1 / 2) + 67.5],
+                    [self.server_state.angle1 / 2, (self.server_state.angle1 / 2) + 45],
+                    [(self.server_state.angle2 / 2), (self.server_state.angle2 / 2) + 45],
                     idler_hwp, idler_hwp, signal_hwp, signal_hwp, timetagger, 15
                 )
 
-                # You might have something like:
-                # chsh_value, chsh_error = measure_chsh(...) 
-                # or measure_chsh might return a dict like {"value": 2.5, "error": 0.1}.
-                #
-                # For illustration, let's assume measure_chsh returns (value, error).
-                # If your actual function is different, adjust the code below:
-                #  chsh_value, chsh_error = chsh_result
-
-                # If measure_chsh only returns a single value, you can define "error" yourself
-                # or store None or 0.0. We’ll show an example with two placeholders:
-
-                if isinstance(chsh_result, tuple) and len(chsh_result) == 2:
-                    chsh_value, chsh_error = chsh_result
-                else:
-                    # Fallback if measure_chsh returns something else (e.g. a single float).
-                    chsh_value = chsh_result
-                    chsh_error = 0.0
+                chsh_value = chsh_result["chsh_value"]
+                chsh_error = chsh_result["chsh_error"]
 
                 print(f"CHSH result: {chsh_value}, error: {chsh_error}")
 
-                # Return both in JSON
                 response_data = {
-                    "chsh_value": chsh_value,
-                    "error": chsh_error
+                    "chsh_value": f"{float(chsh_value):.2f}",
+                    "chsh_error": f"{float(chsh_error):.2f}"
                 }
                 response_content = json.dumps(response_data)
 
             except Exception as e:
                 print(f"Error during measure_chsh: {e}")
-                # Return an error JSON with placeholders
                 response_content = json.dumps({"chsh_value": None, "error": str(e)})
 
-            # Reset the angles after measurement, if you want them always cleared:
             self.server_state.angle1 = 0.0
             self.server_state.angle2 = 0.0
 
         else:
-            # No matching path
             status = 404
 
         self.send_response(status)
@@ -228,24 +197,17 @@ if __name__ == "__main__":
 
     server_state = PolarimeterServerState()
 
-    # Attempt to create the polarimeter device. If it fails, we set polarimeter=None.
     try:
-        # Adjust the constructor and parameters to match your environment.
         polarimeter = ArduinoPolarimeter()
-        # If it connects successfully, we can use polarimeter in GET. 
-        # If it fails, the except block sets it to None.
     except Exception as e:
         print(f"Polarimeter could not be initialized: {e}")
         polarimeter = None
 
-    # Start a background thread to update the fallback theta_value
     input_thread = threading.Thread(target=update_theta, args=(server_state,), daemon=True)
     input_thread.start()
 
-    # Create a custom request handler factory that includes our shared state and polarimeter.
     handler_factory = create_request_handler(server_state, polarimeter)
 
-    # Start the HTTP server
     httpd = HTTPServer(ADDRESS, handler_factory)
     sys.stdout.write(f"Server started at http://{HOST}:{PORT}/\n")
 

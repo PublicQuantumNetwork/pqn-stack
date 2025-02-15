@@ -217,11 +217,13 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
             qd = c.get_device("qkd_device", "qd")
             collected_values = []
             try:
-                value = 1 if qkd_run(qd, c, final=True, basis=basis) > 0.6 else 0
+                name, qkd_value = qkd_run(qd, c, final=True, basis=basis)
+                value = 1 if qkd_value> 0.6 else 0
+                print(f"Player value is {value} for qkd")
                 response_data = {"value": value}
                 response_content = json.dumps(response_data)
             except Exception as e:
-                print("Error during qkd: {e}")
+                print(f"Error during qkd: {e}")
                 response_content = json.dumps({"value": None})
 
         elif self.path == "/parity/basis":

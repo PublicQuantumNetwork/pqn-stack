@@ -39,9 +39,10 @@ def parity_worker_with_basis(server_state, basis):
     c = Client(host="172.30.63.109", timeout=30000)
     qd = c.get_device("qkd_device", "qd")
     collected_values = []
+    running_control = True
 
-    while True:
-        value = qkd_run(qd, c, final=True, basis=basis)  # Pass the basis
+    while running_control:
+        name, value = qkd_run(qd, c, final=True, basis=basis)  # Pass the basis
         if value is not None:
             collected_values.append(value[1])
 
@@ -229,27 +230,27 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
         elif self.path == "/parity/basis":
             content_length = int(self.headers["Content-Length"])
             post_data = self.rfile.read(content_length).decode("utf-8")
-            
             try:
                 data = json.loads(post_data)
-                option = int(data.get("option", 1))  # Default to 1 if not provided
-
-                basis = "HV" if option == 1 else "DA"
-
-
-                with self.server_state.lock:
-                    if self.server_state.parity_thread is None or not self.server_state.parity_thread.is_alive():
-                        self.server_state.parity_thread = threading.Thread(target=parity_worker_with_basis, args=(self.server_state, basis), daemon=True)
-                        self.server_state.parity_thread.start()
-
-                response_content = json.dumps({"status": "parity worker started", "basis": basis})
-                content_type = "application/json"
-
+                basis = 'HV' if str(data.get("option", 1)) else 'DA' # CHECK NAME
+                print(f"basis is {basis}")
             except (json.JSONDecodeError, ValueError):
                 self.send_response(400)
                 self.end_headers()
                 self.wfile.write(bytes("Invalid JSON data", "utf-8"))
                 return
+            c = Client(host="172.30.63.109", timeout=30000)
+            qd = c.get_device("qkd_device", "qd")
+            collected_values = []
+            try:
+                name, qkd_value = qkd_run(qd, c, final=True, basis=basis)
+                value = 1 if qkd_value> 0.6 else 0
+                print(f"Player value is {value} for qkd")
+                response_data = {"value": value}
+                response_content = json.dumps(response_data)
+            except Exception as e:
+                print(f"Error during qkd: {e}")
+                response_content = json.dumps({"value": None})
 
         elif self.path == "/parity/done":
             with self.server_state.lock:

@@ -106,6 +106,7 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
         status = 200                                                                                                                                                                  
         content_type = "text/plain"
         response_content = ""
+        print(f"THE REQUEST GOTTEN IS {self.path}")
 
         if self.path == "/polarimeter/start_normalizing":
             print("POST: start_normalizing triggered")
@@ -206,7 +207,7 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
             try:
                 data = json.loads(post_data)
                 basis = str(data.get("option", 1)) # CHECK NAME
-                print(f"user string is {user_str}")
+                print(f"basis is {basis}")
             except (json.JSONDecodeError, ValueError):
                 self.send_response(400)
                 self.end_headers()

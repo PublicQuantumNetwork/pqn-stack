@@ -8,10 +8,11 @@ from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import time
 
-from pqnstack.pqn.drivers.polarimeter2 import ArduinoPolarimeter
+from pqnstack.pqn.drivers.polarimeter import ArduinoPolarimeter
 from pqnstack.network.client import Client
 from pqnstack.pqn.protocols.chsh import measure_chsh
 from pqnstack.pqn.protocols.qkd import qkd_run
+from pqnstack.pqn.protocols.qrng import pqxor_random
 
 HOST = "127.0.0.1"
 PORT = 8000
@@ -44,7 +45,7 @@ def parity_worker_with_basis(server_state, basis):
         if value is not None:
             collected_values.append(value[1])
 
-        if len(collected_values) >= 12:
+        if len(collected_values) >= 6:
             with server_state.lock:
                 threshold = 0.6
                 server_state.parity_agreement = sum(1 for v in collected_values if v > threshold) / len(collected_values)
@@ -77,7 +78,8 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
         if self.path == "/polarimeter/theta":
             if self.polarimeter is not None:
                 try:
-                    angle = self.polarimeter.theta
+                    angle = self.polarimeter.read().theta
+                    print(f"Angle: {angle}")
                     response_content = f"{angle:.2f}"
                 except Exception as e:
                     print(f"Polarimeter read error: {e}")
@@ -109,7 +111,6 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
             print("POST: start_normalizing triggered")
             if self.polarimeter is not None:
                 self.polarimeter.reset()
-                self.polarimeter.set_calibration(True)
     
         elif self.path == "/polarimeter/stop_normalizing":
             print("POST: stop_normalizing triggered")
@@ -148,11 +149,12 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
                 idler_hwp = c.get_device("loomis_server", "signal_hwp")
                 signal_hwp = c.get_device("ufl_closet", "signal_hwp")
                 timetagger = c.get_device("mini_pc", "tagger")
+                user_basis_angle1 = ((abs(self.server_state.angle1 - self.server_state.angle2) % 90) / 2)
 
                 chsh_result = measure_chsh(
-                    [self.server_state.angle1 / 2, (self.server_state.angle1 / 2) + 45],
-                    [(self.server_state.angle2 / 2), (self.server_state.angle2 / 2) + 45],
-                    idler_hwp, idler_hwp, signal_hwp, signal_hwp, timetagger, 15
+                    [0, 45],
+                    [user_basis_angle1, user_basis_angle1 + 45],
+                    idler_hwp, idler_hwp, signal_hwp, signal_hwp, timetagger, 5
                 )
 
                 chsh_value = chsh_result["chsh_value"]
@@ -172,6 +174,54 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
 
             self.server_state.angle1 = 0.0
             self.server_state.angle2 = 0.0
+
+        elif self.path == "/rng/user_input":
+            content_length = int(self.headers["Content-Length"])
+            post_data = self.rfile.read(content_length).decode("utf-8")
+            try:
+                data = json.loads(post_data)
+                user_str = str(data.get("option", "10101010")) # CHECK NAME
+                print(f"user string is {user_str}")
+            except (json.JSONDecodeError, ValueError):
+                self.send_response(400)
+                self.end_headers()
+                self.wfile.write(bytes("Invalid JSON data", "utf-8"))
+                return
+
+            c = Client(host="172.30.63.109", timeout=30000)
+            timetagger = c.get_device("mini_pc", "tagger")
+            try: 
+                random_number = pqxor_random(6, input_str = user_str, tagger = timetagger)
+
+                response_data = {"number": random_number} # CHECK NAME
+                response_content = json.dumps(response_data)
+            except Exception as e:
+                print(f"Error during pqrng: {e}")
+                random_number = pqxor_random(6, input_str = user_str)
+                response_content = json.dumps({"chsh_value": random_number})
+
+        elif self.path == "/qkd/basis":
+            content_length = int(self.headers["Content-Length"])
+            post_data = self.rfile.read(content_length).decode("utf-8")
+            try:
+                data = json.loads(post_data)
+                basis = str(data.get("option", 1)) # CHECK NAME
+                print(f"user string is {user_str}")
+            except (json.JSONDecodeError, ValueError):
+                self.send_response(400)
+                self.end_headers()
+                self.wfile.write(bytes("Invalid JSON data", "utf-8"))
+                return
+            c = Client(host="172.30.63.109", timeout=30000)
+            qd = c.get_device("qkd_device", "qd")
+            collected_values = []
+            try:
+                value = 1 if qkd_run(qd, c, final=True, basis=basis) > 0.6 else 0
+                response_data = {"value": value}
+                response_content = json.dumps(response_data)
+            except Exception as e:
+                print("Error during qkd: {e}")
+                response_content = json.dumps({"value": None})
 
         elif self.path == "/parity/basis":
             content_length = int(self.headers["Content-Length"])

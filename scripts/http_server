@@ -8,7 +8,7 @@ from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import time
 
-from pqnstack.pqn.drivers.polarimeter import ArduinoPolarimeter
+from pqnstack.pqn.drivers.polarimeter2 import ArduinoPolarimeter
 from pqnstack.network.client import Client
 from pqnstack.pqn.protocols.chsh import measure_chsh
 from pqnstack.pqn.protocols.qkd import qkd_run
@@ -79,7 +79,7 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
         if self.path == "/polarimeter/theta":
             if self.polarimeter is not None:
                 try:
-                    angle = self.polarimeter.read().theta
+                    angle = self.polarimeter.theta * 2
                     print(f"Angle: {angle}")
                     response_content = f"{angle:.2f}"
                 except Exception as e:
@@ -112,7 +112,7 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
         if self.path == "/polarimeter/start_normalizing":
             print("POST: start_normalizing triggered")
             if self.polarimeter is not None:
-                self.polarimeter.reset()
+                self.polarimeter.set_calibration(True)
     
         elif self.path == "/polarimeter/stop_normalizing":
             print("POST: stop_normalizing triggered")

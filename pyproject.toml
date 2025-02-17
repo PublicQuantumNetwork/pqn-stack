@@ -34,7 +34,7 @@ webapp = [
 ]
 
 [dependency-groups]
-dev = ["mypy>=1.13.0", "pytest-cov>=6.0.0", "ruff>=0.8.0"]
+dev = ["hypothesis", "mypy", "pytest-cov", "pytest-randomly", "ruff"]
 
 
 [tool.mypy]

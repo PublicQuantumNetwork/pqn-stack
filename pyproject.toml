@@ -38,7 +38,7 @@ dev = ["hypothesis", "mypy", "pytest-cov", "pytest-randomly", "ruff"]
 
 
 [tool.mypy]
-files = ["src"]
+files = ["src/**/*.py"]
 strict = true
 pretty = true
 

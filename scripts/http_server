@@ -232,7 +232,8 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
             post_data = self.rfile.read(content_length).decode("utf-8")
             try:
                 data = json.loads(post_data)
-                basis = 'HV' if str(data.get("option", 1)) else 'DA' # CHECK NAME
+                print("Data is ", data)
+                basis = 'HV' if int(data.get("option", 1)) == 1 else 'DA' # CHECK NAME
                 print(f"basis is {basis}")
             except (json.JSONDecodeError, ValueError):
                 self.send_response(400)

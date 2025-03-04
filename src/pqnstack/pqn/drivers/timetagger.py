@@ -207,3 +207,4 @@ class SwabianTimeTagger(TimeTaggerDevice):
         corr.waitUntilFinished()
         return np.max(corr.getData())
 
+

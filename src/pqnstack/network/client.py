@@ -140,6 +140,13 @@ class ClientBase:
             payload=payload,
         )
 
+    def set_timeout(self, timeout: int) -> None:
+        if not self.socket:
+            logger.warning("Socket is None. Cannot set timeout.")
+            return
+
+        self.timeout = timeout
+        self.socket.setsockopt(zmq.RCVTIMEO, self.timeout)
 
 class InstrumentClientInit(NamedTuple):
     name: str

@@ -29,7 +29,7 @@ def main():
     while time.time() - start_time < duration:
         try:
             results = measure_chsh(
-                [0, 45], [22.5, 67.5], idler_hwp, idler_hwp, signal_hwp, signal_hwp, timetagger, 15
+                [0, 45], [22.5, 67.5], idler_hwp, idler_hwp, signal_hwp, signal_hwp, timetagger, 5
             )
             results_list.append(results)
             

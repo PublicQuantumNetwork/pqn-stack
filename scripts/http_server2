@@ -10,7 +10,6 @@ import time
 
 from pqnstack.pqn.drivers.polarimeter import ArduinoPolarimeter
 from pqnstack.network.client import Client
-from pqnstack.pqn.protocols.chsh import measure_chsh
 from pqnstack.pqn.protocols.qkd import qkd_run
 from pqnstack.pqn.protocols.qrng import pqxor_random
 
@@ -148,16 +147,13 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
 
             print("starting CHSH measurement")
             try:
-                c = Client(host="172.30.63.109", timeout=30000)
-                idler_hwp = c.get_device("loomis_server", "signal_hwp")
-                signal_hwp = c.get_device("ufl_closet", "signal_hwp")
-                timetagger = c.get_device("mini_pc", "tagger")
+                c = Client(host="172.30.63.109", timeout=600000)
+                cd = c.get_device("chsh_device", "cd")
                 user_basis_angle1 = ((abs(self.server_state.angle1 - self.server_state.angle2) % 90) / 2)
-
-                chsh_result = measure_chsh(
-                    [0, 45],
-                    [user_basis_angle1, user_basis_angle1 + 45],
-                    idler_hwp, idler_hwp, signal_hwp, signal_hwp, timetagger, 5
+                chsh_result = cd.measure_chsh(
+                    basis1=[0, 45],
+                    basis2=[user_basis_angle1, user_basis_angle1 + 45], 
+                    measurement_duration=5
                 )
 
                 chsh_value = chsh_result["chsh_value"]

@@ -20,7 +20,7 @@ class QKDInfo(DeviceInfo):
 
 
 class QKDDevice(DeviceDriver):
-    DEVICE_CLASS = DeviceClass.PROTOCOL
+    DEVICE_CLASS = DeviceClass.MANAGER
 
     def __init__(self, address: str, motors: dict[str: dict[str: str]], tagger_config: dict[str, str], name: str = "QKD Device", desc: str = "Device used for managing QKD Protocol") -> None:    
         super().__init__(name, desc, address)

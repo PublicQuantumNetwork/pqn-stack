@@ -11,7 +11,8 @@ def pqxor_random(n: int, input_str: Optional[str] = None, tagger: Optional[objec
     if tagger is not None:
         random_bits = []
         for _ in range(n):
-            bit = tagger.measure_coincidence(1,2,500,2)
+            print(tagger)
+            bit = tagger.measure_coincidence(1,2,500,int(.5e12))
             print(bit)
             print(bit % 2)
             random_bits.append(bit % 2)
@@ -28,3 +29,10 @@ def pqxor_random(n: int, input_str: Optional[str] = None, tagger: Optional[objec
     return np.random.randint(1, 2**n)
 
 
+if __name__ == "__main__":
+    from pqnstack.network.client import Client
+    c = Client(host="172.30.63.109", timeout=30000)
+
+    tagger = c.get_device("mini_pc", "tagger")
+
+    print(pqxor_random(n = 6, tagger = tagger))

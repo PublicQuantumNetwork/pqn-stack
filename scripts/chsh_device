@@ -1,0 +1,25 @@
+#!/usr/bin/env python
+
+import logging
+
+from pqnstack.network.node import Node
+from pqnstack.network.client import Client
+
+logging.basicConfig(level=logging.INFO)
+
+if __name__ == "__main__":
+    motors = {"signal_hwp": {"name": "signal_hwp", "location": "ufl_closet"}, "idler_hwp": {"name": "signal_hwp", "location": "loomis_server"}}
+
+    tagger = {"location": "mini_pc", "name": "tagger"}
+    instruments = {
+        "cd": {
+            "import": "pqnstack.pqn.drivers.chsh_driver.CHSHDevice",
+            "desc": "qkd device",
+            "address": "here",
+            "tagger_config": tagger,
+            "motors": motors
+        }
+    }
+    node = Node("chsh_device", "172.30.63.109", 5555, beat_period = 300000, **instruments)
+    node.start()
+

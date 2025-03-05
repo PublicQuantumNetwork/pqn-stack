@@ -17,6 +17,8 @@ HOST = "127.0.0.1"
 PORT = 8000
 ADDRESS = (HOST, PORT)
 
+ALLOW_HEADER = "*"
+
 class PolarimeterServerState:
     """
     This class holds all the variables that used to be global.
@@ -96,7 +98,7 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
             status = 404
                                                                                                                                                                             
         self.send_response(status)
-        self.send_header("Access-Control-Allow-Origin", "https://pqnetwork.web.illinois.edu")
+        self.send_header("Access-Control-Allow-Origin", ALLOW_HEADER)
         self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Type", content_type)
         self.end_headers()
@@ -258,7 +260,7 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
             status = 404
 
         self.send_response(status)
-        self.send_header("Access-Control-Allow-Origin", "https://pqnetwork.web.illinois.edu")
+        self.send_header("Access-Control-Allow-Origin", ALLOW_HEADER)
         self.send_header("Content-Type", content_type)
         self.end_headers()
         self.wfile.write(bytes(response_content, "utf-8"))

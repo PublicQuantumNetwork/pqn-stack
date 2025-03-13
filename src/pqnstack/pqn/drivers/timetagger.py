@@ -7,15 +7,15 @@ from typing import List, Tuple, Optional
 try:
     import TimeTagger
     from TimeTagger import (
-    Counter,
-    Coincidences,
-    Correlation,
-    Countrate,
-    createTimeTaggerNetwork,
-    freeTimeTagger,
-    ChannelEdge,
-    SynchronizedMeasurements
-)
+        Counter,
+        Coincidences,
+        Correlation,
+        Countrate,
+        createTimeTaggerNetwork,
+        freeTimeTagger,
+        ChannelEdge,
+        SynchronizedMeasurements,
+    )
 except:
     pass
 
@@ -46,6 +46,7 @@ class TimeTaggerInfo(DeviceInfo):
     """
     Metadata and current state information for the time tagger device.
     """
+
     channels_in_use: List[int] = field(default_factory=list)
     test_signal_enabled: bool = False
     test_signal_divider: int = 1
@@ -79,10 +80,7 @@ class TimeTaggerDevice(DeviceDriver):
 
     @abstractmethod
     def measure_coincidence(
-        self,
-        groups: List[Tuple[int, ...]],
-        measurement_time: float = 5.0,
-        coincidence_window_ps: int = 10000
+        self, groups: List[Tuple[int, ...]], measurement_time: float = 5.0, coincidence_window_ps: int = 10000
     ) -> None:
         """
         Perform a coincidence-counting measurement on a given list of channel
@@ -92,13 +90,15 @@ class TimeTaggerDevice(DeviceDriver):
 
 
 class SwabianTimeTagger(TimeTaggerDevice):
-    def __init__(self,
+    def __init__(
+        self,
         name: str,
         desc: str,
         address: str,
         channels_to_use: int = 10,
         enable_test_signal: bool = False,
-        test_signal_divider: int = 1) -> None:
+        test_signal_divider: int = 1,
+    ) -> None:
         """
         :param name: Name of the device (must not contain ':').
         :param desc: Descriptive string for the device.
@@ -115,11 +115,9 @@ class SwabianTimeTagger(TimeTaggerDevice):
         self.operations["measure_coincidence"] = self.measure_coincidence
         self.operations["measure_countrate"] = self.measure_countrate
 
-
         self.status = DeviceStatus.OFF
 
-    def start(
-        self) -> None:
+    def start(self) -> None:
         """
         Initializes the connection to the Swabian time tagger hardware and
         configures channels for potential coincidence counting.
@@ -140,7 +138,7 @@ class SwabianTimeTagger(TimeTaggerDevice):
             raise RuntimeError(msg)
 
         all_channels = self._tagger.getChannelList(ChannelEdge.Rising)
-        self._channels_in_use = all_channels[:self.channels_to_use]
+        self._channels_in_use = all_channels[: self.channels_to_use]
 
         logger.info("Channels in use: %s", self._channels_in_use)
 
@@ -202,8 +200,7 @@ class SwabianTimeTagger(TimeTaggerDevice):
         return [item[0] for item in counter.getData()]
 
     def measure_coincidence(self, channel1, channel2, binwidth_ps, measurement_duration_ps) -> int:
-        corr = Correlation(self._tagger, channel1, channel2, binwidth_ps, n_bins = 100000)
+        corr = Correlation(self._tagger, channel1, channel2, binwidth_ps, n_bins=100000)
         corr.startFor(measurement_duration_ps)
         corr.waitUntilFinished()
         return np.max(corr.getData())
-

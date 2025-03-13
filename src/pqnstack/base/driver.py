@@ -31,6 +31,7 @@ class DeviceClass(Enum):
     TESTING = auto()
     MANAGER = auto()
 
+
 class DeviceStatus(StrEnum):
     OFF = auto()
     READY = auto()

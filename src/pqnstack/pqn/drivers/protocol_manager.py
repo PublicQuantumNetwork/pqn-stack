@@ -13,6 +13,6 @@ from time import sleep
 
 logger = logging.getLogger(__name__)
 
+
 class ProtocolManager(DeviceDriver):
     DEVICE_CLASS = DeviceClass.MANAGER
-

@@ -148,6 +148,7 @@ class ClientBase:
         self.timeout = timeout
         self.socket.setsockopt(zmq.RCVTIMEO, self.timeout)
 
+
 class InstrumentClientInit(NamedTuple):
     name: str
     host: str
@@ -160,7 +161,9 @@ class InstrumentClientInit(NamedTuple):
 
 class InstrumentClient(ClientBase):
     def __init__(self, init_args: InstrumentClientInit) -> None:
-        super().__init__(init_args.name, init_args.host, init_args.port, init_args.router_name, timeout=init_args.timeout)
+        super().__init__(
+            init_args.name, init_args.host, init_args.port, init_args.router_name, timeout=init_args.timeout
+        )
 
         self.instrument_name = init_args.instrument_name
         self.node_name = init_args.node_name

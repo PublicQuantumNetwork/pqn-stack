@@ -16,7 +16,7 @@ if __name__ == "__main__":
             "import": "pqnstack.pqn.drivers.rotator.SerialRotatorDevice",
             "desc": "idler hwp",
             "address": "/dev/ttyUSB0",
-        }
+        },
     }
     node = Node("loomis_server", "172.30.63.109", 5555, **instruments)
     node.start()

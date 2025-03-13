@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from dataclasses import field
 
 import serial
+
 # No typehints available for this import
 from thorlabs_apt_device import TDC001  # type: ignore
 

@@ -6,6 +6,7 @@ import os
 input_file = os.path.expanduser("~/data/chsh_long_results.txt")
 output_file = os.path.expanduser("~/data/chsh_long_results_formatted.txt")  # Avoid overwriting
 
+
 # Function to clean and standardize JSON
 def clean_json_like_content(content):
     cleaned_lines = []
@@ -16,15 +17,16 @@ def clean_json_like_content(content):
         # Replace single quotes with double quotes for JSON compatibility
         line = re.sub(r"'", '"', line)
         # Remove `np.` type wrappers
-        line = re.sub(r'np\.(int32|float64)\((.*?)\)', r'\2', line)
+        line = re.sub(r"np\.(int32|float64)\((.*?)\)", r"\2", line)
         # Fix trailing commas
-        line = re.sub(r',\\s*}', "}", line)
-        line = re.sub(r',\\s*]', "]", line)
+        line = re.sub(r",\\s*}", "}", line)
+        line = re.sub(r",\\s*]", "]", line)
         cleaned_lines.append(line)
     return "\n".join(cleaned_lines)
 
+
 # Read the input file
-with open(input_file, 'r') as file:
+with open(input_file, "r") as file:
     raw_content = file.read()
 
 # Clean the content
@@ -46,8 +48,7 @@ for i, entry in enumerate(entries):
         formatted_entries.append(f"INVALID ENTRY {i}:\n{entry}")
 
 # Write the results to a new file
-with open(output_file, 'w') as file:
+with open(output_file, "w") as file:
     file.write("\n---\n".join(formatted_entries))
 
 print(f"Formatted content has been saved to {output_file}")
-

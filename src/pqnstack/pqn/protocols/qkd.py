@@ -5,23 +5,32 @@ from pqnstack.pqn.protocols.visibility import calculate_visibility
 
 from time import sleep
 
-BASIS_PAIRS: dict[str, list[tuple[str, str]]]= {
+BASIS_PAIRS: dict[str, list[tuple[str, str]]] = {
     "HV": [("H", "H"), ("H", "V"), ("V", "H"), ("V", "V")],
     "DA": [("D", "D"), ("D", "A"), ("A", "D"), ("A", "A")],
-    "RL": [("R", "R"), ("R", "L"), ("L", "R"), ("L", "L")]
+    "RL": [("R", "R"), ("R", "L"), ("L", "R"), ("L", "L")],
 }
 
 default_settings: dict[str, tuple[float, float]] = {
-        "H": (0, 0), "V": (45, 0),
-        "D": (22.5, 0), "A": (-22.5, 0),
-        "R": (22.5, 45), "L": (-22.5, 45)
-    }
+    "H": (0, 0),
+    "V": (45, 0),
+    "D": (22.5, 0),
+    "A": (-22.5, 0),
+    "R": (22.5, 45),
+    "L": (-22.5, 45),
+}
 
-def qkd_run(qd: ProxyInstrument, c: Client, basis: str = "HV",
-            custom_basis: list[tuple[str, str]] = None,
-            custom_settings:dict[str, tuple[float, float]] = None,
-            measure_time: float = 10.0, player: str = None,
-            final: bool = False) -> tuple[str, float]:
+
+def qkd_run(
+    qd: ProxyInstrument,
+    c: Client,
+    basis: str = "HV",
+    custom_basis: list[tuple[str, str]] = None,
+    custom_settings: dict[str, tuple[float, float]] = None,
+    measure_time: float = 10.0,
+    player: str = None,
+    final: bool = False,
+) -> tuple[str, float]:
     """
     Runs a QKD protocol for a single player, independently measuring visibility.
 
@@ -43,7 +52,7 @@ def qkd_run(qd: ProxyInstrument, c: Client, basis: str = "HV",
             raise RuntimeError("No available player slots in QKD device.")
 
     settings = default_settings if custom_settings is None else {**default_settings, **custom_settings}
-    key_filter = "signal" if player == "player1" else "idler" #NOT USELESS, used for motor names for hwp/qwp
+    key_filter = "signal" if player == "player1" else "idler"  # NOT USELESS, used for motor names for hwp/qwp
 
     player_motors = qd.get_motors(player)
 
@@ -72,7 +81,7 @@ def qkd_run(qd: ProxyInstrument, c: Client, basis: str = "HV",
 
         sleep(2)
         print(f"{player} moved motors to {move_state}")
-        
+
         qd.submit(player)
 
         while (counts := qd.get_counts(player)) is None:
@@ -81,19 +90,18 @@ def qkd_run(qd: ProxyInstrument, c: Client, basis: str = "HV",
         coincidence_counts[(b1, b2)] = counts
 
     visibility = calculate_visibility(coincidence_counts, pairs)
-    
+
     if final:
         qd.remove_player(player)
         player = None
 
     return player, visibility
 
+
 if __name__ == "__main__":
     from pqnstack.network.client import Client
 
     c = Client(host="172.30.63.109", timeout=30000)
     qd = c.get_device("qkd_device", "qd")
-    
-    print(qkd_run(qd, c, final = True))
 
-
+    print(qkd_run(qd, c, final=True))

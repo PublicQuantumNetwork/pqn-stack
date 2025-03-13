@@ -13,6 +13,7 @@ from time import sleep
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class QKDInfo(DeviceInfo):
     number_trials: float
@@ -22,7 +23,14 @@ class QKDInfo(DeviceInfo):
 class QKDDevice(DeviceDriver):
     DEVICE_CLASS = DeviceClass.MANAGER
 
-    def __init__(self, address: str, motors: dict[str: dict[str: str]], tagger_config: dict[str, str], name: str = "QKD Device", desc: str = "Device used for managing QKD Protocol") -> None:    
+    def __init__(
+        self,
+        address: str,
+        motors: dict[str : dict[str:str]],
+        tagger_config: dict[str, str],
+        name: str = "QKD Device",
+        desc: str = "Device used for managing QKD Protocol",
+    ) -> None:
         super().__init__(name, desc, address)
         self.c = Client(host="172.30.63.109", timeout=30000)
         self.tagger_config = tagger_config
@@ -46,7 +54,7 @@ class QKDDevice(DeviceDriver):
         return
 
     def info(self):
-        return QKDInfo(number_trials = 0, trial_values = [0])
+        return QKDInfo(number_trials=0, trial_values=[0])
 
     @log_operation
     def _set_motors(self, **kwargs) -> None:
@@ -83,7 +91,7 @@ class QKDDevice(DeviceDriver):
 
         if self._check_submission():
             self.value = self.tagger.measure_coincidence(1, 2, 500, int(5e12))
-            
+
     @log_operation
     def _measured(self, player: str) -> None:
         if player in self.value_gathered:
@@ -107,7 +115,7 @@ class QKDDevice(DeviceDriver):
             self.submissions["player2"] = False
             self.value_gathered["player1"] = False
             self.value_gathered["player2"] = False
-       
+
         return counts
 
     @log_operation
@@ -121,4 +129,4 @@ class QKDDevice(DeviceDriver):
                     self.motors[f"{channel}_{wp}"].move_to(pos[i] if has_qwp else pos)
 
             self.values.append()
-            return(self.tagger.measure_coincidence())
+            return self.tagger.measure_coincidence()

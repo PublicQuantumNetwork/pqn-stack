@@ -8,15 +8,16 @@ from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import time
 
-from pqnstack.pqn.drivers.polarimeter2 import ArduinoPolarimeter
+from pqnstack.pqn.drivers.polarimeter import ArduinoPolarimeter
 from pqnstack.network.client import Client
-from pqnstack.pqn.protocols.chsh import measure_chsh
 from pqnstack.pqn.protocols.qkd import qkd_run
 from pqnstack.pqn.protocols.qrng import pqxor_random
 
 HOST = "127.0.0.1"
 PORT = 8000
 ADDRESS = (HOST, PORT)
+
+ALLOW_HEADER = "*"
 
 class PolarimeterServerState:
     """
@@ -79,7 +80,7 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
         if self.path == "/polarimeter/theta":
             if self.polarimeter is not None:
                 try:
-                    angle = self.polarimeter.theta * 2
+                    angle = -1 * self.polarimeter.read().theta 
                     print(f"Angle: {angle}")
                     response_content = f"{angle:.2f}"
                 except Exception as e:
@@ -97,7 +98,7 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
             status = 404
                                                                                                                                                                             
         self.send_response(status)
-        self.send_header("Access-Control-Allow-Origin", "https://pqnetwork.web.illinois.edu")
+        self.send_header("Access-Control-Allow-Origin", ALLOW_HEADER)
         self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Type", content_type)
         self.end_headers()
@@ -112,7 +113,8 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
         if self.path == "/polarimeter/start_normalizing":
             print("POST: start_normalizing triggered")
             if self.polarimeter is not None:
-                self.polarimeter.set_calibration(True)
+                #self.polarimeter.set_calibration(True)
+                self.polarimeter.start_normalizing()
     
         elif self.path == "/polarimeter/stop_normalizing":
             print("POST: stop_normalizing triggered")
@@ -147,16 +149,13 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
 
             print("starting CHSH measurement")
             try:
-                c = Client(host="172.30.63.109", timeout=30000)
-                idler_hwp = c.get_device("loomis_server", "signal_hwp")
-                signal_hwp = c.get_device("ufl_closet", "signal_hwp")
-                timetagger = c.get_device("mini_pc", "tagger")
+                c = Client(host="172.30.63.109", timeout=600000)
+                cd = c.get_device("chsh_device", "cd")
                 user_basis_angle1 = ((abs(self.server_state.angle1 - self.server_state.angle2) % 90) / 2)
-
-                chsh_result = measure_chsh(
-                    [0, 45],
-                    [user_basis_angle1, user_basis_angle1 + 45],
-                    idler_hwp, idler_hwp, signal_hwp, signal_hwp, timetagger, 5
+                chsh_result = cd.measure_chsh(
+                    basis1=[0, 45],
+                    basis2=[user_basis_angle1, user_basis_angle1 + 45], 
+                    measurement_duration=5
                 )
 
                 chsh_value = chsh_result["chsh_value"]
@@ -261,7 +260,7 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
             status = 404
 
         self.send_response(status)
-        self.send_header("Access-Control-Allow-Origin", "https://pqnetwork.web.illinois.edu")
+        self.send_header("Access-Control-Allow-Origin", ALLOW_HEADER)
         self.send_header("Content-Type", content_type)
         self.end_headers()
         self.wfile.write(bytes(response_content, "utf-8"))

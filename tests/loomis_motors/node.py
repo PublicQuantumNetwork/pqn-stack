@@ -18,5 +18,5 @@ if __name__ == "__main__":
             "address": "/dev/ttyUSB0",
         }
     }
-    node = Node("loomis_server", "172.30.29.124", 5555, **instruments)
+    node = Node("loomis_server", "172.30.63.109", 5555, **instruments)
     node.start()

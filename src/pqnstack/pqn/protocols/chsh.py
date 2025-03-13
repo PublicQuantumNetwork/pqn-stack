@@ -18,7 +18,6 @@ def basis_to_wp(basis):
     return [basis / 2, 0]
 
 def expectation_value(idler_hwp, idler_qwp, signal_hwp, signal_qwp, timetagger, measurement_duration, binwidth, idler_hwp_angle, idler_qwp_angle, signal_hwp_angle, signal_qwp_angle, channel1 =1, channel2 = 2, dark_count=0):
-    print(f"starting expectation value with basis ({idler_hwp_angle}, {idler_qwp_angle}), ({signal_hwp_angle}, {signal_qwp_angle})")
     angles1 = [
         [idler_hwp_angle, idler_qwp_angle],
         [idler_hwp_angle + 45, idler_qwp_angle]

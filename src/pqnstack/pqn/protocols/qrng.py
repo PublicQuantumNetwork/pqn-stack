@@ -19,7 +19,13 @@ def pqxor_random(n: int, input_str: Optional[str] = None, tagger: Optional[objec
         
         if input_str is not None:
             xor_result = [int(input_str[i]) ^ random_bits[i] for i in range(n)]
-            return int("".join(map(str, xor_result)), 2)
+            print(xor_result)
+            print(int("".join(map(str, xor_result)), 2))
+            if int("".join(map(str, xor_result)), 2) < 1:
+                print("returning 65")
+                return 65
+            else:
+                return int("".join(map(str, xor_result)), 2)
         else:
             return int("".join(map(str, random_bits)), 2)
     

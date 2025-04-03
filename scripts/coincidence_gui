@@ -1,0 +1,150 @@
+#!/usr/bin/env python
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "pqnstack",
+#     "pyqt5",
+#     "pyqtgraph",
+# ]
+#
+# [tool.uv.sources]
+# pqnstack = { path = "../" }
+# ///
+
+import sys
+import random
+import numpy as np
+
+from pqnstack.network.client import Client
+
+from PyQt5 import QtCore, QtWidgets
+import pyqtgraph as pg
+
+class DummyDevice:
+    def measure_countrate(self, channels, binwidth_ps):
+        """
+        Return a list of singles counts for each channel (dummy random data).
+        """
+        return [random.randint(0, 100) for _ in channels]
+
+    def measure_coincidence(self, channel1, channel2, binwidth_ps, measurement_duration_ps):
+        """
+        Return a dummy random coincidence count for two channels.
+        """
+        return random.randint(0, 1000)
+
+class Worker(QtCore.QObject):
+    dataReady = QtCore.pyqtSignal(list, int)
+
+    def __init__(self, device, parent=None):
+        super().__init__(parent)
+        self.device = device
+        self.active_channels = []
+    @QtCore.pyqtSlot()
+    def measure(self):
+        channels = list(range(1, 11))
+        singles = self.device.measure_countrate(channels, 500_000_000_000)
+        for c in range(1, 11):
+            if c not in self.active_channels:
+                singles[c - 1] = 0
+        coincidence = 0
+        if len(self.active_channels) == 2:
+            coincidence = 100 * self.device.measure_coincidence(
+                self.active_channels[0],
+                self.active_channels[1],
+                500,
+                500_000_000_000
+            )
+        self.dataReady.emit(singles, coincidence)
+
+class DataViewerGUI(QtWidgets.QWidget):
+    def __init__(self, device, parent=None):
+        super().__init__(parent)
+        self.device = device
+        self.main_layout = QtWidgets.QHBoxLayout(self)
+        self.coin_plot = pg.PlotWidget()
+        self.coin_plot.showGrid(x=True, y=True)
+        self.coin_plot.setLabel('left', 'Count Rate')
+        self.coin_plot.setLabel('bottom', 'Time Steps (oldest on the left, newest on the right)')
+        self.coin_plot.addLegend()
+        self.main_layout.addWidget(self.coin_plot, stretch=5)
+        self.control_widget = QtWidgets.QWidget()
+        self.control_layout = QtWidgets.QVBoxLayout(self.control_widget)
+        self.main_layout.addWidget(self.control_widget, stretch=2)
+        title_label = QtWidgets.QLabel("Coincidence Mode - Time Trace")
+        font = title_label.font()
+        font.setBold(True)
+        title_label.setFont(font)
+        self.control_layout.addWidget(title_label)
+        self.channel_group_box = QtWidgets.QGroupBox("Channels")
+        self.channel_layout = QtWidgets.QVBoxLayout(self.channel_group_box)
+        self.channel_checkboxes = []
+        for i in range(1, 11):
+            cb = QtWidgets.QCheckBox(f"Channel {i}")
+            cb.setChecked(False)
+            cb.stateChanged.connect(self.on_channel_toggled)
+            self.channel_layout.addWidget(cb)
+            self.channel_checkboxes.append(cb)
+        self.control_layout.addWidget(self.channel_group_box)
+        self.control_layout.addStretch()
+        self.max_points = 60
+        self.x_data = np.arange(self.max_points)
+        self.lines = {}
+        for ch in range(1, 11):
+            plot_item = self.coin_plot.plot([], [], pen=pg.mkPen(color=(ch, 11), width=3), name=f"Ch. {ch}")
+            y_data = np.zeros(self.max_points)
+            self.lines[ch] = {'plot_item': plot_item, 'y_data': y_data}
+        coincidence_plot = self.coin_plot.plot([], [], pen=pg.mkPen(color=(10, 11), width=3), name="Coincidence")
+        coincidence_y = np.zeros(self.max_points)
+        self.lines['coinc'] = {'plot_item': coincidence_plot, 'y_data': coincidence_y}
+        self.thread = QtCore.QThread()
+        self.worker = Worker(self.device)
+        self.worker.moveToThread(self.thread)
+        self.worker.dataReady.connect(self.handle_data)
+        self.thread.started.connect(self.worker.measure)
+        self.thread.start()
+
+    def boot_gui(self):
+        self.show()
+
+    def delete_gui(self):
+        self.close()
+        self.deleteLater()
+
+    def handle_data(self, singles, coincidence):
+        print("Singles:", singles, "Coincidence:", coincidence)
+        active_channels = [i+1 for i, cb in enumerate(self.channel_checkboxes) if cb.isChecked()]
+        for ch in range(1, 11):
+            old_y = self.lines[ch]['y_data']
+            shifted_y = np.roll(old_y, -1)
+            shifted_y[-1] = singles[ch - 1]
+            self.lines[ch]['y_data'] = shifted_y
+            if ch in active_channels:
+                self.lines[ch]['plot_item'].setData(self.x_data, shifted_y)
+            else:
+                self.lines[ch]['plot_item'].setData([], [])
+        old_y = self.lines['coinc']['y_data']
+        shifted_y = np.roll(old_y, -1)
+        shifted_y[-1] = coincidence
+        self.lines['coinc']['y_data'] = shifted_y
+        if len(active_channels) == 2:
+            self.lines['coinc']['plot_item'].setData(self.x_data, shifted_y)
+        else:
+            self.lines['coinc']['plot_item'].setData([], [])
+        QtCore.QTimer.singleShot(200, self.worker.measure)
+
+    def on_channel_toggled(self, state):
+        self.worker.active_channels = [i+1 for i, cb in enumerate(self.channel_checkboxes) if cb.isChecked()]
+
+if __name__ == "__main__":
+    app = QtWidgets.QApplication(sys.argv)
+    c = Client(host = "172.30.63.109", timeout = 300000)
+    tagger = c.get_device('mini_pc', 'tagger')
+
+    #device = DummyDevice()
+    device = tagger
+
+    gui = DataViewerGUI(device=device)
+    gui.boot_gui()
+
+    sys.exit(app.exec_())

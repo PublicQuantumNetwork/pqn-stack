@@ -1,18 +1,18 @@
 import logging
 import math
-from abc import abstractmethod
 from collections import deque
 from dataclasses import dataclass
 from dataclasses import field
 from typing import Protocol
+from typing import runtime_checkable
 
 from pyfirmata2 import Arduino
 
-from pqnstack.base.driver import DeviceClass
-from pqnstack.base.driver import DeviceDriver
-from pqnstack.base.driver import DeviceInfo
-from pqnstack.base.driver import DeviceStatus
-from pqnstack.base.driver import log_operation
+from pqnstack.base.driver import Driver
+from pqnstack.base.instrument import InstrumentClass, log_operation
+from pqnstack.base.instrument import InstrumentInfo
+from pqnstack.base.instrument import InstrumentStatus
+from pqnstack.base.instrument import NetworkInstrument
 
 logger = logging.getLogger(__name__)
 
@@ -96,32 +96,38 @@ class PolarizationMeasurement:
         raise NotImplementedError
 
 
-class Polarimeter(Protocol):
+@runtime_checkable
+class PolarimeterDriver(Driver, Protocol):
     def read(self) -> PolarizationMeasurement: ...
+    def reset(self) -> None: ...
+    def stop_normalizing(self) -> None: ...
+    def start_normalizing(self) -> None: ...
 
 
 @dataclass(slots=True)
-class ArduinoPolarimeter(Polarimeter):
-    board: Arduino = field(default_factory=lambda: Arduino(Arduino.AUTODETECT))
+class ArduinoPolarimeter(PolarimeterDriver):
+    _device: Arduino = field(default_factory=lambda: Arduino(Arduino.AUTODETECT))
     pins: dict[str, int] = field(default_factory=lambda: dict(zip("hvda", range(4), strict=False)))
     sample_rate: int = 10
     average_width: int = 10
     _buffers: list[Buffer] = field(default_factory=list, init=False)
     _last_theta: float = field(default=0.0, init=False, repr=False)  # HACK: Allow reporting of full 2pi angle
 
-    def __post_init__(self) -> None:
-        self.board.samplingOn(1000 // self.sample_rate)
+    def start(self) -> None:
+        if not self._device:
+            self._device = Arduino(Arduino.AUTODETECT)
+        self._device.samplingOn(1000 // self.sample_rate)
         for pin in self.pins.values():
             buffer = Buffer(deque(maxlen=self.average_width))
             self._buffers.append(buffer)
-            self.board.analog[pin].register_callback(buffer.append)
-            self.board.analog[pin].enable_reporting()
+            self._device.analog[pin].register_callback(buffer.append)
+            self._device.analog[pin].enable_reporting()
         logger.info("Polarimeter started")
 
     def close(self) -> None:
-        if self.board is not None:
+        if self._device is not None:
             logger.info("Polarimeter stopped")
-            self.board.exit()
+            self._device.exit()
 
     def reset(self) -> None:
         self._last_theta = 0.0
@@ -145,69 +151,44 @@ class ArduinoPolarimeter(Polarimeter):
         return pm
 
 
-class PolarimeterDevice(DeviceDriver):
-    DEVICE_CLASS = DeviceClass.SENSOR
+class PolarimeterInstrument(NetworkInstrument[PolarimeterDriver]):
+    INSTRUMENT_CLASS = InstrumentClass.SENSOR
 
-    def __init__(self, name: str, desc: str, address: str) -> None:
-        super().__init__(name, desc, address)
+    def __init__(self, name: str, desc: str, driver: PolarimeterDriver) -> None:
+        super().__init__(name, desc, driver)
 
         self.operations["read"] = self.read
         self.operations["reset"] = self.reset
         self.operations["start_normalizing"] = self.start_normalizing
         self.operations["stop_normalizing"] = self.stop_normalizing
 
-    @abstractmethod
     @log_operation
-    def read(self) -> PolarizationMeasurement: ...
-
-    @abstractmethod
-    @log_operation
-    def reset(self) -> None: ...
-
-    @abstractmethod
-    @log_operation
-    def start_normalizing(self) -> None: ...
-
-    @abstractmethod
-    @log_operation
-    def stop_normalizing(self) -> None: ...
-
-    @abstractmethod
-    def info(self) -> DeviceInfo: ...
-
-    @abstractmethod
-    def close(self) -> None: ...
-
-    @abstractmethod
-    def start(self) -> None: ...
-
-
-class ArduinoPolarimeterDevice(PolarimeterDevice):
-    def __init__(self, name: str, desc: str, address: str, ap: ArduinoPolarimeter) -> None:
-        super().__init__(name, desc, address)
-
-        self.ap = ap
-
     def read(self) -> PolarizationMeasurement:
-        return self.ap.read()
+        return self.driver.read()
 
+    @log_operation
     def reset(self) -> None:
-        self.ap.reset()
+        self.driver.reset()
 
+    @log_operation
     def start_normalizing(self) -> None:
-        self.ap.start_normalizing()
+        self.driver.start_normalizing()
 
+    @log_operation
     def stop_normalizing(self) -> None:
-        self.ap.stop_normalizing()
+        self.driver.stop_normalizing()
 
-    def info(self) -> DeviceInfo:
-        return DeviceInfo(
-            name=self.name, desc=self.desc, dtype=self.DEVICE_CLASS, status=self.status, address=self.address
+    @property
+    def info(self) -> InstrumentInfo:
+        return InstrumentInfo(
+            dtype=self.INSTRUMENT_CLASS,
+            status=self.status,
+            hardware_status=self.driver.status,
         )
 
     def close(self) -> None:
-        self.ap.close()
-        self.status = DeviceStatus.OFF
+        self.driver.close()
+        self.status = InstrumentStatus.OFF
 
     def start(self) -> None:
-        self.status = DeviceStatus.READY
+        self.status = InstrumentStatus.READY

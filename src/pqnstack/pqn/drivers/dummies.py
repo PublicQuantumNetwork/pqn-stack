@@ -1,26 +1,43 @@
 import time
 from dataclasses import dataclass
+from typing import Protocol
+from typing import runtime_checkable
 
-from pqnstack.base.driver import DeviceClass
-from pqnstack.base.driver import DeviceDriver
-from pqnstack.base.driver import DeviceInfo
-from pqnstack.base.driver import DeviceStatus
-from pqnstack.base.driver import log_operation
-from pqnstack.base.driver import log_parameter
-
-
-@dataclass
-class DummyInfo(DeviceInfo):
-    param_int: int
-    param_str: str
-    param_bool: bool
+from pqnstack.base.driver import Driver
+from pqnstack.base.instrument import InstrumentClass
+from pqnstack.base.instrument import InstrumentInfo
+from pqnstack.base.instrument import InstrumentStatus
+from pqnstack.base.instrument import NetworkInstrument
+from pqnstack.base.instrument import log_operation
+from pqnstack.base.instrument import log_parameter
 
 
-class DummyInstrument(DeviceDriver):
-    DEVICE_CLASS: DeviceClass = DeviceClass.TESTING
+@dataclass(frozen=True, slots=True)
+class DummyInfo(InstrumentInfo):
+    param_int: int = 0
+    param_str: str = ""
+    param_bool: bool = False
 
-    def __init__(self, name: str, desc: str, address: str) -> None:
-        super().__init__(name, desc, address)
+
+@runtime_checkable
+@dataclass(slots=True)
+class DummyDriver(Driver, Protocol):
+    param_int: int = 0
+    param_str: str = ""
+    param_bool: bool = False
+
+    def double_int(self) -> int: ...
+    def lowercase_str(self) -> str: ...
+    def uppercase_str(self) -> str: ...
+    def toggle_bool(self) -> bool: ...
+    def set_half_input_int(self) -> int: ...
+
+
+class DummyInstrument(NetworkInstrument[DummyDriver]):
+    INSTRUMENT_CLASS: InstrumentClass = InstrumentClass.TESTING
+
+    def __init__(self, name: str, desc: str, driver: DummyDriver) -> None:
+        super().__init__(name, desc, driver)
 
         self._param_int: int = 2
         self._param_str: str = "hello"
@@ -31,31 +48,29 @@ class DummyInstrument(DeviceDriver):
             "double_int": self.double_int,
             "lowercase_str": self.lowercase_str,
             "uppercase_str": self.uppercase_str,
-            "toggle_bool_long": self.toggle_bool_long,
+            "toggle_bool": self.toggle_bool,
             "set_half_input_int": self.set_half_input_int,
         }
 
         self.connected = False
 
+    @property
     def info(self) -> DummyInfo:
         return DummyInfo(
-            self.name,
-            self.desc,
-            self.address,
-            self.DEVICE_CLASS,
-            self.status,
-            self.param_int,
-            self.param_str,
-            self.param_bool,
+            dtype=self.INSTRUMENT_CLASS,
+            status=self.status,
+            param_int=self.param_int,
+            param_str=self.param_str,
+            param_bool=self.param_bool,
         )
 
     def start(self) -> None:
         self.connected = True
-        self.status = DeviceStatus.READY
+        self.status = InstrumentStatus.READY
 
     def close(self) -> None:
         self.connected = False
-        self.status = DeviceStatus.OFF
+        self.status = InstrumentStatus.OFF
 
     @property
     @log_parameter
@@ -108,7 +123,7 @@ class DummyInstrument(DeviceDriver):
         return self._param_str
 
     @log_operation
-    def toggle_bool_long(self) -> bool:
-        time.sleep(10)  # Simulate a long operation
+    def toggle_bool(self) -> bool:
+        time.sleep(1.4)  # Simulate a long operation
         self._param_bool = not self._param_bool
         return self._param_bool

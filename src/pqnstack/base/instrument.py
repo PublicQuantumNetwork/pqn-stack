@@ -6,86 +6,78 @@
 import atexit
 import datetime
 import logging
-from abc import ABC
-from abc import abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass
-from enum import Enum
-from enum import StrEnum
-from enum import auto
+from dataclasses import field
 from functools import wraps
 from time import perf_counter
 from typing import Any
+from typing import Protocol
+from typing import runtime_checkable
 
+from pqnstack.base.errors import DeviceNotStartedError
 from pqnstack.base.errors import LogDecoratorOutsideOfClassError
 
 logger = logging.getLogger(__name__)
 
 
-class DeviceClass(Enum):
-    SENSOR = auto()
-    MOTOR = auto()
-    TEMPCTRL = auto()
-    TIMETAGR = auto()
-    PROXY = auto()
-    TESTING = auto()
-    MANAGER = auto()
+@dataclass(frozen=True, slots=True)
+class InstrumentInfo:
+    name: str = ""
+    desc: str = ""
+    hw_address: str = ""
+    hw_status: dict[str, Any] = field(default_factory=dict)
 
 
-class DeviceStatus(StrEnum):
-    OFF = auto()
-    READY = auto()
-    BUSY = auto()
-    FAIL = auto()
+@runtime_checkable
+@dataclass(slots=True)
+class Instrument(Protocol):
+    """Base class for all instruments in the PQN stack.
 
-
-@dataclass
-class DeviceInfo:
-    name: str
-    desc: str
-    address: str  # Whatever unique identifier is used to communicate with the device.
-    dtype: DeviceClass
-    status: DeviceStatus
-
-
-class DeviceDriver(ABC):
-    """
-    Base class for all drivers in the PQN stack.
-
-    Some rules for drivers:
+    Some rules for instruments:
 
       * You cannot use the character `:` in the names of instruments. This is used to separate parts of requests in
         proxy instruments.
 
-
+    `_device` is the hardware interface for the instrument, managed by `start()` and `close()`.
+        E.g., `serial.Serial`, or some third party driver.
     """
 
-    DEVICE_CLASS: DeviceClass = DeviceClass.TESTING
+    name: str
+    desc: str
+    hw_address: str
+    parameters: set[str] = field(init=False, default_factory=set)
+    operations: dict[str, Callable[[Any], Any]] = field(init=False, default_factory=dict)
+    _device: Any = field(init=False, default=None)
 
-    def __init__(self, name: str, desc: str, address: str) -> None:
-        self.name = name
-        self.desc = desc
-        self.address = address
-
-        self.status = DeviceStatus.OFF
-
-        self.parameters: set[str] = set()
-        # FIXME: operations is overloaded with the big operations of the system. We should make it mean single thing.
-        self.operations: dict[str, Callable[[Any], Any]] = {}
-
+    def __post_init__(self) -> None:
         atexit.register(self.close)
 
-    @abstractmethod
-    def info(self) -> DeviceInfo: ...
-
-    @abstractmethod
     def start(self) -> None: ...
-
-    @abstractmethod
     def close(self) -> None: ...
 
-    def __setattr__(self, key: str, value: Any) -> None:
-        super().__setattr__(key, value)
+    @property
+    def info(self) -> InstrumentInfo: ...
+
+    @property
+    def hw_status(self) -> dict[str, Any]:
+        if not hasattr(self._device, "status") or self._device.status is None:
+            return {}
+
+        return self._device.status if self._device.status else {}
+
+
+def check_hw_active[T](driver_method: Callable[..., T]) -> Callable[..., T]:
+    """Check that the hardware `_device` is instantiated."""
+
+    @wraps(driver_method)
+    def wrapper(self: Instrument, *args: Any, **kwargs: Any) -> T:
+        if self._device is None:
+            msg = "Device is not started"
+            raise DeviceNotStartedError(msg)
+        return driver_method(self, *args, **kwargs)
+
+    return wrapper
 
 
 def log_operation[T](func: Callable[..., T]) -> Callable[..., T]:
@@ -96,7 +88,7 @@ def log_operation[T](func: Callable[..., T]) -> Callable[..., T]:
             raise LogDecoratorOutsideOfClassError(msg)
 
         ins = args[0]
-        if not isinstance(ins, DeviceDriver):
+        if not isinstance(ins, Instrument):
             msg = "log_operation has been used to decorate something that is not a DeviceDriver method. This is not allowed."
             raise LogDecoratorOutsideOfClassError(msg)
 
@@ -141,7 +133,7 @@ def log_parameter[T](func: Callable[..., T]) -> Callable[..., T]:
             raise LogDecoratorOutsideOfClassError(msg)
 
         ins = args[0]
-        if not isinstance(ins, DeviceDriver):
+        if not isinstance(ins, Instrument):
             msg = (
                 "log_operation has been used to decorate something that is not a DeviceDriver method. "
                 "This is not allowed."

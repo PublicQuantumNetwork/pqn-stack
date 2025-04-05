@@ -9,7 +9,7 @@ if __name__ == "__main__":
         "dummy1": {
             "import": "pqnstack.pqn.drivers.dummies.DummyInstrument",
             "desc": "Dummy Instrument 1",
-            "address": "123456",
+            "hw_address": "123456",
         }
     }
     provider = InstrumentProvider("provider1", "127.0.0.1", 5555, **instruments)

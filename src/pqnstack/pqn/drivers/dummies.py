@@ -1,61 +1,52 @@
 import time
 from dataclasses import dataclass
 
-from pqnstack.base.driver import DeviceClass
-from pqnstack.base.driver import DeviceDriver
-from pqnstack.base.driver import DeviceInfo
-from pqnstack.base.driver import DeviceStatus
-from pqnstack.base.driver import log_operation
-from pqnstack.base.driver import log_parameter
+from pqnstack.base.instrument import Instrument
+from pqnstack.base.instrument import InstrumentInfo
+from pqnstack.base.instrument import log_operation
+from pqnstack.base.instrument import log_parameter
 
 
-@dataclass
-class DummyInfo(DeviceInfo):
-    param_int: int
-    param_str: str
-    param_bool: bool
+@dataclass(frozen=True, slots=True)
+class DummyInfo(InstrumentInfo):
+    param_int: int = 0
+    param_str: str = ""
+    param_bool: bool = False
 
 
-class DummyInstrument(DeviceDriver):
-    DEVICE_CLASS: DeviceClass = DeviceClass.TESTING
+@dataclass(slots=True)
+class DummyInstrument(Instrument):
+    _param_int: int = 2
+    _param_str: str = "hello"
+    _param_bool: bool = True
+    connected: bool = False
 
-    def __init__(self, name: str, desc: str, address: str) -> None:
-        super().__init__(name, desc, address)
-
-        self._param_int: int = 2
-        self._param_str: str = "hello"
-        self._param_bool: bool = True
-
+    def __post_init__(self) -> None:
         self.parameters = {"param_int", "param_str", "param_bool"}
         self.operations = {
             "double_int": self.double_int,
             "lowercase_str": self.lowercase_str,
             "uppercase_str": self.uppercase_str,
-            "toggle_bool_long": self.toggle_bool_long,
+            "toggle_bool": self.toggle_bool,
             "set_half_input_int": self.set_half_input_int,
         }
 
-        self.connected = False
-
+    @property
     def info(self) -> DummyInfo:
         return DummyInfo(
-            self.name,
-            self.desc,
-            self.address,
-            self.DEVICE_CLASS,
-            self.status,
-            self.param_int,
-            self.param_str,
-            self.param_bool,
+            name=self.name,
+            desc=self.desc,
+            hw_address=self.hw_address,
+            param_int=self.param_int,
+            param_str=self.param_str,
+            param_bool=self.param_bool,
         )
 
     def start(self) -> None:
         self.connected = True
-        self.status = DeviceStatus.READY
 
     def close(self) -> None:
         self.connected = False
-        self.status = DeviceStatus.OFF
 
     @property
     @log_parameter
@@ -108,7 +99,7 @@ class DummyInstrument(DeviceDriver):
         return self._param_str
 
     @log_operation
-    def toggle_bool_long(self) -> bool:
-        time.sleep(10)  # Simulate a long operation
+    def toggle_bool(self) -> bool:
+        time.sleep(1.4)  # Simulate a long operation
         self._param_bool = not self._param_bool
         return self._param_bool

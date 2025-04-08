@@ -3,6 +3,8 @@ import pickle
 import secrets
 import string
 from collections.abc import Callable
+from dataclasses import dataclass
+from dataclasses import field
 from types import TracebackType
 from typing import Any
 from typing import NamedTuple
@@ -10,10 +12,9 @@ from typing import Self
 
 import zmq
 
-from pqnstack.base.driver import DeviceClass
-from pqnstack.base.driver import DeviceDriver
-from pqnstack.base.driver import DeviceInfo
 from pqnstack.base.errors import PacketError
+from pqnstack.base.instrument import Instrument
+from pqnstack.base.instrument import InstrumentInfo
 from pqnstack.network.packet import NetworkElementClass
 from pqnstack.network.packet import Packet
 from pqnstack.network.packet import PacketIntent
@@ -173,12 +174,12 @@ class InstrumentClient(ClientBase):
         response = self.ask(packet)
         return response.payload
 
-    def get_info(self) -> DeviceInfo:
+    def get_info(self) -> InstrumentInfo:
         packet = self.create_control_packet(self.node_name, self.instrument_name + ":INFO:", ((), {}))
 
         response = self.ask(packet)
-        if not isinstance(response.payload, DeviceInfo):
-            msg = "Asking for info to proxy driver did not get a DeviceInfo object."
+        if not isinstance(response.payload, InstrumentInfo):
+            msg = "Asking for info to proxy driver did not get a InstrumentInfo object."
             raise PacketError(msg)
 
         return response.payload
@@ -186,37 +187,37 @@ class InstrumentClient(ClientBase):
 
 class ProxyInstrumentInit(NamedTuple):
     name: str
-    host: str
-    port: int
-    router_name: str
-    instrument_name: str
-    node_name: str
     desc: str
     address: str
     parameters: set[str]
     operations: dict[str, Callable[[Any], Any]]
+    host: str
+    port: int
+    router_name: str
+    client_name: str
+    node_name: str
 
 
-class ProxyInstrument(DeviceDriver):
+@dataclass
+class ProxyInstrument(Instrument):
     """The address here is the zmq address of the router that the InstrumentClient will talk to."""
 
-    DEVICE_CLASS = DeviceClass.PROXY
+    name: str = ""
+    desc: str = ""
+    hw_address: str = ""
+    parameters: set[str] = field(default_factory=set)
+    operations: dict[str, Callable[[Any], Any]] = field(default_factory=dict)
+    host: str = "127.0.0.1"
+    port: int = 5555
+    router_name: str = "router1"
+    client_name: str = ""
+    node_name: str = "node1"
 
-    def __init__(self, init_args: ProxyInstrumentInit) -> None:
-        # Boolean used to control when new attributes are being set.
-        self._instantiating = True
+    # Boolean used to control when new attributes are being set.
+    _instantiating: bool = field(default=True, init=False)
+    client: InstrumentClient = field(init=False)
 
-        super().__init__(init_args.name, init_args.desc, init_args.address)
-
-        self.host = init_args.host
-        self.port = init_args.port
-
-        self.parameters = init_args.parameters
-        self.operations = init_args.operations
-
-        self.node_name = init_args.node_name
-        self.router_name = init_args.router_name
-
+    def __post_init__(self) -> None:
         # The client's name is the instrument name with "_client" appended and a random 6 character string appended.
         # This is to avoid any potential conflicts with other clients.
         client_name = (
@@ -261,7 +262,8 @@ class ProxyInstrument(DeviceDriver):
     def close(self) -> None:
         self.client.disconnect()
 
-    def info(self) -> DeviceInfo:
+    @property
+    def info(self) -> InstrumentInfo:
         return self.client.get_info()
 
 
@@ -282,7 +284,7 @@ class Client(ClientBase):
 
         return response.payload
 
-    def get_device(self, node_name: str, device_name: str) -> DeviceDriver:
+    def get_device(self, node_name: str, device_name: str) -> Instrument:
         packet = self.create_data_packet(node_name, "GET_DEVICE_STRUCTURE", device_name)
 
         response = self.ask(packet)
@@ -294,16 +296,15 @@ class Client(ClientBase):
             msg = "Payload is not a dictionary."
             raise PacketError(msg)
 
-        proxy_ins_init = ProxyInstrumentInit(
+        return ProxyInstrument(
             name=response.payload["name"],
             desc=response.payload["desc"],
-            address=response.payload["address"],
+            hw_address=response.payload["hw_address"],
             host=self.host,
             port=self.port,
             router_name=self.router_name,
-            instrument_name=response.payload["name"],
+            client_name=response.payload["name"],
             node_name=node_name,
             parameters=set(response.payload["parameters"]),
             operations=response.payload["operations"],
         )
-        return ProxyInstrument(proxy_ins_init)

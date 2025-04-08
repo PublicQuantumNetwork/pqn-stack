@@ -1,13 +1,8 @@
 import time
 from dataclasses import dataclass
-from typing import Protocol
-from typing import runtime_checkable
 
-from pqnstack.base.driver import Driver
-from pqnstack.base.instrument import InstrumentClass
+from pqnstack.base.instrument import Instrument
 from pqnstack.base.instrument import InstrumentInfo
-from pqnstack.base.instrument import InstrumentStatus
-from pqnstack.base.instrument import NetworkInstrument
 from pqnstack.base.instrument import log_operation
 from pqnstack.base.instrument import log_parameter
 
@@ -19,30 +14,14 @@ class DummyInfo(InstrumentInfo):
     param_bool: bool = False
 
 
-@runtime_checkable
 @dataclass(slots=True)
-class DummyDriver(Driver, Protocol):
-    param_int: int = 0
-    param_str: str = ""
-    param_bool: bool = False
+class DummyInstrument(Instrument):
+    _param_int: int = 2
+    _param_str: str = "hello"
+    _param_bool: bool = True
+    connected: bool = False
 
-    def double_int(self) -> int: ...
-    def lowercase_str(self) -> str: ...
-    def uppercase_str(self) -> str: ...
-    def toggle_bool(self) -> bool: ...
-    def set_half_input_int(self) -> int: ...
-
-
-class DummyInstrument(NetworkInstrument[DummyDriver]):
-    INSTRUMENT_CLASS: InstrumentClass = InstrumentClass.TESTING
-
-    def __init__(self, name: str, desc: str, driver: DummyDriver) -> None:
-        super().__init__(name, desc, driver)
-
-        self._param_int: int = 2
-        self._param_str: str = "hello"
-        self._param_bool: bool = True
-
+    def __post_init__(self) -> None:
         self.parameters = {"param_int", "param_str", "param_bool"}
         self.operations = {
             "double_int": self.double_int,
@@ -52,13 +31,12 @@ class DummyInstrument(NetworkInstrument[DummyDriver]):
             "set_half_input_int": self.set_half_input_int,
         }
 
-        self.connected = False
-
     @property
     def info(self) -> DummyInfo:
         return DummyInfo(
-            dtype=self.INSTRUMENT_CLASS,
-            status=self.status,
+            name=self.name,
+            desc=self.desc,
+            hw_address=self.hw_address,
             param_int=self.param_int,
             param_str=self.param_str,
             param_bool=self.param_bool,
@@ -66,11 +44,9 @@ class DummyInstrument(NetworkInstrument[DummyDriver]):
 
     def start(self) -> None:
         self.connected = True
-        self.status = InstrumentStatus.READY
 
     def close(self) -> None:
         self.connected = False
-        self.status = InstrumentStatus.OFF
 
     @property
     @log_parameter

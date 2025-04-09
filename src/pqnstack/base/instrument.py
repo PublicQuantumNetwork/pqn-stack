@@ -66,10 +66,6 @@ class Instrument(Protocol):
 
         return self._device.status if self._device.status else {}
 
-    # # TODO: Why is this here?
-    # def __setattr__(self, key: str, value: Any) -> None:
-    #     super().__setattr__(key, value)
-
 
 def check_hw_active[T](driver_method: Callable[..., T]) -> Callable[..., T]:
     """Check that the hardware `_device` is instantiated."""

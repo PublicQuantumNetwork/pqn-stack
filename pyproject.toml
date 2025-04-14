@@ -14,7 +14,7 @@ authors = [
     { name = "Santiano Nunez-Corrales", email = "nunezco2@illinois.edu" },
     { name = "Benjamin Nussbaum", email = "bn9@illinois.edu" },
     { name = "Marcos Frenkel", email = "marcosf2@illinois.edu" },
-    { name = "Soroush Hoseini", email = "soroushhoseini0@gmail.com"},
+    { name = "Soroush Hoseini", email = "soroushhoseini0@gmail.com" },
 ]
 dependencies = [
     "numpy<2.0",

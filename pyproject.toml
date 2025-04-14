@@ -86,3 +86,6 @@ force-single-line = true
 
 [tool.ruff.lint.pydocstyle]
 convention = "numpy" # One of: "google" | "numpy" | "pep257"
+
+[tool.uv.sources]
+TimeTagger = { path = "/usr/lib/python3/dist-packages" }

@@ -61,10 +61,10 @@ class TimeTaggerDevice(DeviceDriver):
 
         May optionally set up channel usage, test signal parameters, etc.
         """
-#    @abstractmethod
-#    def measure_coincidence(
-#        self, groups: list[tuple[int, ...]], measurement_time: float = 5.0, coincidence_window_ps: int = 10000
-#    ) -> None:
+        #    @abstractmethod
+        #    def measure_coincidence(
+        #        self, groups: list[tuple[int, ...]], measurement_time: float = 5.0, coincidence_window_ps: int = 10000
+        #    ) -> None:
         """Perform a coincidence-counting measurement on a given list of channel groups, for the specified real-time measurement duration and coincidence window."""
 
 
@@ -113,7 +113,6 @@ class SwabianTimeTagger(TimeTaggerDevice):
         self._channels_in_use = all_channels[: self.channels_to_use]
 
         logger.info("Channels in use: %s", self._channels_in_use)
-
 
         for ch in self._channels_in_use:
             self._tagger.setInputDelay(ch, 0)
@@ -164,13 +163,13 @@ class SwabianTimeTagger(TimeTaggerDevice):
         corr.waitUntilFinished()
         return np.max(corr.getData())
 
-    def enable_test_signal(self, *,  enabled: bool, test_signal_divider: int = 1) -> None:
+    def enable_test_signal(self, *, enabled: bool, test_signal_divider: int = 1) -> None:
         self.enabled = enabled
         self.test_signal_divider = test_signal_divider
         self._test_signal_enabled = self.enabled
         self.test_signal_divider = self.test_signal_divider
         if self._test_signal_enabled:
-            self._tagger.setTestSignal(self._channels_in_use, enable = True)
+            self._tagger.setTestSignal(self._channels_in_use, enable=True)
             logger.info("Test signal enabled on channels: %s", self._channels_in_use)
             if self.test_signal_divider != 1:
                 self._tagger.setTestSignalDivider(self.test_signal_divider)

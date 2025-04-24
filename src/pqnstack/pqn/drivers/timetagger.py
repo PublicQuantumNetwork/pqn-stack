@@ -1,7 +1,6 @@
 import logging
 from dataclasses import dataclass
 from dataclasses import field
-from typing import Any
 from typing import Protocol
 from typing import runtime_checkable
 
@@ -14,7 +13,6 @@ from TimeTagger import freeTimeTagger
 
 from pqnstack.base.instrument import Instrument
 from pqnstack.base.instrument import InstrumentInfo
-from pqnstack.base.instrument import log_parameter
 
 logger = logging.getLogger(__name__)
 
@@ -35,10 +33,8 @@ class TimeTaggerInstrument(Instrument, Protocol):
     channels_in_use: list[int] = field(init=False, default_factory=list)
 
     def __post_init__(self) -> None:
-        self.operations["measure_coincidence"] = self.measure_coincidence
-        self.operations["measure_countrate"] = self.measure_countrate
-
-        self.parameters.add("degrees")
+        self.operations["count_singles"] = self.count_singles
+        self.operations["measure_correlation"] = self.measure_correlation
 
     @property
     def info(self) -> TimeTaggerInfo:
@@ -49,24 +45,8 @@ class TimeTaggerInstrument(Instrument, Protocol):
             hw_status=self.hw_status,
         )
 
-    @property
-    @log_parameter
-    def degrees(self) -> float: ...
-
-    @degrees.setter
-    @log_parameter
-    def degrees(self, degrees: float) -> None: ...
-
-    def measure_coincidence(self) -> float: ...
-    def measure_countrate(self) -> float: ...
-
-    def move_to(self, angle: float) -> None:
-        """Move the rotator to the specified angle."""
-        self.degrees = angle
-
-    def move_by(self, angle: float) -> None:
-        """Move the rotator by the specified angle."""
-        self.degrees += angle
+    def count_singles(self, channels: list[int], integration_time_s: float) -> list[int]: ...
+    def measure_correlation(self, start_ch: int, stop_ch: int, integration_time_s: float, binwidth_s: float) -> int: ...
 
     @abstractmethod
     def measure_coincidence(self, channel1: int, channel2: int, binwidth_ps: int, measurement_duration_ps: int) -> int:
@@ -123,19 +103,26 @@ class SwabianTimeTagger(TimeTaggerInstrument):
     def set_input_delay(self, channel: int, delay_ps: int) -> None:
         self._tagger.setInputDelay(channel, delay_ps)
 
-    def measure_singles(self, channels: list[int], count_time_s: float) -> list[int]:
+    def count_singles(self, channels: list[int], integration_time_s: float = 1.0) -> list[int]:
         # TODO: use these as kwargs
-        count_time_ps = int(count_time_s * 1e12)
-        counter = Counter(self._tagger, channels, count_time_ps, 1)
-        counter.startFor(count_time_ps)
+        _duration_ps = int(integration_time_s * 1e12)
+        counter = Counter(self._tagger, channels, _duration_ps, 1)
+        counter.startFor(_duration_ps)
         counter.waitUntilFinished()
         return [item[0] for item in counter.getData()]
 
-    def measure_coincidence(self, channel1: int, channel2: int, count_time_s: float, binwidth_s: float) -> int:
+    def measure_correlation(
+        self,
+        start_ch: int,
+        stop_ch: int,
+        integration_time_s: float = 1.0,
+        binwidth_s: float = 1e-12,
+        n_bins: int = int(1e5),
+    ) -> int:
         # TODO: use these as kwargs
-        count_time_ps = int(count_time_s * 1e12)
+        count_time_ps = int(integration_time_s * 1e12)
         binwidth_ps = int(binwidth_s * 1e12)
-        corr = Correlation(self._tagger, channel1, channel2, binwidth_ps, n_bins=100000)
+        corr = Correlation(self._tagger, start_ch, stop_ch, binwidth_ps, n_bins=n_bins)
         corr.startFor(count_time_ps)
         corr.waitUntilFinished()
         counts = max(corr.getData())

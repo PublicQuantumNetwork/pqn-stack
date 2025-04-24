@@ -47,7 +47,7 @@ class Instrument(Protocol):
     desc: str
     hw_address: str
     parameters: set[str] = field(init=False, default_factory=set)
-    operations: dict[str, Callable[[Any], Any]] = field(init=False, default_factory=dict)
+    operations: dict[str, Callable[..., Any]] = field(init=False, default_factory=dict)
     _device: Any = field(init=False, default=None)
 
     def __post_init__(self) -> None:

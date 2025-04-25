@@ -60,8 +60,6 @@ class TimeTaggerInstrument(Instrument, Protocol):
 @dataclass(slots=True)
 class SwabianTimeTagger(TimeTaggerInstrument):
     _tagger: TimeTagger = field(init=False, repr=False)
-    _test_signal_enabled: bool = False
-    _test_signal_divider: int = 1
 
     def start(self) -> None:
         """Initialize the connection to the Swabian time tagger hardware and configures channels for potential coincidence counting."""
@@ -95,13 +93,13 @@ class SwabianTimeTagger(TimeTaggerInstrument):
 
         logger.info("Swabian Time Tagger device is now OFF.")
 
-    def set_test_signal(self, channels: list[int], *, enable: bool = True, divider: int | None = None) -> None:
-        self._tagger.setTestSignal(channels, enable)
-        if divider is not None:
-            self._tagger.setTestSignalDivider(divider)
-
     def set_input_delay(self, channel: int, delay_ps: int) -> None:
         self._tagger.setInputDelay(channel, delay_ps)
+
+    def set_test_signal(self, channels: list[int], *, enable: bool = True, divider: int = 1) -> None:
+        self._tagger.setTestSignal(channels, enable)
+        if enable:
+            self._tagger.setTestSignalDivider(divider)
 
     def count_singles(self, channels: list[int], integration_time_s: float = 1.0) -> list[int]:
         # TODO: use these as kwargs
@@ -131,15 +129,3 @@ class SwabianTimeTagger(TimeTaggerInstrument):
             return -1
 
         return counts
-
-    def enable_test_signal(self, *, enabled: bool, test_signal_divider: int = 1) -> None:
-        self.enabled = enabled
-        self.test_signal_divider = test_signal_divider
-        self._test_signal_enabled = self.enabled
-        self.test_signal_divider = self.test_signal_divider
-        if self._test_signal_enabled:
-            self._tagger.setTestSignal(self.channels_in_use, enable=True)
-            logger.info("Test signal enabled on channels: %s", self.channels_in_use)
-            if self.test_signal_divider != 1:
-                self._tagger.setTestSignalDivider(self.test_signal_divider)
-                logger.info("Test signal divider set to %d", self.test_signal_divider)

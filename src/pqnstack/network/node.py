@@ -10,9 +10,9 @@ from typing import Any
 
 import zmq
 
-from pqnstack.base.driver import DeviceDriver
 from pqnstack.base.errors import CouldNotConnectToNetworkElementError
 from pqnstack.base.errors import InvalidInstrumentsConfigurationError
+from pqnstack.base.instrument import Instrument
 from pqnstack.network.packet import NetworkElementClass
 from pqnstack.network.packet import Packet
 from pqnstack.network.packet import PacketIntent
@@ -56,7 +56,7 @@ class Node:
             "rotator_1": {
                 "import": "pqnstack.pqn.drivers.rotator.Rotator",
                 "desc": "Rotator in optical table 1",
-                "address": "83860213",
+                "hw_address": "83860213",
                 **extra_kwargs
                 }
             }
@@ -89,12 +89,12 @@ class Node:
                 msg = f"{ins_name} is missing its 'desc' key, please provide a description for this instrument"
                 raise InvalidInstrumentsConfigurationError(msg)
 
-            if "address" not in ins_dict:
-                msg = f"{ins_name} is missing its 'address' key, please provide an address for this instrument"
+            if "hw_address" not in ins_dict:
+                msg = f"{ins_name} is missing its 'hw_address' key, please provide an address for this instrument"
                 raise InvalidInstrumentsConfigurationError(msg)
 
         self.instruments = instruments
-        self.instantiated_instruments: dict[str, DeviceDriver] = {}
+        self.instantiated_instruments: dict[str, Instrument] = {}
 
         self.running = False
 
@@ -102,7 +102,7 @@ class Node:
         for ins_name, ins_dict in self.instruments.items():
             ins_import = ins_dict.pop("import")
             ins_desc = ins_dict.pop("desc")
-            ins_address = ins_dict.pop("address")
+            ins_hw_address = ins_dict.pop("hw_address")
 
             logger.info("Instantiating %s", ins_name)
             try:
@@ -114,7 +114,7 @@ class Node:
                 raise InvalidInstrumentsConfigurationError(msg) from e
 
             try:
-                ins = class_(name=ins_name, desc=ins_desc, address=ins_address, **ins_dict)
+                ins = class_(name=ins_name, desc=ins_desc, hw_address=ins_hw_address, **ins_dict)
                 ins.start()
             # FIXME: Figure out what the exception type could be if the instrument cannot be instantiated.
             except Exception as e:
@@ -273,7 +273,7 @@ class Node:
         payload = {
             "name": self.instantiated_instruments[ins_name].name,
             "desc": self.instantiated_instruments[ins_name].desc,
-            "address": self.instantiated_instruments[ins_name].address,
+            "hw_address": self.instantiated_instruments[ins_name].hw_address,
             "parameters": params,
             "operations": operations,
         }
@@ -288,7 +288,7 @@ class Node:
 
     def _validate_instrument_control_packet(
         self, packet: Packet
-    ) -> tuple[str, str, str, DeviceDriver, tuple[Any, ...], dict[str, Any]] | Packet:
+    ) -> tuple[str, str, str, Instrument, tuple[Any, ...], dict[str, Any]] | Packet:
         request_parts = packet.request.split(":")
         correct_request_len = 3
         if len(request_parts) != correct_request_len:
@@ -320,7 +320,7 @@ class Node:
         return ins_name, request_type, request_name, instrument, args, kwargs
 
     def _handle_operation_control(
-        self, request_name: str, instrument: DeviceDriver, packet: Packet, args: tuple[Any, ...], kwargs: dict[str, Any]
+        self, request_name: str, instrument: Instrument, packet: Packet, args: tuple[Any, ...], kwargs: dict[str, Any]
     ) -> Packet:
         if request_name not in instrument.operations:
             return self._create_error_packet(
@@ -337,7 +337,7 @@ class Node:
         return self._create_control_packet(packet.source, f"{instrument.name}:OPERATION:{request_name}", operation_ret)
 
     def _handle_parameter_control(
-        self, request_name: str, instrument: DeviceDriver, packet: Packet, args: tuple[Any, ...], kwargs: dict[str, Any]
+        self, request_name: str, instrument: Instrument, packet: Packet, args: tuple[Any, ...], kwargs: dict[str, Any]
     ) -> Packet:
         if request_name not in instrument.parameters:
             return self._create_error_packet(
@@ -381,7 +381,7 @@ class Node:
             return self._handle_parameter_control(request_name, instrument, packet, args, kwargs)
 
         if request_type == "INFO":
-            return self._create_control_packet(packet.source, f"{ins_name}:INFO", instrument.info())
+            return self._create_control_packet(packet.source, f"{ins_name}:INFO", instrument.info)
 
         # All the possible packet options should have been handled by now, so if we get here, something went wrong.
         msg = f"Something inside node {self.name} went wrong. Check that your packet is correct and try again."

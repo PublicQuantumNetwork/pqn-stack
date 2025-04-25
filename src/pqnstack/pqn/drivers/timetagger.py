@@ -19,18 +19,17 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True, slots=True)
 class TimeTaggerInfo(InstrumentInfo):
-    channels_in_use: list[int] = field(default_factory=list)
+    active_channels: list[int] = field(default_factory=list)
     test_signal_enabled: bool = False
     test_signal_divider: int = 1
-    last_measurement_rates: list[float] = field(default_factory=list)
-    last_coincidence_window_ps: int = 0
 
 
 @runtime_checkable
 @dataclass(slots=True)
 class TimeTaggerInstrument(Instrument, Protocol):
-    channels_to_use: int = 10
-    channels_in_use: list[int] = field(init=False, default_factory=list)
+    active_channels: list[int]
+    test_signal_enabled: bool = False
+    test_signal_divider: int = 1
 
     def __post_init__(self) -> None:
         self.operations["count_singles"] = self.count_singles
@@ -74,12 +73,10 @@ class SwabianTimeTagger(TimeTaggerInstrument):
             logger.error(msg)
             raise RuntimeError(msg)
 
-        all_channels = self._tagger.getChannelList(ChannelEdge.Rising)
-        self.channels_in_use = all_channels[: self.channels_to_use]
+        hw_channels = self._tagger.getChannelList(ChannelEdge.Rising)
+        self.active_channels = [hw_channels[ch - 1] for ch in self.active_channels]
 
-        logger.info("Channels in use: %s", self.channels_in_use)
-
-        for ch in self.channels_in_use:
+        for ch in self.active_channels:
             self._tagger.setInputDelay(ch, 0)
 
         logger.info("Swabian Time Tagger device is now READY.")

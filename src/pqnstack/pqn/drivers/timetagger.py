@@ -58,6 +58,12 @@ class TimeTaggerInstrument(Instrument, Protocol):
 
 @dataclass(slots=True)
 class SwabianTimeTagger(TimeTaggerInstrument):
+    """Instantiate a SwabianTimeTagger Instrument.
+
+    `hw_address` should be of the form "ip:port"
+        e.g.: hw_address = "127.0.0.1:41101".
+    """
+
     _tagger: TimeTagger = field(init=False, repr=False)
 
     def start(self) -> None:
@@ -67,7 +73,7 @@ class SwabianTimeTagger(TimeTaggerInstrument):
             return
 
         logger.info("Creating Swabian Time Tagger instance.")
-        self._tagger = createTimeTaggerNetwork("127.0.0.1:41101")
+        self._tagger = createTimeTaggerNetwork(self.hw_address)
         if not self._tagger:
             msg = "Failed to create time tagger. Verify hardware connection."
             logger.error(msg)

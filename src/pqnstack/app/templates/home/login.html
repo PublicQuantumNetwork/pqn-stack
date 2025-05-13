@@ -1,0 +1,101 @@
+<head>
+    <link rel="stylesheet" href="/api/v1/ui/style?style=generic">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab Escape!!</title>
+</head>
+
+<div>
+    <div>
+        <body>
+            <head>
+                <h1>Control Panel</h1>
+            </head>
+            <hr></hr>
+            <div class="honeycomb">
+                <div class="flex-container">
+                    <div id="hex1" class="hexagon" hx-trigger="click" hx-swap="outerHTML" hx-target="this" hx-post="/api/v1/ui/hex_click?tile_id=1">
+                        <div class="hexagon-outline"></div>
+                    </div>
+                    <div id="hex2" class="hexagon" hx-trigger="click" hx-swap="outerHTML" hx-target="this" hx-post="/api/v1/ui/hex_click?tile_id=2">
+                        <div class="hexagon-outline"></div>
+                    </div>
+                    <div id="hex3" class="hexagon" hx-trigger="click" hx-swap="outerHTML" hx-target="this" hx-post="/api/v1/ui/hex_click?tile_id=3">
+                        <div class="hexagon-outline"></div>
+                    </div>
+                    <div id="hex4" class="hexagon" hx-trigger="click" hx-swap="outerHTML" hx-target="this" hx-post="/api/v1/ui/hex_click?tile_id=4">
+                        <div class="hexagon-outline"></div>
+                    </div>
+                </div>
+                <div class="flex-container-two">
+                    <div class="alignment-padding"></div>
+                    <div id="hex5" class="hexagon" hx-trigger="click" hx-swap="outerHTML" hx-target="this" hx-post="/api/v1/ui/hex_click?tile_id=5">
+                        <div class="hexagon-outline"></div>
+                    </div>
+                    <div id="hex6" class="hexagon" hx-trigger="click" hx-swap="outerHTML" hx-target="this" hx-post="/api/v1/ui/hex_click?tile_id=6">
+                        <div class="hexagon-outline"></div>
+                    </div>
+                    <div id="hex7" class="hexagon" hx-trigger="click" hx-swap="outerHTML" hx-target="this" hx-post="/api/v1/ui/hex_click?tile_id=7">
+                        <div class="hexagon-outline"></div>
+                    </div>
+                </div>
+                <div class="flex-container-two">
+                    <div class="alignment-padding"></div>
+                    <div class="alignment-padding"></div>
+                    <div id="hex8" class="hexagon" hx-trigger="click" hx-swap="outerHTML" hx-target="this" hx-post="/api/v1/ui/hex_click?tile_id=8">
+                        <div class="hexagon-outline"></div>
+                    </div>
+                    <div id="hex9" class="hexagon" hx-trigger="click" hx-swap="outerHTML" hx-target="this" hx-post="/api/v1/ui/hex_click?tile_id=9">
+                        <div class="hexagon-outline"></div>
+                    </div>
+                </div>
+                <div class="flex-container-two">
+                    <div class="alignment-padding"></div>
+                    <div class="alignment-padding"></div>
+                    <div class="alignment-padding"></div>
+                    <div id="hex10" class="hexagon" hx-trigger="click" hx-swap="outerHTML" hx-target="this" hx-post="/api/v1/ui/hex_click?tile_id=10">
+                        <div class="hexagon-outline"></div>
+                    </div>
+                </div>
+            </div>
+        </body>
+        <div class="login-container">
+            <a href="/api/v1/ui/application?page=menu" id="login" hidden>
+                <div class="login-hexagon">
+                    <h1 class="login-text"">LOGIN</h1>
+                    <div class="login-hexagon-outline"></div>
+                </div>
+            </a>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    function createHttpObject() {
+        try {return new XMLHttpRequest();}
+        catch (error) {}
+        try {return new ActiveXObject("Msxml2.XMLHTTP");}
+        catch (error) {}
+        try {return new ActiveXObject("Microsoft.XMLHTTP");}
+        catch (error) {}
+
+        throw new Error("Could not create HTTP request object.");
+    }
+
+    let request = new createHttpObject();
+    request.open("GET", "/api/v1/nanoleaf/init?page=login");
+    request.send(null);
+    request.onload = () => {
+        for(let id = 1; id <= 10; id++) {
+            let hex = document.getElementById(`hex${id}`)
+            hex.style.background = "#fff"
+        }
+
+        let hasBeenSolved = request.response === 'true'
+
+        if (hasBeenSolved) {
+            window.location.href = 'application?page=menu'
+        }
+    }
+</script>
+<script src="/api/v1/ui/htmx.min.js"></script>

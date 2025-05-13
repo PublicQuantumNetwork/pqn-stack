@@ -248,7 +248,7 @@ class Node:
         )
 
     def _handle_get_devices(self, packet: Packet) -> Packet:
-        ret_instruments = {name: type(ins) for name, ins in self.instantiated_instruments.items()}
+        ret_instruments = {name: type(ins).__name__ for name, ins in self.instantiated_instruments.items()}
         return Packet(
             intent=PacketIntent.DATA,
             request="GET_DEVICES",

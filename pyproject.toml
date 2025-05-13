@@ -5,10 +5,10 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pqnstack"
-version = "0.2.0"
-description = "Illinois Computes work on software stack for PQN."
+version = "0.3.0"
+description = "Software for the Public Quantum Network."
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 license = { text = "MIT" }
 authors = [
     { name = "Benjamin Nussbaum", email = "bn9@illinois.edu" },
@@ -16,18 +16,31 @@ authors = [
     { name = "Soroush Hoseini", email = "soroushhoseini0@gmail.com" },
 ]
 dependencies = [
-    "numpy<2.0",
     "pyfirmata2>=2.5.0",
     "pyzmq>=26.2.0",
     "thorlabs-apt-device>=0.3.8",
     "typer>=0.15.1",
 ]
 
+[project.optional-dependencies]
+ttag = [
+    "numpy<2.0",
+]
+webapp = [
+    "fastapi[standard]",
+    "httpx",
+    "jinja-partials",
+    "pydantic-settings",
+    "sqlmodel",
+]
+
+
 [project.scripts]
 pqn = "pqnstack.cli:app"
 
+
 [dependency-groups]
-dev = ["mypy>=1.13.0", "pytest-cov>=6.0.0", "ruff>=0.8.0"]
+dev = ["hypothesis", "mypy", "pytest-cov", "pytest-randomly", "ruff"]
 
 
 [tool.mypy]
@@ -84,7 +97,11 @@ extend-ignore = [
 force-single-line = true
 
 [tool.ruff.lint.pydocstyle]
-convention = "numpy" # One of: "google" | "numpy" | "pep257"
+convention = "pep257"
+
+
+[tool.uv.pip]
+generate-hashes = true
 
 [tool.uv.sources]
 TimeTagger = { path = "/usr/lib/python3/dist-packages" }

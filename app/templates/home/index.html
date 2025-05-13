@@ -1,0 +1,13 @@
+{% extends "shared/_layout.html" %}
+{% block main_content %}
+    <h1>Public Quantum Network</h1>
+    <div class="container">
+    Protocols
+    <ul>
+        {% for p in protocols %}
+        <li><a href="/protocols/{{p}}">{{p}}</a></li>
+        {% endfor %}
+    </ul>
+        <!-- {{ render_partial('shared/partials/hex_code_input.html') }} -->
+    </div>
+{% endblock %}

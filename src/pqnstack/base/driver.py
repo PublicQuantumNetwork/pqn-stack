@@ -29,6 +29,7 @@ class DeviceClass(Enum):
     TIMETAGR = auto()
     PROXY = auto()
     TESTING = auto()
+    MANAGER = auto()
 
 
 class DeviceStatus(StrEnum):

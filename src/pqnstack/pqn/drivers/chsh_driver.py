@@ -1,10 +1,13 @@
 import logging
 import threading
 from dataclasses import dataclass
+from typing import Any
+from typing import cast
 
 from pqnstack.base.driver import DeviceClass
 from pqnstack.base.driver import DeviceDriver
 from pqnstack.base.driver import DeviceInfo
+from pqnstack.base.driver import DeviceStatus
 from pqnstack.base.driver import log_operation
 from pqnstack.network.client import Client
 from pqnstack.pqn.protocols.chsh import Devices
@@ -16,12 +19,12 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class CHSHInfo(DeviceInfo):
-    queue_length: int  # TODO: FINISH
-    address: str
-    motors: dict[str, dict[str, str]]
-    tagger_config: dict[str, str]
     name: str
     desc: str
+    address: str
+    dtype: DeviceClass
+    status: DeviceStatus
+    queue_length: int
 
 
 class CHSHDevice(DeviceDriver):
@@ -55,7 +58,14 @@ class CHSHDevice(DeviceDriver):
         logger.info("CHSHDevice closed.")
 
     def info(self) -> CHSHInfo:
-        return CHSHInfo(self.queue_length, self.address, self.motor_config, self.tagger_config, self.name, self.desc)
+        return CHSHInfo(
+            name=self.name,
+            desc=self.desc,
+            address=self.address,
+            dtype=DeviceClass.MANAGER,
+            status=DeviceStatus.READY,
+            queue_length=self.queue_length,
+        )
 
     @log_operation
     def measure_chsh(
@@ -66,7 +76,6 @@ class CHSHDevice(DeviceDriver):
         self.queue_length += 1
 
         done_event = threading.Event()
-
         request = {
             "kwargs": {"basis1": basis1, "basis2": basis2, "devices": devices, "config": config},
             "done_event": done_event,
@@ -75,4 +84,5 @@ class CHSHDevice(DeviceDriver):
 
         self.queue_length -= 1
 
-        return measure_chsh(**request["kwargs"])
+        kwargs = cast(dict[str, Any], request["kwargs"])
+        return measure_chsh(**kwargs)

@@ -15,7 +15,6 @@ from typing import Any
 from typing import Protocol
 from typing import runtime_checkable
 
-from pqnstack.base.errors import DeviceNotStartedError
 from pqnstack.base.errors import LogDecoratorOutsideOfClassError
 
 logger = logging.getLogger(__name__)
@@ -39,8 +38,6 @@ class Instrument(Protocol):
       * You cannot use the character `:` in the names of instruments. This is used to separate parts of requests in
         proxy instruments.
 
-    `_device` is the hardware interface for the instrument, managed by `start()` and `close()`.
-        E.g., `serial.Serial`, or some third party driver.
     """
 
     name: str
@@ -48,7 +45,6 @@ class Instrument(Protocol):
     hw_address: str
     parameters: set[str] = field(init=False, default_factory=set)
     operations: dict[str, Callable[..., Any]] = field(init=False, default_factory=dict)
-    _device: Any = field(init=False, default=None)
 
     def __post_init__(self) -> None:
         atexit.register(self.close)
@@ -58,26 +54,6 @@ class Instrument(Protocol):
 
     @property
     def info(self) -> InstrumentInfo: ...
-
-    @property
-    def hw_status(self) -> dict[str, Any]:
-        if not hasattr(self._device, "status") or self._device.status is None:
-            return {}
-
-        return self._device.status if self._device.status else {}
-
-
-def check_hw_active[T](driver_method: Callable[..., T]) -> Callable[..., T]:
-    """Check that the hardware `_device` is instantiated."""
-
-    @wraps(driver_method)
-    def wrapper(self: Instrument, *args: Any, **kwargs: Any) -> T:
-        if self._device is None:
-            msg = "Device is not started"
-            raise DeviceNotStartedError(msg)
-        return driver_method(self, *args, **kwargs)
-
-    return wrapper
 
 
 def log_operation[T](func: Callable[..., T]) -> Callable[..., T]:

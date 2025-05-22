@@ -27,22 +27,13 @@ class TimeTaggerInfo(InstrumentInfo):
 @runtime_checkable
 @dataclass(slots=True)
 class TimeTaggerInstrument(Instrument, Protocol):
-    active_channels: list[int]
+    active_channels: list[int] = field(default=[1, 2])
     test_signal_enabled: bool = False
     test_signal_divider: int = 1
 
     def __post_init__(self) -> None:
         self.operations["count_singles"] = self.count_singles
         self.operations["measure_correlation"] = self.measure_correlation
-
-    @property
-    def info(self) -> TimeTaggerInfo:
-        return TimeTaggerInfo(
-            name=self.name,
-            desc=self.desc,
-            hw_address=self.hw_address,
-            hw_status=self.hw_status,
-        )
 
     def count_singles(self, channels: list[int], integration_time_s: float) -> list[int]: ...
     def measure_correlation(self, start_ch: int, stop_ch: int, integration_time_s: float, binwidth_s: float) -> int: ...
@@ -87,6 +78,18 @@ class SwabianTimeTagger(TimeTaggerInstrument):
             self._tagger = None
 
         logger.info("Swabian Time Tagger device is now OFF.")
+
+    @property
+    def info(self) -> TimeTaggerInfo:
+        return TimeTaggerInfo(
+            name=self.name,
+            desc=self.desc,
+            hw_address=self.hw_address,
+            # hw_status=,
+            active_channels=self.active_channels,
+            test_signal_enabled=self.test_signal_enabled,
+            test_signal_divider=self.test_signal_divider,
+        )
 
     def set_input_delay(self, channel: int, delay_ps: int) -> None:
         self._tagger.setInputDelay(channel, delay_ps)

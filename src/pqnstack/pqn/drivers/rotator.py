@@ -16,7 +16,6 @@ from thorlabs_apt_device import TDC001
 from pqnstack.base.errors import DeviceNotStartedError
 from pqnstack.base.instrument import Instrument
 from pqnstack.base.instrument import InstrumentInfo
-from pqnstack.base.instrument import check_hw_active
 from pqnstack.base.instrument import log_parameter
 
 logger = logging.getLogger(__name__)
@@ -38,17 +37,6 @@ class RotatorInstrument(Instrument, Protocol):
         self.operations["move_by"] = self.move_by
 
         self.parameters.add("degrees")
-
-    @property
-    def info(self) -> RotatorInfo:
-        return RotatorInfo(
-            name=self.name,
-            desc=self.desc,
-            hw_address=self.hw_address,
-            hw_status=self.hw_status,
-            degrees=self.degrees,
-            offset_degrees=self.offset_degrees,
-        )
 
     @property
     @log_parameter
@@ -93,7 +81,17 @@ class APTRotator(RotatorInstrument):
             logger.info("Closing APT Rotator")
             self._device.close()
 
-    @check_hw_active
+    @property
+    def info(self) -> RotatorInfo:
+        return RotatorInfo(
+            name=self.name,
+            desc=self.desc,
+            hw_address=self.hw_address,
+            hw_status=self._device.status,
+            degrees=self.degrees,
+            offset_degrees=self.offset_degrees,
+        )
+
     def _wait_for_stop(self) -> None:
         if self._device is None:
             msg = "Start the device before setting parameters"
@@ -120,7 +118,6 @@ class APTRotator(RotatorInstrument):
         self._set_degrees_unsafe(degrees)
         self._wait_for_stop()
 
-    @check_hw_active
     def _set_degrees_unsafe(self, degrees: float) -> None:
         self._degrees = degrees
         self._device.move_absolute(int(degrees * self._encoder_units_per_degree))
@@ -143,6 +140,17 @@ class SerialRotator(RotatorInstrument):
     def close(self) -> None:
         self.degrees = 0
         self._conn.close()
+
+    @property
+    def info(self) -> RotatorInfo:
+        return RotatorInfo(
+            name=self.name,
+            desc=self.desc,
+            hw_address=self.hw_address,
+            # hw_status=,
+            degrees=self.degrees,
+            offset_degrees=self.offset_degrees,
+        )
 
     @property
     def degrees(self) -> float:

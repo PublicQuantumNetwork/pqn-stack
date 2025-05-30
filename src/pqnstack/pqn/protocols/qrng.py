@@ -1,5 +1,7 @@
 import numpy as np
+
 from pqnstack.pqn.drivers.timetagger import TimeTaggerDevice
+
 
 def pqxor_random(n: int, input_str: str | None = None, tagger: TimeTaggerDevice | None = None) -> int:
     if input_str is not None:

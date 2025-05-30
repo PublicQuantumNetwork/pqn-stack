@@ -69,7 +69,7 @@ class TimeTaggerDevice(DeviceDriver):
 
     @abstractmethod
     def measure_coincidence(self, channel1: int, channel2: int, binwidth_ps: int, measurement_duration_ps: int) -> int:
-        "Measaures the coincidence between input channels"
+        "Measaures the coincidence between input channels."
 
 
 class SwabianTimeTagger(TimeTaggerDevice):

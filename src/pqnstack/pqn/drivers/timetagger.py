@@ -67,6 +67,10 @@ class TimeTaggerDevice(DeviceDriver):
         #    ) -> None:
         """Perform a coincidence-counting measurement on a given list of channel groups, for the specified real-time measurement duration and coincidence window."""
 
+    @abstractmethod
+    def measure_coincidence(self, channel1: int, channel2: int, binwidth_ps: int, measurement_duration_ps: int) -> int:
+        "Measaures the coincidence between input channels"
+
 
 class SwabianTimeTagger(TimeTaggerDevice):
     def __init__(
@@ -157,11 +161,11 @@ class SwabianTimeTagger(TimeTaggerDevice):
         counter.waitUntilFinished()
         return [item[0] for item in counter.getData()]
 
-    def measure_coincidence(self, channel1: int, channel2: int, binwidth_ps: int, measurement_duration_ps: int) -> Any:
+    def measure_coincidence(self, channel1: int, channel2: int, binwidth_ps: int, measurement_duration_ps: int) -> int:
         corr = Correlation(self._tagger, channel1, channel2, binwidth_ps, n_bins=100000)
         corr.startFor(measurement_duration_ps)
         corr.waitUntilFinished()
-        return np.max(corr.getData())
+        return int(np.max(corr.getData()))
 
     def enable_test_signal(self, *, enabled: bool, test_signal_divider: int = 1) -> None:
         self.enabled = enabled

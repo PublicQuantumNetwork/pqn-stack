@@ -1,28 +1,12 @@
 import math
 import time
-from dataclasses import dataclass
 
+from pqnstack.pqn.drivers.rotator import MeasurementBasis
 from pqnstack.pqn.drivers.rotator import RotatorDevice
+from pqnstack.pqn.drivers.timetagger import MeasurementConfig
 from pqnstack.pqn.drivers.timetagger import TimeTaggerDevice
 
 
-@dataclass(frozen=True)
-class MeasurementBasis:
-    name: str
-    pairs: list[tuple[str, str]]
-    settings: dict[str, tuple[float, float]]
-
-
-@dataclass
-class MeasurementConfig:
-    duration: int
-    binwidth: int = 500
-    channel1: int = 1
-    channel2: int = 2
-    dark_count: int = 0
-
-
-@dataclass
 class Devices:
     motors: dict[str, RotatorDevice]
     tagger: TimeTaggerDevice
@@ -93,33 +77,6 @@ def calculate_visibility_error(c_min: int, c_max: int) -> float:
         return 0.0
     return 2 * math.sqrt((c_min**2) * c_max + (c_max**2) * c_min) / denominator
 
-
-DEFAULT_SETTINGS: dict[str, tuple[float, float]] = {
-    "H": (0, 0),
-    "V": (45, 0),
-    "D": (22.5, 0),
-    "A": (-22.5, 0),
-    "R": (22.5, 45),
-    "L": (-22.5, 45),
-}
-
-HV_BASIS = MeasurementBasis(
-    name="HV",
-    pairs=[("H", "H"), ("H", "V"), ("V", "H"), ("V", "V")],
-    settings=DEFAULT_SETTINGS,
-)
-
-DA_BASIS = MeasurementBasis(
-    name="DA",
-    pairs=[("D", "D"), ("D", "A"), ("A", "D"), ("A", "A")],
-    settings=DEFAULT_SETTINGS,
-)
-
-RL_BASIS = MeasurementBasis(
-    name="RL",
-    pairs=[("R", "R"), ("R", "L"), ("L", "R"), ("L", "L")],
-    settings=DEFAULT_SETTINGS,
-)
 
 """
 Example:

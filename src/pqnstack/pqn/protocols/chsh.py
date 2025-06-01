@@ -4,7 +4,9 @@ from time import sleep
 
 import numpy as np
 
-from pqnstack.base.driver.rotator import RotatorDevice
+from pqnstack.pqn.driver.rotator import RotatorDevice
+from pqnstack.pqn.drivers.timetagger import MeasurementConfig
+from pqnstack.pqn.drivers.timetagger import TimeTaggerDevice
 
 
 @dataclass
@@ -13,16 +15,7 @@ class Devices:
     idler_qwp: RotatorDevice
     signal_hwp: RotatorDevice
     signal_qwp: RotatorDevice
-    timetagger: RotatorDevice
-
-
-@dataclass
-class MeasurementConfig:
-    duration: int
-    binwidth: int = 500
-    channel1: int = 1
-    channel2: int = 2
-    dark_count: int = 0
+    timetagger: TimeTaggerDevice
 
 
 @dataclass
@@ -51,7 +44,7 @@ def basis_to_wp(basis: float) -> list[float]:
     return [basis / 2, 0.0]  # TODO: Make input a complex number and have the quarter waveplate angle calculated from it
 
 
-def expectation_value(
+def measure_expectation_value(
     devices: Devices, config: MeasurementConfig, base1: float, base2: float
 ) -> tuple[float, float, dict[str, object]]:
     idler_wp_angles = basis_to_wp(base1)
@@ -100,7 +93,7 @@ def measure_chsh(
 
     for base1 in basis1:
         for base2 in basis2:
-            exp_val, exp_err, raw = expectation_value(devices, config, base1, base2)
+            exp_val, exp_err, raw = measure_expectation_value(devices, config, base1, base2)
             expectation_values.append(exp_val)
             expectation_errors.append(exp_err)
             raw_results.append(raw)

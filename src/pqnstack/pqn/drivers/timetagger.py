@@ -28,8 +28,8 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class MeasurementConfig:
-    duration: int # in picoseconds
-    binwidth: int = 500 # in picoseconds
+    duration: int  # in picoseconds
+    binwidth: int = 500  # in picoseconds
     channel1: int = 1
     channel2: int = 2
     dark_count: int = 0

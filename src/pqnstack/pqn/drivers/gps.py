@@ -1,26 +1,36 @@
-import serial
-import struct
-import time
 import logging
 import math
+import struct
+import time
 
-from pqnstack.base.driver import (
-    DeviceDriver, DeviceInfo, DeviceClass, DeviceStatus,
-    log_operation, log_parameter
-)
+import serial
+
+from pqnstack.base.driver import DeviceClass
+from pqnstack.base.driver import DeviceDriver
+from pqnstack.base.driver import DeviceInfo
+from pqnstack.base.driver import DeviceStatus
+from pqnstack.base.driver import log_operation
+from pqnstack.base.driver import log_parameter
 from pqnstack.base.errors import DeviceNotStartedError
 
 logger = logging.getLogger(__name__)
+MAX_DUTY_PERCENT = 100.0
+
+"""
+stty -F /dev/ttyACM0 to check port
+"""
+
 
 class ZEDF9TTimingDevice(DeviceDriver):
     """
-    Device driver for the u-blox ZED-F9T timing module,
+    Device driver for the u-blox ZED-F9T timing module.
+
     configuring TimePulse via the reverse-engineered UBX-CFG-TP packet.
     """
+
     DEVICE_CLASS = DeviceClass.TIMETAGR
 
-    def __init__(self, name: str, desc: str,
-                 address: str = '/dev/ttyACM0', baudrate: int = 38400):
+    def __init__(self, name: str, desc: str, address: str = "/dev/ttyACM0", baudrate: int = 38400):
         super().__init__(name, desc, address)
         self.baudrate = baudrate
         self.serial = None
@@ -31,11 +41,7 @@ class ZEDF9TTimingDevice(DeviceDriver):
 
     def info(self) -> DeviceInfo:
         return DeviceInfo(
-            name=self.name,
-            desc=self.desc,
-            address=self.address,
-            dtype=self.DEVICE_CLASS,
-            status=self.status
+            name=self.name, desc=self.desc, address=self.address, dtype=self.DEVICE_CLASS, status=self.status
         )
 
     @log_operation
@@ -60,55 +66,38 @@ class ZEDF9TTimingDevice(DeviceDriver):
         return bytes((ck_a, ck_b))
 
     @staticmethod
-    def _build_tp_command(tp_idx: int,
-                          frequency: int,
-                          duty_pct: float) -> bytes:
-        prefix     = b'\x00\x00'
-        ubx_hdr    = b'\xB5\x62\x06\x31' + struct.pack('<H', 32)
+    def _build_tp_command(tp_idx: int, frequency: int, duty_pct: float) -> bytes:
+        prefix = b"\x00\x00"
+        ubx_hdr = b"\xb5\x62\x06\x31" + struct.pack("<H", 32)
 
-        tp_byte    = struct.pack('<B', tp_idx & 0xFF)
-        enable     = b'\x01'
-        reserved6  = b'\x00' * 6
-        freq_le    = struct.pack('<I', frequency)
-        lock_le    = freq_le
+        tp_byte = struct.pack("<B", tp_idx & 0xFF)
+        enable = b"\x01"
+        reserved6 = b"\x00" * 6
+        freq_le = struct.pack("<I", frequency)
+        lock_le = freq_le
 
-        if duty_pct >= 100.0:
-            frac = (1 << 32) - 1
-        else:
-            frac = math.ceil(duty_pct / 100.0 * (1 << 32)) & 0xFFFFFFFF
-        duty_le    = struct.pack('<I', frac)
-        lock_duty  = duty_le
+        frac = (1 << 32) - 1 if duty_pct >= MAX_DUTY_PERCENT else math.ceil(duty_pct / 100.0 * (1 << 32)) & 4294967295
+        duty_le = struct.pack("<I", frac)
+        lock_duty = duty_le
 
-        ramp_up    = b'\x00' * 4
-        ramp_down  = bytes.fromhex('6F000000')
+        ramp_up = b"\x00" * 4
+        ramp_down = bytes.fromhex("6F000000")
 
-        payload = (
-            tp_byte + enable + reserved6
-          + freq_le + lock_le
-          + duty_le + lock_duty
-          + ramp_up + ramp_down
-        )
+        payload = tp_byte + enable + reserved6 + freq_le + lock_le + duty_le + lock_duty + ramp_up + ramp_down
 
         checksum = ZEDF9TTimingDevice._ubx_fletcher(ubx_hdr[2:] + payload)
         return prefix + ubx_hdr + payload + checksum
 
     @log_operation
-    def configure_pulse(self,
-                        tp_idx: int,
-                        frequency_hz: int,
-                        duty_cycle_percent: float):
+    def configure_pulse(self, tp_idx: int, frequency_hz: int, duty_cycle_percent: float) -> None:
         if not self.serial or not self.serial.is_open:
-            raise DeviceNotStartedError("Device must be started first.")
+            msg = "Device must be started first."
+            raise DeviceNotStartedError(msg)
 
-        packet = self._build_tp_command(tp_idx,
-                                        frequency_hz,
-                                        duty_cycle_percent)
+        packet = self._build_tp_command(tp_idx, frequency_hz, duty_cycle_percent)
         self.serial.write(packet)
 
-        logger.info(
-            f"Configured TP{tp_idx}: Frequency={frequency_hz} Hz, "
-            f"Duty={duty_cycle_percent:.1f}%"
-        )
+        logger.info("Configured TP%s: Frequency=%d Hz, Duty=%.1f%%", tp_idx, frequency_hz, duty_cycle_percent)
 
     @property
     @log_parameter

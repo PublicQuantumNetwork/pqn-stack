@@ -13,7 +13,7 @@ from pqnstack.pqn.drivers.dummies import DummyInstrument
 
 @pytest.fixture
 def messaging_services():
-    config_path = Path("./tests/pytest/test_network_config.toml").resolve()
+    config_path = Path("./test_network_config.toml").resolve()
     uv_path = shutil.which("uv")
     if not uv_path:
         msg = "Could not find 'uv' executable in PATH"
@@ -26,8 +26,8 @@ def messaging_services():
         shell=False,
     )
 
-    node_process = subprocess.Popen(  # noqa: S603
-        [uv_path, "run", "pqn", "start-node", "--config", str(config_path)],
+    provider_process = subprocess.Popen(  # noqa: S603
+        [uv_path, "run", "pqn", "start-provider", "--config", str(config_path)],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         shell=False,
@@ -38,17 +38,17 @@ def messaging_services():
     router_process.terminate()
     router_process.wait()
 
-    node_process.terminate()
-    node_process.wait()
+    provider_process.terminate()
+    provider_process.wait()
 
 
 def test_client_ping(messaging_services): # noqa: ARG001
     client = Client(host="localhost", port=5556, router_name="pqnstack-router")
-    response = client.ping("pqnstack-node")
+    response = client.ping("pqnstack-provider")
 
     assert isinstance(response, Packet)
     assert response.intent == PacketIntent.PING
-    assert response.source == "pqnstack-node"
+    assert response.source == "pqnstack-provider"
     assert response.destination == client.name
     assert response.request == "PONG"
 
@@ -56,7 +56,7 @@ def test_client_ping(messaging_services): # noqa: ARG001
 def test_getting_all_instruments(messaging_services): # noqa: ARG001
     client = Client(host="localhost", port=5556, router_name="pqnstack-router")
 
-    response = client.get_available_devices("pqnstack-node")
+    response = client.get_available_devices("pqnstack-provider")
 
     instruments_names = ["dummy1", "dummy2"]
 
@@ -69,7 +69,7 @@ def test_getting_all_instruments(messaging_services): # noqa: ARG001
 def test_proxy_instrument(messaging_services): # noqa: ARG001
     client = Client(host="localhost", port=5556, router_name="pqnstack-router")
 
-    proxy_instrument = client.get_device("pqnstack-node", "dummy1")
+    proxy_instrument = client.get_device("pqnstack-provider", "dummy1")
     assert isinstance(proxy_instrument, ProxyInstrument)
 
     base_int = 2

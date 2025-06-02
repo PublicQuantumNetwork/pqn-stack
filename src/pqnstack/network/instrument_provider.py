@@ -1,7 +1,3 @@
-# University of Illinois Urbana-Champaign
-# Public Quantum Network
-#
-# NCSA/Illinois Computes
 import datetime
 import importlib
 import logging
@@ -21,7 +17,7 @@ from pqnstack.network.packet import create_registration_packet
 logger = logging.getLogger(__name__)
 
 
-class Node:
+class InstrumentProvider:
     def __init__(
         self,
         name: str,
@@ -32,20 +28,20 @@ class Node:
         **instruments: dict[str, Any],
     ) -> None:
         """
-        Node class for PQN.
+        InstrumentProvider class for PQN.
 
-        A Node is the class that talks with real hardware and performs experiments. It talks to a
+        A InstrumentProvider is the class that talks with real hardware and performs experiments. It talks to a
         single `Router` instance through zqm and awaits for instructions from it. Every `beat_interval` milliseconds,
         sends a registration packet to the router.
-        This is done so if the router goes offline, the node can reconnect to the router automatically.
+        This is done so if the router goes offline, the provider can reconnect to the router automatically.
 
-        :param name: Name for the Node.
-        :param host: Hostname or IP address of the Router this node talks to.
-        :param port: Port of the name of the Router this node talks to.
-        :param router_name: Name of the Router this node talks to.
+        :param name: Name for the InstrumentProvider.
+        :param host: Hostname or IP address of the Router this provider talks to.
+        :param port: Port of the name of the Router this provider talks to.
+        :param router_name: Name of the Router this provider talks to.
         :param beat_period: Interval in milliseconds to send a beat to the Router.
         :param instruments: Instruments is a Dictionary holding the necessary instructions to initialize any hardware
-         the Node talks to. The keys are the names of the instruments, every key has another dictionary as its value
+         the InstrumentProvider talks to. The keys are the names of the instruments, every key has another dictionary as its value
          with all the necessary instructions to initialize the instrument. Inside of the dictionary for the specific
          instrument, a key called 'import' is required holding the import path for that specific instrument.
          Note that the name is not necessary since that is the key of the dictionary.
@@ -127,7 +123,7 @@ class Node:
     def start(self) -> None:
         self.instantiate_instruments()
 
-        logger.info("Starting node %s at %s", self.name, self.address)
+        logger.info("Starting provider %s at %s", self.name, self.address)
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.DEALER)
         self.socket.setsockopt_string(zmq.IDENTITY, self.name)
@@ -227,7 +223,7 @@ class Node:
 
             self.socket.connect(self.address)
             reg_packet = create_registration_packet(
-                source=self.name, destination=self.router_name, payload=NetworkElementClass.NODE, hops=0
+                source=self.name, destination=self.router_name, payload=NetworkElementClass.PROVIDER, hops=0
             )
             self.socket.send(pickle.dumps(reg_packet))
             logger.info("Sent registration packet to router at %s", self.address)
@@ -237,7 +233,7 @@ class Node:
             logger.warning("Error while sending beat to router at %s", self.address)
 
     def _handle_reg_acknowledge(self) -> None:
-        logger.info("Node %s is connected to router at %s", self.name, self.address)
+        logger.info("InstrumentProvider %s is connected to router at %s", self.name, self.address)
         self.running = True
         self._beats_since_reply = 0
         self._last_received_beat = datetime.datetime.now(tz=datetime.UTC)
@@ -384,7 +380,7 @@ class Node:
             return self._create_control_packet(packet.source, f"{ins_name}:INFO", instrument.info())
 
         # All the possible packet options should have been handled by now, so if we get here, something went wrong.
-        msg = f"Something inside node {self.name} went wrong. Check that your packet is correct and try again."
+        msg = f"Something inside provider {self.name} went wrong. Check that your packet is correct and try again."
         return self._create_error_packet(packet.source, msg)
 
     def _create_error_packet(self, destination: str, error_msg: str) -> Packet:

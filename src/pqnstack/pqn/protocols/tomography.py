@@ -1,29 +1,19 @@
 import datetime
+import time
 from dataclasses import dataclass
-from time import sleep
-
-import numpy as np
 
 from pqnstack.base.driver.rotator import RotatorDevice
+from pqnstack.pqn.drivers.rotator import DEFAULT_SETTINGS
+from pqnstack.pqn.drivers.rotator import MeasurementBasis
+from pqnstack.pqn.drivers.timetagger import MeasurementConfig
+from pqnstack.pqn.drivers.timetagger import TimeTaggerDevice
 
-v, h, d, a, r, l = (  # noqa: E741
-    [45, 0],
-    [0, 0],
-    [22.5, 0],
-    [67.5, 0],
-    [0, -45],
-    [0, 45],
-)
+_TOMOGRAPHY_STATES: list[str] = ["H", "V", "D", "A", "R", "L"]
 
-tomography_angles = np.array(
-    [
-        np.array(h),
-        np.array(v),
-        np.array(d),
-        np.array(a),
-        np.array(r),
-        np.array(l),
-    ]
+TOMOGRAPHY_BASIS: MeasurementBasis = MeasurementBasis(
+    name="TOMOGRAPHY",
+    pairs=[(s, i) for s in _TOMOGRAPHY_STATES for i in _TOMOGRAPHY_STATES],
+    settings=DEFAULT_SETTINGS,
 )
 
 
@@ -33,52 +23,89 @@ class Devices:
     idler_qwp: RotatorDevice
     signal_hwp: RotatorDevice
     signal_qwp: RotatorDevice
-    timetagger: RotatorDevice
+    timetagger: TimeTaggerDevice
 
 
 @dataclass
-class MeasurementConfig:
-    duration: float
-    binwidth: float = 500e-12
-    channel1: int = 1
-    channel2: int = 2
-    dark_count: int = 0
+class TomographyValue:
+    timestamp: str
+    tomography_raw_counts: list[int]
+    singles_counts: list[list[int]]
+    coincidence_counts: list[int]
 
 
 def measure_tomography_raw(
     devices: Devices,
-    measurement: MeasurementConfig,
-) -> dict[str, object]:
-    tomography_results = []
-    singles_counts = []
-    for i in range(6):
-        for j in range(6):
-            devices.idler_hwp.move_to(tomography_angles[j][0])
-            devices.idler_qwp.move_to(tomography_angles[j][1])
-            devices.signal_hwp.move_to(tomography_angles[i][0])
-            devices.signal_qwp.move_to(tomography_angles[i][1])
-            sleep(3)
-            tomography_results.append(
-                devices.timetagger.measure_coincidence(
-                    measurement.channel1, measurement.channel2, measurement.binwidth, int(measurement.duration * 1e12)
-                )
-            )
-            singles_counts.append(
-                devices.timetagger.measure_countrate(
-                    [measurement.channel1, measurement.channel2], int(measurement.duration * 1e12)
-                )
-            )
+    config: MeasurementConfig,
+) -> TomographyValue:
+    tomography_counts: list[int] = []
+    singles_counts_channel1: list[int] = []
+    singles_counts_channel2: list[int] = []
 
-    current_time = datetime.datetime.now(datetime.UTC).isoformat()
-    return {"timestamp": current_time, "tomography_raw_counts": tomography_results, "singles_counts": singles_counts}
+    for signal_state, idler_state in TOMOGRAPHY_BASIS.pairs:
+        signal_angles: tuple[float, float] = TOMOGRAPHY_BASIS.settings[signal_state]
+        idler_angles: tuple[float, float] = TOMOGRAPHY_BASIS.settings[idler_state]
+
+        devices.signal_hwp.move_to(signal_angles[0])
+        devices.signal_qwp.move_to(signal_angles[1])
+        devices.idler_hwp.move_to(idler_angles[0])
+        devices.idler_qwp.move_to(idler_angles[1])
+
+        time.sleep(3)
+
+        coincidence = devices.timetagger.measure_coincidence(
+            config.channel1,
+            config.channel2,
+            config.binwidth,
+            int(config.duration * 1e12),
+        )
+        tomography_counts.append(int(coincidence))
+
+        singles_counts_channel1.append(
+            devices.timetagger.measure_countrate(
+                [config.channel1, config.channel2],
+                int(config.duration * 1e12),
+            )[0]
+        )
+
+        singles_counts_channel2.append(
+            devices.timetagger.measure_countrate(
+                [config.channel1, config.channel2],
+                int(config.duration * 1e12),
+            )[1]
+        )
+
+    current_time: str = datetime.datetime.now(datetime.UTC).isoformat()
+
+    return TomographyValue(
+        timestamp=current_time,
+        tomography_raw_counts=tomography_counts,
+        singles_counts=[singles_counts_channel1, singles_counts_channel2],
+        coincidence_counts=tomography_counts,
+    )
 
 
+"""
+Example:
 if __name__ == "__main__":
     from pqnstack.network.client import Client
 
-    c = Client(host="172.30.63.109", timeout=30000)
-    idler_hwp = c.get_device("pqn_test3", "idler_hwp")
-    idler_qwp = c.get_device("pqn_test3", "idler_qwp")
-    signal_hwp = c.get_device("pqn_test3", "signal_hwp")
-    signal_qwp = c.get_device("pqn_test3", "signal_qwp")
-    timetagger = c.get_device("mini_pc", "tagger")
+    client = Client(host="172.30.63.109", timeout=30000)
+
+    idler_hwp = client.get_device("pqn_test3", "idler_hwp")
+    idler_qwp = client.get_device("pqn_test3", "idler_qwp")
+    signal_hwp = client.get_device("pqn_test3", "signal_hwp")
+    signal_qwp = client.get_device("pqn_test3", "signal_qwp")
+    timetagger = client.get_device("mini_pc", "tagger")
+
+    devices = Devices(
+        idler_hwp=idler_hwp,
+        idler_qwp=idler_qwp,
+        signal_hwp=signal_hwp,
+        signal_qwp=signal_qwp,
+        timetagger=timetagger,
+    )
+
+    config = MeasurementConfig(channel1=1, channel2=2, binwidth=1_000, duration=0.5)
+    result = measure_tomography_raw(devices, config)
+"""

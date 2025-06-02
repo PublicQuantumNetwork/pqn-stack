@@ -80,6 +80,10 @@ class TimeTaggerDevice(DeviceDriver):
     def measure_coincidence(self, channel1: int, channel2: int, binwidth_ps: int, measurement_duration_ps: int) -> int:
         "Measaures the coincidence between input channels."
 
+    @abstractmethod
+    def measure_countrate(self, channels: list[int], binwidth_ps: int) -> list[int]:
+        "Measaures the singles counts on input channels."
+
 
 class SwabianTimeTagger(TimeTaggerDevice):
     def __init__(

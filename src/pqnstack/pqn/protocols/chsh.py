@@ -74,7 +74,7 @@ def measure_expectation_value(
             devices.signal_qwp.move_to(angle_signal[1])
             sleep(2)
             counts = devices.timetagger.measure_coincidence(
-                config.channel1, config.channel2, int(config.binwidth * 1e12), int(config.duration * 1e12)
+                config.channel1, config.channel2, int(config.binwidth), int(config.duration * 1e12)
             )
             coincidence_counts.append(counts)
 

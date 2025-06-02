@@ -3,20 +3,20 @@ name = "pqnstack-router"
 host = "localhost"
 port = 5556
 
-[node]
-name = "pqnstack-node"
+[provider]
+name = "pqnstack-provider"
 router_name = "pqnstack-router"
 host = "localhost"
 port = 5556
 beat_period = 2000
 
-[[node.instruments]]
+[[provider.instruments]]
 name = "dummy1"
 import = "pqnstack.pqn.drivers.dummies.DummyInstrument"
 desc = "Dummy instrument1 for testing purposes"
 address = "1234"
 
-[[node.instruments]]
+[[provider.instruments]]
 name = "dummy2"
 import = "pqnstack.pqn.drivers.dummies.DummyInstrument"
 desc = "Dummy instrument2 for testing purposes"

@@ -9,11 +9,11 @@ logger = logging.getLogger(__name__)
 if __name__ == "__main__":
     c = Client()
 
-    # ping node
-    ping_reply = c.ping("node1")
+    # ping provider
+    ping_reply = c.ping("provider1")
     logger.info(ping_reply)
 
-    instrument = c.get_device("node1", "dummy1")
+    instrument = c.get_device("provider1", "dummy1")
     logger.info(instrument)
 
     # blocking operation

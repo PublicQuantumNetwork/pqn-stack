@@ -1,7 +1,3 @@
-# University of Illinois Urbana-Champaign
-# Public Quantum Network
-#
-# NCSA/Illinois Computes
 import copy
 import logging
 import pickle
@@ -27,7 +23,7 @@ class Router:
 
         # FIXME, breaking this into 3 different dictionaries is probably not the way to go.
         self.routers: dict[str, bytes] = {}  # Holds what other routers are in the network
-        self.nodes: dict[str, bytes] = {}
+        self.providers: dict[str, bytes] = {}
         self.clients: dict[str, bytes] = {}
 
         self.context: zmq.Context[zmq.Socket[bytes]] | None = None
@@ -65,9 +61,9 @@ class Router:
             self.handle_packet_error(identity_binary, f"Router {self.name} is not the destination")
             return
         match packet.payload:
-            case NetworkElementClass.NODE:
-                self.nodes[packet.source] = identity_binary
-                logger.info("Node %s registered", identity_binary)
+            case NetworkElementClass.PROVIDER:
+                self.providers[packet.source] = identity_binary
+                logger.info("InstrumentProvider %s registered", identity_binary)
             case NetworkElementClass.CLIENT:
                 self.clients[packet.source] = identity_binary
                 logger.info("Client %s registered", identity_binary)
@@ -90,11 +86,11 @@ class Router:
         if packet.destination == self.name:
             logger.info("Packet destination is self, dropping")
 
-        elif packet.destination in self.nodes or packet.destination in self.clients:
-            logger.info("Packet destination is a node called %s, routing message there", packet.destination)
+        elif packet.destination in self.providers or packet.destination in self.clients:
+            logger.info("Packet destination is a provider called %s, routing message there", packet.destination)
             forward_packet = copy.copy(packet)
             forward_packet.hops += 1
-            dest = self.nodes.get(packet.destination) or self.clients.get(packet.destination)
+            dest = self.providers.get(packet.destination) or self.clients.get(packet.destination)
             if dest is None:
                 self.handle_packet_error(identity_binary, f"Destination {packet.destination} not found.")
                 return
@@ -102,7 +98,7 @@ class Router:
             logger.info("Sent packet to %s", packet.destination)
 
         else:
-            logger.info("Packet destination is not a node will ask other routers in system")
+            logger.info("Packet destination is not a provider will ask other routers in system")
             # FIXME: This is temporary and should be replaced with the routing algorithm.
             self.handle_packet_error(identity_binary, "Routing not implemented yet.")
 

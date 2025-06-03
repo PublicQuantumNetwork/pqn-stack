@@ -30,8 +30,6 @@ class Devices:
 class TomographyValue:
     timestamp: str
     tomography_raw_counts: list[int]
-    singles_counts: list[list[int]]
-    coincidence_counts: list[int]
 
 
 def measure_tomography_raw(
@@ -39,8 +37,6 @@ def measure_tomography_raw(
     config: MeasurementConfig,
 ) -> TomographyValue:
     tomography_counts: list[int] = []
-    singles_counts_channel1: list[int] = []
-    singles_counts_channel2: list[int] = []
 
     for signal_state, idler_state in TOMOGRAPHY_BASIS.pairs:
         signal_angles: tuple[float, float] = TOMOGRAPHY_BASIS.settings[signal_state]
@@ -61,27 +57,11 @@ def measure_tomography_raw(
         )
         tomography_counts.append(int(coincidence))
 
-        singles_counts_channel1.append(
-            devices.timetagger.measure_countrate(
-                [config.channel1, config.channel2],
-                int(config.duration * 1e12),
-            )[0]
-        )
-
-        singles_counts_channel2.append(
-            devices.timetagger.measure_countrate(
-                [config.channel1, config.channel2],
-                int(config.duration * 1e12),
-            )[1]
-        )
-
     current_time: str = datetime.datetime.now(datetime.UTC).isoformat()
 
     return TomographyValue(
         timestamp=current_time,
         tomography_raw_counts=tomography_counts,
-        singles_counts=[singles_counts_channel1, singles_counts_channel2],
-        coincidence_counts=tomography_counts,
     )
 
 

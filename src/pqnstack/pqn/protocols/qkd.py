@@ -22,7 +22,7 @@ def qkd_run(
     basis: MeasurementBasis = HV_BASIS,
     measure_time: float = 10.0,
     player: str | None = None,
-) -> tuple[str | None, float]:
+) -> float:
     """
     Run a QKD protocol for a single player, independently measuring visibility.
 
@@ -45,7 +45,7 @@ def qkd_run(
 
     Returns
     -------
-    tuple[player_name, visibility]
+    visibility
     """
     if player is None:
         player = devices.qd.add_player()
@@ -96,7 +96,7 @@ def qkd_run(
     devices.qd.remove_player(player)
     player = None
 
-    return player, visibility
+    return visibility
 
 
 if __name__ == "__main__":

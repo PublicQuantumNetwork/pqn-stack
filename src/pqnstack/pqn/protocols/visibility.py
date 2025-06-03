@@ -63,19 +63,15 @@ def calculate_visibility(
     coincidence_counts: dict[tuple[str, str], int],
     pairs: list[tuple[str, str]],
 ) -> tuple[float, float]:
-    c_max = max(coincidence_counts[pair] for pair in pairs)
-    c_min = min(coincidence_counts[pair] for pair in pairs)
-    c_err = calculate_visibility_error(c_min, c_max)
-    if c_max + c_min == 0:
-        return 0.0, c_err
-    return (c_max - c_min) / (c_max + c_min), c_err
+    c_values = [coincidence_counts[pair] for pair in pairs]
+    c_max, c_min = max(c_values), min(c_values)
 
-
-def calculate_visibility_error(c_min: int, c_max: int) -> float:
     denominator = (c_max + c_min) ** 2
     if denominator == 0:
-        return 0.0
-    return 2 * math.sqrt((c_min**2) * c_max + (c_max**2) * c_min) / denominator
+        return 0.0, 0.0
+
+    c_err = 2 * math.sqrt((c_min**2) * c_max + (c_max**2) * c_min) / denominator
+    return (c_max - c_min) / (c_max + c_min), c_err
 
 
 """

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 
 [project]
-name = "app"
+name = "pqnstack"
 version = "0.3.0"
 description = "Software for the Public Quantum Network."
 readme = "README.md"

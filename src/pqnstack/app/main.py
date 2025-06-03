@@ -1,9 +1,11 @@
 import logging
 import secrets
 from collections.abc import Generator
+from contextlib import asynccontextmanager
 from functools import lru_cache
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated
+from typing import Any
 from typing import Literal
 
 import httpx
@@ -15,9 +17,12 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
-from pydantic_settings import BaseSettings
+from pydantic import Field
 from pydantic_settings import SettingsConfigDict
 from starlette.templating import _TemplateResponse
+
+from pqnstack.base.instrument import Instrument
+from pqnstack.network.client import Client
 
 logger = logging.getLogger("__file__")
 
@@ -37,18 +42,13 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Public Quantum Network"
 
 
-@lru_cache
-def get_settings() -> Settings:
-    return Settings()
-
-
-settings = get_settings()
-SettingsDep = Annotated[Settings, Depends(get_settings)]
+settings = Settings()
 
 
 class NodeState(BaseModel):
     waveplates_available: bool = False
     chsh_basis: list[float] = [0, 45]
+    instruments: dict[str, Instrument] = Field(default_factory=dict)
 
 
 _state = NodeState()
@@ -61,9 +61,22 @@ def get_state() -> NodeState:
 StateDep = Annotated[NodeState, Depends(get_state)]
 
 
-app = FastAPI(
-    title=settings.PROJECT_NAME,
-)
+def get_pqn_client() -> Client:
+    return Client(host="127.0.0.1", port=5556, router_name="pqnstack-router")
+
+
+PQNClientDep = Annotated[Client, Depends(get_pqn_client)]
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> Generator[None, Any]:
+    client = get_pqn_client()
+    instruments = client.get_available_devices("pqnstack-node")
+    _state.instruments = {name: client.get_device("pqnstack-node", name) for name in instruments}
+    yield
+
+
+app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=f"{Path(__file__).parent}/static"), name="static")
 
 
@@ -78,13 +91,13 @@ jinja_partials.register_starlette_extensions(templates)
 
 
 @app.get("/", response_class=HTMLResponse)
-def root(request: Request, templates: TemplatesDep, settings: SettingsDep) -> _TemplateResponse:
+def root(request: Request, templates: TemplatesDep) -> _TemplateResponse:
     ctx = {"protocols": ["chsh", "qkd", "qpv"]}
     return templates.TemplateResponse(request=request, name="home/index.html", context=ctx)
 
 
 @app.get("/protocols/{name}", response_class=HTMLResponse)
-def protocol(name: str, request: Request, templates: TemplatesDep, settings: SettingsDep) -> _TemplateResponse:
+def protocol(name: str, request: Request, templates: TemplatesDep) -> _TemplateResponse:
     ctx = {"protocol_name": name, "description": f"a description of the {name} protocol"}
     return templates.TemplateResponse(request=request, name="home/protocols.html", context=ctx)
 
@@ -116,6 +129,16 @@ instruments = get_instruments()
 InstrumentDep = Annotated[set[str], Depends(get_instruments)]
 
 
+@app.get("/instruments")  # type: ignore[misc]
+def read_all_instruments(pqnclient: PQNClientDep) -> dict[str, str]:
+    return pqnclient.get_available_devices("pqnstack-node")
+
+
+@app.get("/instruments/info/{instrument_name}")  # type: ignore[misc]
+def read_instrument_info(instrument_name: str, pqnclient: PQNClientDep) -> dict[str, str]:
+    return pqnclient.get_available_devices("pqnstack-node")
+
+
 async def get_http_client() -> Generator[httpx.AsyncClient]:
     async with httpx.AsyncClient() as client:
         yield client
@@ -124,7 +147,7 @@ async def get_http_client() -> Generator[httpx.AsyncClient]:
 ClientDep = Annotated[httpx.AsyncClient, Depends(get_http_client)]
 
 
-@app.get("/chsh")
+@app.get("/chsh")  # type: ignore[misc]
 # async def chsh(basis, other_node, measurement_config, local_instruments: InstrumentDep, client: ClientDep):  # type: ignore[no-untyped-def]
 async def chsh(a1: float, a2: float, other_node, client: ClientDep):  # type: ignore[no-untyped-def]
     """We assume the party with the timetagger runs this function."""

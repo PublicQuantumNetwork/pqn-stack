@@ -30,8 +30,8 @@ def _verify_instruments_config(instruments: list[dict[str, str]]) -> dict[str, d
         if "desc" not in item:
             msg = f"Instrument number #{i + 1} configuration is missing the field 'desc'"
             raise InvalidNetworkConfigurationError(msg)
-        if "address" not in item:
-            msg = f"Instrument number #{i + 1} configuration is missing the field 'address'"
+        if "hw_address" not in item:
+            msg = f"Instrument number #{i + 1} configuration is missing the field 'hw_address'"
             raise InvalidNetworkConfigurationError(msg)
 
         name = item.pop("name")

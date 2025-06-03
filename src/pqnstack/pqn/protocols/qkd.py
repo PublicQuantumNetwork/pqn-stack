@@ -33,8 +33,6 @@ def qkd_run(
         Predefined measurement basis (e.g., HV_BASIS, DA_BASIS, RL_BASIS).
     config : MeasurementConfig
         the config for the measurement
-    player : str | None
-        Optional player name. If None, a new slot will be assigned.
 
     Returns
     -------
@@ -51,7 +49,7 @@ def qkd_run(
 
     player_motors = devices.qd.get_motors(player)
     motors: dict[str, RotatorDevice] = {
-        motor_name: cast(RotatorDevice, devices.client.get_device(info["location"], info["name"]))
+        motor_name: cast("RotatorDevice", devices.client.get_device(info["location"], info["name"]))
         for motor_name, info in player_motors.items()
     }
     coincidence_counts: dict[tuple[str, str], int] = {}

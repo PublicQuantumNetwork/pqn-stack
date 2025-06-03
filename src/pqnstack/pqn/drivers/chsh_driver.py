@@ -85,5 +85,5 @@ class CHSHDevice(DeviceDriver):
 
         self.queue_length -= 1
 
-        kwargs = cast(dict[str, Any], request["kwargs"])
+        kwargs = cast("dict[str, Any]", request["kwargs"])
         return measure_chsh(**kwargs)

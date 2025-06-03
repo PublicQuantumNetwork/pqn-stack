@@ -89,13 +89,13 @@ class DummyInstrument(DeviceDriver):
 
     @log_operation
     def double_int(self) -> int:
-        self.param_int *= 2
-        return self.param_int
+        self._param_int *= 2
+        return self._param_int
 
     @log_operation
     def set_half_input_int(self, value: int) -> int:
-        self.param_int = value // 2
-        return self.param_int
+        self._param_int = value // 2
+        return self._param_int
 
     @log_operation
     def lowercase_str(self) -> str:

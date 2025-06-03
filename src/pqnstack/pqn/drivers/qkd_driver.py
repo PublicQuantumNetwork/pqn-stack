@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 from typing import cast
 
 from pqnstack.base.driver import DeviceClass
@@ -7,7 +8,9 @@ from pqnstack.base.driver import DeviceInfo
 from pqnstack.base.driver import log_operation
 from pqnstack.base.errors import DeviceNotStartedError
 from pqnstack.network.client import Client
-from pqnstack.pqn.drivers.timetagger import TimeTaggerDevice
+
+if TYPE_CHECKING:
+    from pqnstack.pqn.drivers.timetagger import TimeTaggerDevice
 
 
 @dataclass
@@ -66,7 +69,7 @@ class QKDDevice(DeviceDriver):
 
     @log_operation
     def _set_tagger(self, tagger: dict[str, str]) -> None:
-        self._tagger = cast(TimeTaggerDevice, self._client.get_device(tagger["location"], tagger["name"]))
+        self._tagger = cast("TimeTaggerDevice", self._client.get_device(tagger["location"], tagger["name"]))
 
     @log_operation
     def add_player(self) -> str:

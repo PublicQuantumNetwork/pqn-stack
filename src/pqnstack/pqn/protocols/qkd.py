@@ -8,6 +8,7 @@ from pqnstack.pqn.drivers.rotator import DEFAULT_SETTINGS
 from pqnstack.pqn.drivers.rotator import HV_BASIS
 from pqnstack.pqn.drivers.rotator import MeasurementBasis
 from pqnstack.pqn.drivers.rotator import RotatorDevice
+from pqnstack.pqn.drivers.timetagger import MeasurementConfig
 from pqnstack.pqn.protocols.visibility import calculate_visibility
 
 
@@ -19,39 +20,30 @@ class Devices:
 
 def qkd_run(
     devices: Devices,
+    config: MeasurementConfig,
     basis: MeasurementBasis = HV_BASIS,
-    measure_time: float = 10.0,
-    player: str | None = None,
-) -> float:
+) -> tuple[float, float]:
     """
     Run a QKD protocol for a single player, independently measuring visibility.
 
     Parameters
     ----------
-    qd : ProxyInstrument
-        QKD Device instance.
-    client : Client
-        Network client instance.
+    devices: Devices
     basis : MeasurementBasis
         Predefined measurement basis (e.g., HV_BASIS, DA_BASIS, RL_BASIS).
-    custom_settings : dict[str, tuple[float, float]] | None
-        Optional overrides for default HWP/QWP settings. Keys must be state names.
-    measure_time : float
-        Time to wait (in seconds) for motor settling before each measurement.
+    config : MeasurementConfig
+        the config for the measurement
     player : str | None
         Optional player name. If None, a new slot will be assigned.
-    final : bool
-        If True, the player will be removed from the QKD device after measurement.
 
     Returns
     -------
     visibility
     """
-    if player is None:
-        player = devices.qd.add_player()
-        if not player:
-            msg = "No available player slots in QKD device."
-            raise RuntimeError(msg)
+    player = devices.qd.add_player()
+    if not player:
+        msg = "No available player slots in QKD device."
+        raise RuntimeError(msg)
 
     settings = DEFAULT_SETTINGS
 
@@ -81,7 +73,7 @@ def qkd_run(
         if qwp_key in motors:
             motors[qwp_key].move_to(qwp_angle)
 
-        sleep(measure_time)
+        sleep(config.duration)
 
         devices.qd.submit(player)
 
@@ -91,12 +83,11 @@ def qkd_run(
 
         coincidence_counts[(state1, state2)] = counts
 
-    visibility, _ = calculate_visibility(coincidence_counts, basis.pairs)
+    visibility, error = calculate_visibility(coincidence_counts, basis.pairs)
 
     devices.qd.remove_player(player)
-    player = None
 
-    return visibility
+    return visibility, error
 
 
 if __name__ == "__main__":

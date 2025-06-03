@@ -62,8 +62,9 @@ def get_state() -> NodeState:
 StateDep = Annotated[NodeState, Depends(get_state)]
 
 
-def get_pqn_client() -> Client:
-    return Client(host="127.0.0.1", port=5556, router_name="pqnstack-router")
+def get_pqn_client() -> Any:
+    # return Client(host="127.0.0.1", port=5556, router_name="pqnstack-router")
+    pass
 
 
 PQNClientDep = Annotated[Client, Depends(get_pqn_client)]
@@ -71,9 +72,9 @@ PQNClientDep = Annotated[Client, Depends(get_pqn_client)]
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> Generator[None, Any]:
-    client = get_pqn_client()
-    instruments = client.get_available_devices("pqnstack-node")
-    _state.instruments = {name: client.get_device("pqnstack-node", name) for name in instruments}
+    # client = get_pqn_client()
+    # instruments = client.get_available_devices("pqnstack-node")
+    # _state.instruments = {name: client.get_device("pqnstack-node", name) for name in instruments}
     yield
 
 
@@ -126,23 +127,25 @@ def get_instruments() -> set[str]:
     return {"hwp", "qwp", "ttag"}
 
 
-instruments = get_instruments()
+# instruments = get_instruments()
 InstrumentDep = Annotated[set[str], Depends(get_instruments)]
 
 
 @app.get("/instruments")  # type: ignore[misc]
 def read_all_instruments(pqnclient: PQNClientDep) -> dict[str, str]:
-    return pqnclient.get_available_devices("pqnstack-node")
-
+    # return pqnclient.get_available_devices("pqnstack-node")
+    pass
 
 @app.get("/instruments/info/{instrument_name}")  # type: ignore[misc]
 def read_instrument_info(instrument_name: str, pqnclient: PQNClientDep) -> dict[str, str]:
-    return pqnclient.get_available_devices("pqnstack-node")
+    # return pqnclient.get_available_devices("pqnstack-node")
+    pass
 
 
 async def get_http_client() -> Generator[httpx.AsyncClient]:
-    async with httpx.AsyncClient() as client:
-        yield client
+    # async with httpx.AsyncClient() as client:
+    #     yield client
+    pass
 
 
 ClientDep = Annotated[httpx.AsyncClient, Depends(get_http_client)]

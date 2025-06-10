@@ -4,7 +4,7 @@ from time import sleep
 
 import numpy as np
 
-from pqnstack.pqn.driver.rotator import RotatorDevice
+from pqnstack.pqn.drivers.rotator import RotatorDevice
 from pqnstack.pqn.drivers.timetagger import MeasurementConfig
 from pqnstack.pqn.drivers.timetagger import TimeTaggerDevice
 

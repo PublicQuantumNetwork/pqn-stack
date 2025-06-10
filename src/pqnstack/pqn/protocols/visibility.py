@@ -3,13 +3,12 @@ import time
 
 from pqnstack.pqn.drivers.rotator import MeasurementBasis
 from pqnstack.pqn.drivers.rotator import RotatorDevice
-from pqnstack.pqn.drivers.timetagger import MeasurementConfig
-from pqnstack.pqn.drivers.timetagger import TimeTaggerDevice
-
+from pqnstack.pqn.protocols.measurement import MeasurementConfig
+from typing import Any
 
 class Devices:
     motors: dict[str, RotatorDevice]
-    tagger: TimeTaggerDevice
+    tagger: Any
 
 
 def measure_visibility(

@@ -2,6 +2,7 @@
 
 import json
 import threading
+from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler
 from http.server import HTTPServer
 from typing import TYPE_CHECKING
@@ -13,10 +14,10 @@ from pqnstack.pqn.drivers.polarimeter import Polarimeter
 from pqnstack.pqn.drivers.rotator import DA_BASIS
 from pqnstack.pqn.drivers.rotator import HV_BASIS
 from pqnstack.pqn.drivers.rotator import MeasurementBasis
-from pqnstack.pqn.drivers.timetagger import MeasurementConfig
+from pqnstack.pqn.protocols.measurement import MeasurementConfig
 from pqnstack.pqn.protocols.qkd import Devices as QkdDevices
 from pqnstack.pqn.protocols.qkd import qkd_run
-from pqnstack.pqn.protocols.qrng import pqxor_random
+from pqnstack.pqn.protocols.qrng import pq_random
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -30,13 +31,12 @@ PARITY_THRESHOLD: float = 0.6
 MIN_COLLECTED_VALUES: int = 6
 
 
+@dataclass
 class PolarimeterServerState:
-    def __init__(self) -> None:
-        self.theta_value: float = 0.0
-        self.angle1: float = 0.0
-        self.angle2: float = 0.0
-        self.parity_agreement: float | None = None
-        self.lock: threading.Lock = threading.Lock()
+    theta: float = 0.0
+    angle1: float = 0.0
+    angle2: float = 0.0
+    parity_agreement: float = 0.0
 
 
 class PolarimeterRequestHandler(BaseHTTPRequestHandler):
@@ -51,7 +51,7 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
         self.polarimeter = polarimeter
         super().__init__(*args, **kwargs)
 
-    def do_options(self) -> None:
+    def do_OPTIONS(self) -> None:  # noqa: N802
         self.send_response(200)
         self.send_header("Access-Control-Allow-Origin", ALLOW_HEADER)
         self.send_header("Access-Control-Allow-Methods", "GET, POST, HEAD, OPTIONS")
@@ -61,7 +61,7 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
         )
         self.end_headers()
 
-    def do_get(self) -> None:
+    def do_GET(self) -> None:  # noqa: N802
         status: int = 200
         content_type: str = "text/plain"
         response_content: str
@@ -72,13 +72,12 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
                     m = self.polarimeter.read()
                     response_content = f"{-m.theta:.2f}"
                 except (OSError, AttributeError):
-                    response_content = f"{self.server_state.theta_value:.2f}"
+                    response_content = f"{self.server_state.theta:.2f}"
             else:
-                response_content = f"{self.server_state.theta_value:.2f}"
+                response_content = f"{self.server_state.theta:.2f}"
 
         elif self.path == "/parity/agreement":
-            with self.server_state.lock:
-                payload = {"parity_agreement": self.server_state.parity_agreement}
+            payload = {"parity_agreement": self.server_state.parity_agreement}
             response_content = json.dumps(payload)
             content_type = "application/json"
 
@@ -93,7 +92,7 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(response_content.encode("utf-8"))
 
-    def do_post(self) -> None:
+    def do_POST(self) -> None:  # noqa: N802
         status: int = 200
         content_type: str = "text/plain"
         response_content: str = ""
@@ -116,8 +115,8 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
             except json.JSONDecodeError:
                 status = 400
                 response_content = "Invalid JSON data"
-            except Exception: # noqa: BLE001
-                status = 500 # TODO: Log Exception
+            except Exception:  # noqa: BLE001
+                status = 500  # TODO: Log Exception
                 response_content = ""
         else:
             status = 404
@@ -173,9 +172,9 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
         client = Client(host="172.30.63.109", timeout=30000)
         timetagger = client.get_device("mini_pc", "tagger")
         try:
-            number = pqxor_random(6, input_str=user_str, tagger=timetagger)
+            number = pq_random(6, input_str=user_str, tagger=timetagger)
         except ValueError:
-            number = pqxor_random(6, input_str=user_str)
+            number = pq_random(6, input_str=user_str)
         payload = {"number": number}
         return 200, "application/json", json.dumps(payload)
 
@@ -206,8 +205,7 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
         return 200, "application/json", json.dumps(payload)
 
     def _handle_parity_done(self) -> tuple[int, str, str]:
-        with self.server_state.lock:
-            self.server_state.parity_agreement = None
+        self.server_state.parity_agreement = 0
         return 200, "text/plain", ""
 
 
@@ -218,6 +216,7 @@ def create_request_handler(
     class CustomHandler(PolarimeterRequestHandler):
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             super().__init__(*args, server_state=server_state, polarimeter=polarimeter, **kwargs)
+
     return CustomHandler
 
 
@@ -225,7 +224,7 @@ def update_theta(server_state: PolarimeterServerState) -> None:
     while True:
         try:
             new_value = input("\nEnter new theta value: ")
-            server_state.theta_value = float(new_value)
+            server_state.theta = float(new_value)
         except ValueError:
             continue
 
@@ -234,8 +233,8 @@ if __name__ == "__main__":
     state = PolarimeterServerState()
     try:
         polarimeter = ArduinoPolarimeter()
-    except Exception: # noqa: BLE001
-        polarimeter = None # TODO: Log Exception
+    except Exception:  # noqa: BLE001
+        polarimeter = None  # TODO: Log Exception
 
     input_thread = threading.Thread(target=update_theta, args=(state,), daemon=True)
     input_thread.start()
@@ -246,4 +245,3 @@ if __name__ == "__main__":
         httpd.serve_forever()
     except KeyboardInterrupt:
         httpd.shutdown()
-

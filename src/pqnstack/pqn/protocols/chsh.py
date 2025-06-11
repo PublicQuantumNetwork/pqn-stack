@@ -12,18 +12,10 @@ from pqnstack.pqn.drivers.timetagger import TimeTaggerDevice
 @dataclass
 class Devices:
     idler_hwp: RotatorDevice
-    idler_qwp: RotatorDevice
     signal_hwp: RotatorDevice
-    signal_qwp: RotatorDevice
+    idler_qwp: RotatorDevice | None
+    signal_qwp: RotatorDevice | None
     timetagger: TimeTaggerDevice
-
-
-@dataclass
-class Angles:
-    idler_hwp: float
-    idler_qwp: float
-    signal_hwp: float
-    signal_qwp: float
 
 
 def calculate_chsh_expectation_error(counts: list[int], dark_count: int = 0) -> float:
@@ -69,9 +61,11 @@ def measure_expectation_value(
     for angle_idler in angles_idler:
         for angle_signal in angles_signal:
             devices.idler_hwp.move_to(angle_idler[0])
-            devices.idler_qwp.move_to(angle_idler[1])
             devices.signal_hwp.move_to(angle_signal[0])
-            devices.signal_qwp.move_to(angle_signal[1])
+            if devices.idler_qwp is not None:
+                devices.idler_qwp.move_to(angle_idler[1])
+            if devices.signal_qwp is not None:
+                devices.signal_qwp.move_to(angle_signal[1])
             sleep(2)
             counts = devices.timetagger.measure_coincidence(
                 config.channel1, config.channel2, int(config.binwidth), int(config.duration * 1e12)

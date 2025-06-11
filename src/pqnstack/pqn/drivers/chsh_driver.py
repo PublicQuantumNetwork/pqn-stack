@@ -1,8 +1,5 @@
 import logging
-import threading
 from dataclasses import dataclass
-from typing import Any
-from typing import cast
 
 from pqnstack.base.driver import DeviceClass
 from pqnstack.base.driver import DeviceDriver
@@ -10,10 +7,10 @@ from pqnstack.base.driver import DeviceInfo
 from pqnstack.base.driver import DeviceStatus
 from pqnstack.base.driver import log_operation
 from pqnstack.network.client import Client
-from pqnstack.pqn.protocols.measurement import MeasurementConfig
 from pqnstack.pqn.protocols.chsh import CHSHValue
 from pqnstack.pqn.protocols.chsh import Devices
 from pqnstack.pqn.protocols.chsh import measure_chsh
+from pqnstack.pqn.protocols.measurement import MeasurementConfig
 
 logger = logging.getLogger(__name__)
 
@@ -69,21 +66,21 @@ class CHSHDevice(DeviceDriver):
         )
 
     @log_operation
-    def measure_chsh(
-        self, basis1: list[float], basis2: list[float], devices: Devices, config: MeasurementConfig
-    ) -> CHSHValue:
-        result_holder = {"success": False, "value": None}
-
+    def measure_chsh(self, basis1: list[float], basis2: list[float], config: MeasurementConfig) -> CHSHValue:
         self.queue_length += 1
-
-        done_event = threading.Event()
-        request = {
-            "kwargs": {"basis1": basis1, "basis2": basis2, "devices": devices, "config": config},
-            "done_event": done_event,
-            "result_holder": result_holder,
-        }
-
-        self.queue_length -= 1
-
-        kwargs = cast("dict[str, Any]", request["kwargs"])
-        return measure_chsh(**kwargs)
+        try:
+            devices = Devices(
+                idler_hwp=self.motors["idler_hwp"],
+                idler_qwp=self.motors.get("idler_qwp"),
+                signal_hwp=self.motors["signal_hwp"],
+                signal_qwp=self.motors.get("signal_qwp"),
+                timetagger=self.tagger,
+            )
+            return measure_chsh(
+                basis1=basis1,
+                basis2=basis2,
+                devices=devices,
+                config=config,
+            )
+        finally:
+            self.queue_length -= 1

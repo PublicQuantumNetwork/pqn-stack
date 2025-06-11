@@ -1,5 +1,6 @@
 from typing import Any
 
+
 def pq_random(n: int, tagger: Any, input_str: str | None = None) -> int:
     if input_str is not None:
         if not all(c in "01" for c in input_str):

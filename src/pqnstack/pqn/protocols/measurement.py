@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+
 @dataclass
 class MeasurementConfig:
     duration: int  # in picoseconds
@@ -7,6 +8,7 @@ class MeasurementConfig:
     channel1: int = 1
     channel2: int = 2
     dark_count: int = 0
+
 
 @dataclass(frozen=True)
 class MeasurementBasis:

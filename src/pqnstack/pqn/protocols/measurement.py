@@ -21,6 +21,7 @@ class ExpectationValue:
     error: float
     value: float
 
+
 @dataclass
 class CHSHValue:
     timestamp: str

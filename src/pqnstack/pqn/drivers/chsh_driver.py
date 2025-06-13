@@ -7,9 +7,9 @@ from pqnstack.base.driver import DeviceInfo
 from pqnstack.base.driver import DeviceStatus
 from pqnstack.base.driver import log_operation
 from pqnstack.network.client import Client
-from pqnstack.pqn.protocols.chsh import CHSHValue
 from pqnstack.pqn.protocols.chsh import Devices
 from pqnstack.pqn.protocols.chsh import measure_chsh
+from pqnstack.pqn.protocols.measurement import CHSHValue
 from pqnstack.pqn.protocols.measurement import MeasurementConfig
 
 logger = logging.getLogger(__name__)

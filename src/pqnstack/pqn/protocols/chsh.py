@@ -4,20 +4,19 @@ from time import sleep
 
 import numpy as np
 
-from pqnstack.pqn.drivers.rotator import RotatorDevice
-from pqnstack.pqn.drivers.timetagger import MeasurementConfig
-from pqnstack.pqn.drivers.timetagger import TimeTaggerDevice
+from pqnstack.pqn.base.driver import DeviceDriver
 from pqnstack.pqn.protocols.measurement import CHSHValue
 from pqnstack.pqn.protocols.measurement import ExpectationValue
+from pqnstack.pqn.protocols.measurement import MeasurementConfig
 
 
 @dataclass
 class Devices:
-    idler_hwp: RotatorDevice
-    signal_hwp: RotatorDevice
-    idler_qwp: RotatorDevice | None
-    signal_qwp: RotatorDevice | None
-    timetagger: TimeTaggerDevice
+    idler_hwp: DeviceDriver
+    signal_hwp: DeviceDriver
+    idler_qwp: DeviceDriver | None
+    signal_qwp: DeviceDriver | None
+    timetagger: DeviceDriver
 
 
 def calculate_chsh_expectation_error(counts: list[int], dark_count: int = 0) -> float:

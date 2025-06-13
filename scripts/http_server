@@ -1,0 +1,248 @@
+#!/usr/bin/env python
+
+import json
+import threading
+from dataclasses import dataclass
+from http.server import BaseHTTPRequestHandler
+from http.server import HTTPServer
+from typing import TYPE_CHECKING
+from typing import Any
+
+from pqnstack.network.client import Client
+from pqnstack.pqn.drivers.polarimeter import ArduinoPolarimeter
+from pqnstack.pqn.drivers.polarimeter import Polarimeter
+from pqnstack.pqn.drivers.rotator import DA_BASIS
+from pqnstack.pqn.drivers.rotator import HV_BASIS
+from pqnstack.pqn.drivers.rotator import MeasurementBasis
+from pqnstack.pqn.protocols.measurement import MeasurementConfig
+from pqnstack.pqn.protocols.qkd import Devices as QkdDevices
+from pqnstack.pqn.protocols.qkd import qkd_run
+from pqnstack.pqn.protocols.qrng import pq_random
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+HOST = "127.0.0.1"
+PORT = 8000
+ADDRESS: tuple[str, int] = (HOST, PORT)
+ALLOW_HEADER = "*"
+
+PARITY_THRESHOLD: float = 0.6
+MIN_COLLECTED_VALUES: int = 6
+CLIENT_TIMEOUT: int = 600000
+
+
+@dataclass
+class PolarimeterServerState:
+    theta: float = 0.0
+    angle1: float = 0.0
+    angle2: float = 0.0
+    parity_agreement: float = 0.0
+
+
+class PolarimeterRequestHandler(BaseHTTPRequestHandler):
+    def __init__(
+        self,
+        *args: Any,
+        server_state: PolarimeterServerState,
+        polarimeter: Polarimeter | None,
+        **kwargs: Any,
+    ) -> None:
+        self.server_state = server_state
+        self.polarimeter = polarimeter
+        super().__init__(*args, **kwargs)
+
+    def do_OPTIONS(self) -> None:  # noqa: N802
+        self.send_response(200)
+        self.send_header("Access-Control-Allow-Origin", ALLOW_HEADER)
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, HEAD, OPTIONS")
+        self.send_header(
+            "Access-Control-Allow-Headers",
+            "Content-Type, Cache-Control, Authorization",
+        )
+        self.end_headers()
+
+    def do_GET(self) -> None:  # noqa: N802
+        status: int = 200
+        content_type: str = "text/plain"
+        response_content: str
+
+        if self.path == "/polarimeter/theta":
+            if self.polarimeter:
+                try:
+                    m = self.polarimeter.read()
+                    response_content = f"{-m.theta:.2f}"
+                except (OSError, AttributeError):
+                    response_content = f"{self.server_state.theta:.2f}"
+            else:
+                response_content = f"{self.server_state.theta:.2f}"
+
+        elif self.path == "/parity/agreement":
+            payload = {"parity_agreement": self.server_state.parity_agreement}
+            response_content = json.dumps(payload)
+            content_type = "application/json"
+
+        else:
+            status = 404
+            response_content = ""
+
+        self.send_response(status)
+        self.send_header("Access-Control-Allow-Origin", ALLOW_HEADER)
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Type", content_type)
+        self.end_headers()
+        self.wfile.write(response_content.encode("utf-8"))
+
+    def do_POST(self) -> None:  # noqa: N802
+        status: int = 200
+        content_type: str = "text/plain"
+        response_content: str = ""
+
+        handlers: dict[str, Callable[[], tuple[int, str, str]]] = {
+            "/polarimeter/start_normalizing": self._handle_start_normalizing,
+            "/polarimeter/stop_normalizing": self._handle_stop_normalizing,
+            "/chsh/set_angle1": self._handle_set_angle1,
+            "/chsh/set_angle2": self._handle_set_angle2,
+            "/rng/user_input": self._handle_rng_user_input,
+            "/qkd/basis": self._handle_qkd_basis,
+            "/parity/basis": self._handle_parity_basis,
+            "/parity/done": self._handle_parity_done,
+        }
+
+        handler = handlers.get(self.path)
+        if handler:
+            try:
+                status, content_type, response_content = handler()
+            except json.JSONDecodeError:
+                status = 400
+                response_content = "Invalid JSON data"
+            except Exception:  # noqa: BLE001
+                status = 500  # TODO: Log Exception
+                response_content = ""
+        else:
+            status = 404
+
+        self.send_response(status)
+        self.send_header("Access-Control-Allow-Origin", ALLOW_HEADER)
+        self.send_header("Content-Type", content_type)
+        self.end_headers()
+        self.wfile.write(response_content.encode("utf-8"))
+
+    def _read_json(self) -> Any:
+        length = int(self.headers.get("Content-Length", "0"))
+        raw = self.rfile.read(length).decode("utf-8")
+        return json.loads(raw)
+
+    def _handle_start_normalizing(self) -> tuple[int, str, str]:
+        if self.polarimeter:
+            self.polarimeter.start_normalizing()
+        return 200, "text/plain", ""
+
+    def _handle_stop_normalizing(self) -> tuple[int, str, str]:
+        if self.polarimeter:
+            self.polarimeter.stop_normalizing()
+        return 200, "text/plain", ""
+
+    def _handle_set_angle1(self) -> tuple[int, str, str]:
+        data = self._read_json()
+        self.server_state.angle1 = float(data.get("option", 0.0))
+        return 200, "text/plain", ""
+
+    def _handle_set_angle2(self) -> tuple[int, str, str]:
+        data = self._read_json()
+        self.server_state.angle2 = float(data.get("option", 0.0))
+        client = Client(host="172.30.63.109", timeout=CLIENT_TIMEOUT)
+        cd = client.get_device("chsh_device", "cd")
+        user_basis = abs(self.server_state.angle1 - self.server_state.angle2) % 90 / 2
+        result = cd.measure_chsh(
+            basis1=[0, 45],
+            basis2=[user_basis, user_basis + 45],
+            config=MeasurementConfig(5),
+        )
+        payload = {
+            "chsh_value": f"{float(result['chsh_value']):.2f}",
+            "chsh_error": f"{float(result['chsh_error']):.2f}",
+        }
+        self.server_state.angle1 = 0.0
+        self.server_state.angle2 = 0.0
+        return 200, "application/json", json.dumps(payload)
+
+    def _handle_rng_user_input(self) -> tuple[int, str, str]:
+        data = self._read_json()
+        user_str = str(data.get("option", "10101010"))
+        client = Client(host="172.30.63.109", timeout=CLIENT_TIMEOUT)
+        timetagger = client.get_device("mini_pc", "tagger")
+        try:
+            number = pq_random(6, input_str=user_str, tagger=timetagger)
+        except ValueError:
+            number = pq_random(6, input_str=user_str)
+        payload = {"number": number}
+        return 200, "application/json", json.dumps(payload)
+
+    def _handle_qkd_basis(self) -> tuple[int, str, str]:
+        data = self._read_json()
+        option = int(data.get("option", 1))
+        basis: MeasurementBasis = HV_BASIS if option == 1 else DA_BASIS
+        client = Client(host="172.30.63.109", timeout=CLIENT_TIMEOUT)
+        qd = client.get_device("qkd_device", "qd")
+        devices = QkdDevices(qd=qd, client=client)
+        config = MeasurementConfig(duration=1)
+        visibility, _error = qkd_run(devices, config, basis=basis)
+        value = 1 if visibility > PARITY_THRESHOLD else 0
+        payload = {"value": value}
+        return 200, "application/json", json.dumps(payload)
+
+    def _handle_parity_basis(self) -> tuple[int, str, str]:
+        data = self._read_json()
+        option = int(data.get("option", 1))
+        basis: MeasurementBasis = HV_BASIS if option == 1 else DA_BASIS
+        client = Client(host="172.30.63.109", timeout=CLIENT_TIMEOUT)
+        qd = client.get_device("qkd_device", "qd")
+        devices = QkdDevices(qd=qd, client=client)
+        config = MeasurementConfig(duration=1)
+        visibility, _error = qkd_run(devices, config, basis=basis)
+        value = 1 if visibility > PARITY_THRESHOLD else 0
+        payload = {"value": value}
+        return 200, "application/json", json.dumps(payload)
+
+    def _handle_parity_done(self) -> tuple[int, str, str]:
+        self.server_state.parity_agreement = 0
+        return 200, "text/plain", ""
+
+
+def create_request_handler(
+    server_state: PolarimeterServerState,
+    polarimeter: Polarimeter | None,
+) -> type:
+    class CustomHandler(PolarimeterRequestHandler):
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            super().__init__(*args, server_state=server_state, polarimeter=polarimeter, **kwargs)
+
+    return CustomHandler
+
+
+def update_theta(server_state: PolarimeterServerState) -> None:
+    while True:
+        try:
+            new_value = input("\nEnter new theta value: ")
+            server_state.theta = float(new_value)
+        except ValueError:
+            continue
+
+
+if __name__ == "__main__":
+    state = PolarimeterServerState()
+    try:
+        polarimeter = ArduinoPolarimeter()
+    except Exception:  # noqa: BLE001
+        polarimeter = None  # TODO: Log Exception
+
+    input_thread = threading.Thread(target=update_theta, args=(state,), daemon=True)
+    input_thread.start()
+
+    handler_factory = create_request_handler(state, polarimeter)
+    httpd = HTTPServer(ADDRESS, handler_factory)
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        httpd.shutdown()

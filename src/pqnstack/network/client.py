@@ -146,13 +146,16 @@ class InstrumentClientInit(NamedTuple):
     host: str
     port: int
     router_name: str
+    timeout: int
     instrument_name: str
     node_name: str
 
 
 class InstrumentClient(ClientBase):
     def __init__(self, init_args: InstrumentClientInit) -> None:
-        super().__init__(init_args.name, init_args.host, init_args.port, init_args.router_name)
+        super().__init__(
+            init_args.name, init_args.host, init_args.port, init_args.router_name, timeout=init_args.timeout
+        )
 
         self.instrument_name = init_args.instrument_name
         self.node_name = init_args.node_name
@@ -190,6 +193,7 @@ class ProxyInstrumentInit(NamedTuple):
     port: int
     router_name: str
     instrument_name: str
+    timeout: int
     node_name: str
     desc: str
     address: str
@@ -210,6 +214,7 @@ class ProxyInstrument(DeviceDriver):
 
         self.host = init_args.host
         self.port = init_args.port
+        self.timeout = init_args.timeout
 
         self.parameters = init_args.parameters
         self.operations = init_args.operations
@@ -229,6 +234,7 @@ class ProxyInstrument(DeviceDriver):
             host=self.host,
             port=self.port,
             router_name=self.router_name,
+            timeout=self.timeout,
             instrument_name=self.name,
             node_name=self.node_name,
         )
@@ -301,6 +307,7 @@ class Client(ClientBase):
             host=self.host,
             port=self.port,
             router_name=self.router_name,
+            timeout=self.timeout,
             instrument_name=response.payload["name"],
             node_name=node_name,
             parameters=set(response.payload["parameters"]),

@@ -8,7 +8,7 @@ from pqnstack.pqn.drivers.rotator import DEFAULT_SETTINGS
 from pqnstack.pqn.drivers.rotator import HV_BASIS
 from pqnstack.pqn.drivers.rotator import MeasurementBasis
 from pqnstack.pqn.drivers.rotator import RotatorDevice
-from pqnstack.pqn.drivers.timetagger import MeasurementConfig
+from pqnstack.pqn.protocols.measurement import MeasurementConfig
 from pqnstack.pqn.protocols.visibility import calculate_visibility
 
 

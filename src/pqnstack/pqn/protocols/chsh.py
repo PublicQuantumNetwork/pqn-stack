@@ -1,59 +1,39 @@
 import datetime
+import math
 from dataclasses import dataclass
 from time import sleep
 
-import numpy as np
-
-from pqnstack.pqn.driver.rotator import RotatorDevice
-from pqnstack.pqn.drivers.timetagger import MeasurementConfig
+from pqnstack.pqn.drivers.rotator import RotatorDevice
 from pqnstack.pqn.drivers.timetagger import TimeTaggerDevice
+from pqnstack.pqn.protocols.measurement import CHSHValue
+from pqnstack.pqn.protocols.measurement import ExpectationValue
+from pqnstack.pqn.protocols.measurement import MeasurementConfig
 
 
 @dataclass
 class Devices:
     idler_hwp: RotatorDevice
-    idler_qwp: RotatorDevice
     signal_hwp: RotatorDevice
-    signal_qwp: RotatorDevice
+    idler_qwp: RotatorDevice | None
+    signal_qwp: RotatorDevice | None
     timetagger: TimeTaggerDevice
-
-
-@dataclass
-class Angles:
-    idler_hwp: float
-    idler_qwp: float
-    signal_hwp: float
-    signal_qwp: float
 
 
 def calculate_chsh_expectation_error(counts: list[int], dark_count: int = 0) -> float:
     total_counts = sum(counts)
     corrected_total = total_counts - 4 * dark_count
-    sqrt_total_counts = np.sqrt(total_counts)
-    first_term = sqrt_total_counts / corrected_total
+    first_term = math.sqrt(total_counts) / corrected_total
     expectation = abs(counts[0] + counts[3] - counts[1] - counts[2])
-    second_term = (expectation / corrected_total**2) * np.sqrt(total_counts + 4 * dark_count)
-    return float(first_term + second_term)
+    second_term = (expectation / corrected_total**2) * math.sqrt(total_counts + 4 * dark_count)
+    return first_term + second_term
 
 
 def calculate_chsh_error(error_values: list[float]) -> float:
-    return float(np.sqrt(sum(x**2 for x in error_values)))
+    return math.sqrt(sum(x**2 for x in error_values))
 
 
 def basis_to_wp(basis: float) -> list[float]:
     return [basis / 2, 0.0]  # TODO: Make input a complex number and have the quarter waveplate angle calculated from it
-
-
-@dataclass
-class ExpectationValue:
-    timestamp: str
-    input_base1: float
-    input_base2: float
-    idler_wp_angles: list[list[float]]
-    signal_wp_angles: list[list[float]]
-    raw_counts: list[int]
-    error: float
-    value: float
 
 
 def measure_expectation_value(
@@ -69,9 +49,11 @@ def measure_expectation_value(
     for angle_idler in angles_idler:
         for angle_signal in angles_signal:
             devices.idler_hwp.move_to(angle_idler[0])
-            devices.idler_qwp.move_to(angle_idler[1])
             devices.signal_hwp.move_to(angle_signal[0])
-            devices.signal_qwp.move_to(angle_signal[1])
+            if devices.idler_qwp is not None:
+                devices.idler_qwp.move_to(angle_idler[1])
+            if devices.signal_qwp is not None:
+                devices.signal_qwp.move_to(angle_signal[1])
             sleep(2)
             counts = devices.timetagger.measure_coincidence(
                 config.channel1, config.channel2, int(config.binwidth), int(config.duration * 1e12)
@@ -93,16 +75,6 @@ def measure_expectation_value(
         error=expectation_error,
         value=expectation_val,
     )
-
-
-@dataclass
-class CHSHValue:
-    timestamp: str
-    raw_results: list[ExpectationValue]
-    basis1: list[float]
-    basis2: list[float]
-    chsh_value: float
-    chsh_error: float
 
 
 def measure_chsh(basis1: list[float], basis2: list[float], devices: Devices, config: MeasurementConfig) -> CHSHValue:

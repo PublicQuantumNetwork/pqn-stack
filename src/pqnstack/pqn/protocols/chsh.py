@@ -7,6 +7,8 @@ import numpy as np
 from pqnstack.pqn.drivers.rotator import RotatorDevice
 from pqnstack.pqn.drivers.timetagger import MeasurementConfig
 from pqnstack.pqn.drivers.timetagger import TimeTaggerDevice
+from pqnstack.pqn.protocols.measurement import CHSHValue
+from pqnstack.pqn.protocols.measurement import ExpectationValue
 
 
 @dataclass
@@ -34,18 +36,6 @@ def calculate_chsh_error(error_values: list[float]) -> float:
 
 def basis_to_wp(basis: float) -> list[float]:
     return [basis / 2, 0.0]  # TODO: Make input a complex number and have the quarter waveplate angle calculated from it
-
-
-@dataclass
-class ExpectationValue:
-    timestamp: str
-    input_base1: float
-    input_base2: float
-    idler_wp_angles: list[list[float]]
-    signal_wp_angles: list[list[float]]
-    raw_counts: list[int]
-    error: float
-    value: float
 
 
 def measure_expectation_value(
@@ -87,16 +77,6 @@ def measure_expectation_value(
         error=expectation_error,
         value=expectation_val,
     )
-
-
-@dataclass
-class CHSHValue:
-    timestamp: str
-    raw_results: list[ExpectationValue]
-    basis1: list[float]
-    basis2: list[float]
-    chsh_value: float
-    chsh_error: float
 
 
 def measure_chsh(basis1: list[float], basis2: list[float], devices: Devices, config: MeasurementConfig) -> CHSHValue:

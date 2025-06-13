@@ -1,5 +1,7 @@
 import logging
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+from typing import cast
 
 from pqnstack.base.driver import DeviceClass
 from pqnstack.base.driver import DeviceDriver
@@ -13,6 +15,11 @@ from pqnstack.pqn.protocols.measurement import CHSHValue
 from pqnstack.pqn.protocols.measurement import MeasurementConfig
 
 logger = logging.getLogger(__name__)
+
+
+if TYPE_CHECKING:
+    from pqnstack.pqn.drivers.rotator import RotatorDevice
+    from pqnstack.pqn.drivers.timetagger import TimeTaggerDevice
 
 
 @dataclass
@@ -44,9 +51,13 @@ class CHSHDevice(DeviceDriver):
         self.desc = desc
         self.queue_length = 0
         self.c = Client(host="172.30.63.109", timeout=600000)
-        self.motors = {motor: self.c.get_device(values["location"], values["name"]) for motor, values in motors.items()}
-        self.tagger = self.c.get_device(tagger_config["location"], tagger_config["name"])
-
+        self.motors: dict[str, RotatorDevice] = {
+            motor: cast("RotatorDevice", self.c.get_device(values["location"], values["name"]))
+            for motor, values in motors.items()
+        }
+        self.tagger: TimeTaggerDevice = cast(
+            "TimeTaggerDevice", self.c.get_device(tagger_config["location"], tagger_config["name"])
+        )
         self.operations["measure_chsh"] = self.measure_chsh
 
     def start(self) -> None:

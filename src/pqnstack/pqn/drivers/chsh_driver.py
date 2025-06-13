@@ -79,19 +79,20 @@ class CHSHDevice(DeviceDriver):
     @log_operation
     def measure_chsh(self, basis1: list[float], basis2: list[float], config: MeasurementConfig) -> CHSHValue:
         self.queue_length += 1
-        try:
-            devices = Devices(
-                idler_hwp=self.motors["idler_hwp"],
-                idler_qwp=self.motors.get("idler_qwp"),
-                signal_hwp=self.motors["signal_hwp"],
-                signal_qwp=self.motors.get("signal_qwp"),
-                timetagger=self.tagger,
-            )
-            return measure_chsh(
-                basis1=basis1,
-                basis2=basis2,
-                devices=devices,
-                config=config,
-            )
-        finally:
-            self.queue_length -= 1
+        devices = Devices(
+            idler_hwp=self.motors["idler_hwp"],
+            idler_qwp=self.motors.get("idler_qwp"),
+            signal_hwp=self.motors["signal_hwp"],
+            signal_qwp=self.motors.get("signal_qwp"),
+            timetagger=self.tagger,
+        )
+
+        self.queue_length -= 1
+
+        return measure_chsh(
+            basis1=basis1,
+            basis2=basis2,
+            devices=devices,
+            config=config,
+        )
+

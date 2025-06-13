@@ -213,30 +213,18 @@ class ArduinoPolarimeterDevice(PolarimeterDevice):
         self.status = DeviceStatus.READY
 
 
-@dataclass(frozen=True, slots=True)
-class RotaryEncoderMeasurement:
-    theta: float
-
-    @property
-    def theta(self) -> float:
-        return self.theta
-
-    @property
-    def phi(self) -> float:
-        raise NotImplementedError
-
-
 class RotaryEncoder(Protocol):
-    def read(self) -> RotaryEncoderMeasurement: ...
+    def read(self) -> float: ...
 
 
 @dataclass(slots=True)
 class ArduinoRotaryEncoder(RotaryEncoder):
     board: Arduino = field(default_factory=lambda: Arduino(Arduino.AUTODETECT))
-    pins: dict[str, int] = field(default_factory=lambda: dict(zip("hvda", range(4), strict=False)))
+    pins: dict[str, int] = field(default_factory=lambda: dict(zip("theta", range(1), strict=False)))
     sample_rate: int = 10
     average_width: int = 10
     _buffers: list[Buffer] = field(default_factory=list, init=False)
+    angle: float = 0.0
 
     def __post_init__(self) -> None:
         self.board.samplingOn(1000 // self.sample_rate)
@@ -265,10 +253,9 @@ class ArduinoRotaryEncoder(RotaryEncoder):
         for buffer in self._buffers:
             buffer.normalizing = False
 
-    def read(self) -> RotaryEncoderMeasurement:
-        theta = [buffer.read() for buffer in self._buffers]
-        pm = RotaryEncoderMeasurement(theta)
-        return pm.theta
+    def read(self) -> float:
+        angle = [buffer.read() for buffer in self._buffers]
+        return angle[0]
 
 
 class RotaryEncoderDevice(DeviceDriver):
@@ -282,7 +269,7 @@ class RotaryEncoderDevice(DeviceDriver):
 
     @abstractmethod
     @log_operation
-    def read(self) -> RotaryEncoderMeasurement: ...
+    def read(self) -> float: ...
 
     @abstractmethod
     @log_operation
@@ -298,13 +285,13 @@ class RotaryEncoderDevice(DeviceDriver):
     def start(self) -> None: ...
 
 
-class ArduinoRotaryEncoderDevice(PolarimeterDevice):
-    def __init__(self, name: str, desc: str, address: str, ap: ArduinoPolarimeter) -> None:
+class ArduinoRotaryEncoderDevice(RotaryEncoderDevice):
+    def __init__(self, name: str, desc: str, address: str, ap: ArduinoRotaryEncoder) -> None:
         super().__init__(name, desc, address)
 
         self.ap = ap
 
-    def read(self) -> RotaryEncoderMeasurement:
+    def read(self) -> float:
         return self.ap.read()
 
     def reset(self) -> None:

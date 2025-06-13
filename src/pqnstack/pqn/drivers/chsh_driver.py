@@ -43,7 +43,7 @@ class CHSHDevice(DeviceDriver):
         self.name = name
         self.desc = desc
         self.queue_length = 0
-        self.c = Client(host="172.30.63.109", timeout=30000)
+        self.c = Client(host="172.30.63.109", timeout=600000)
         self.motors = {motor: self.c.get_device(values["location"], values["name"]) for motor, values in motors.items()}
         self.tagger = self.c.get_device(tagger_config["location"], tagger_config["name"])
 

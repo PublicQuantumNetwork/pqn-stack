@@ -95,4 +95,3 @@ class CHSHDevice(DeviceDriver):
             devices=devices,
             config=config,
         )
-

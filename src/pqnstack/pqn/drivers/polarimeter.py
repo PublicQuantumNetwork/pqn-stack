@@ -211,3 +211,113 @@ class ArduinoPolarimeterDevice(PolarimeterDevice):
 
     def start(self) -> None:
         self.status = DeviceStatus.READY
+
+
+@dataclass(frozen=True, slots=True)
+class RotaryEncoderMeasurement:
+    theta: float
+
+    @property
+    def theta(self) -> float:
+        return self.theta
+
+    @property
+    def phi(self) -> float:
+        raise NotImplementedError
+
+
+class RotaryEncoder(Protocol):
+    def read(self) -> RotaryEncoderMeasurement: ...
+
+
+@dataclass(slots=True)
+class ArduinoRotaryEncoder(RotaryEncoder):
+    board: Arduino = field(default_factory=lambda: Arduino(Arduino.AUTODETECT))
+    pins: dict[str, int] = field(default_factory=lambda: dict(zip("hvda", range(4), strict=False)))
+    sample_rate: int = 10
+    average_width: int = 10
+    _buffers: list[Buffer] = field(default_factory=list, init=False)
+
+    def __post_init__(self) -> None:
+        self.board.samplingOn(1000 // self.sample_rate)
+        for pin in self.pins.values():
+            buffer = Buffer(deque(maxlen=self.average_width))
+            self._buffers.append(buffer)
+            self.board.analog[pin].register_callback(buffer.append)
+            self.board.analog[pin].enable_reporting()
+        logger.info("Polarimeter started")
+
+    def close(self) -> None:
+        if self.board is not None:
+            logger.info("Polarimeter stopped")
+            self.board.exit()
+
+    def reset(self) -> None:
+        for buffer in self._buffers:
+            buffer.clear()
+
+    def start_normalizing(self) -> None:
+        for buffer in self._buffers:
+            buffer.clear()
+            buffer.normalizing = True
+
+    def stop_normalizing(self) -> None:
+        for buffer in self._buffers:
+            buffer.normalizing = False
+
+    def read(self) -> RotaryEncoderMeasurement:
+        theta = [buffer.read() for buffer in self._buffers]
+        pm = RotaryEncoderMeasurement(theta)
+        return pm.theta
+
+
+class RotaryEncoderDevice(DeviceDriver):
+    DEVICE_CLASS = DeviceClass.SENSOR
+
+    def __init__(self, name: str, desc: str, address: str) -> None:
+        super().__init__(name, desc, address)
+
+        self.operations["read"] = self.read
+        self.operations["reset"] = self.reset
+
+    @abstractmethod
+    @log_operation
+    def read(self) -> RotaryEncoderMeasurement: ...
+
+    @abstractmethod
+    @log_operation
+    def reset(self) -> None: ...
+
+    @abstractmethod
+    def info(self) -> DeviceInfo: ...
+
+    @abstractmethod
+    def close(self) -> None: ...
+
+    @abstractmethod
+    def start(self) -> None: ...
+
+
+class ArduinoRotaryEncoderDevice(PolarimeterDevice):
+    def __init__(self, name: str, desc: str, address: str, ap: ArduinoPolarimeter) -> None:
+        super().__init__(name, desc, address)
+
+        self.ap = ap
+
+    def read(self) -> RotaryEncoderMeasurement:
+        return self.ap.read()
+
+    def reset(self) -> None:
+        self.ap.reset()
+
+    def info(self) -> DeviceInfo:
+        return DeviceInfo(
+            name=self.name, desc=self.desc, dtype=self.DEVICE_CLASS, status=self.status, address=self.address
+        )
+
+    def close(self) -> None:
+        self.ap.close()
+        self.status = DeviceStatus.OFF
+
+    def start(self) -> None:
+        self.status = DeviceStatus.READY

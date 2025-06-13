@@ -4,7 +4,7 @@ from time import sleep
 
 import numpy as np
 
-from pqnstack.pqn.base.driver import DeviceDriver
+from pqnstack.base.driver import DeviceDriver
 from pqnstack.pqn.protocols.measurement import CHSHValue
 from pqnstack.pqn.protocols.measurement import ExpectationValue
 from pqnstack.pqn.protocols.measurement import MeasurementConfig

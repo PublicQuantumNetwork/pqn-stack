@@ -22,7 +22,7 @@ class Devices:
 def calculate_chsh_expectation_error(counts: list[int], dark_count: int = 0) -> float:
     total_counts = sum(counts)
     corrected_total = total_counts - 4 * dark_count
-    first_term = math.sqrt(total_counts) / corrected_total
+    first_term = 0 if corrected_total == 0 else math.sqrt(total_counts) / corrected_total
     expectation = abs(counts[0] + counts[3] - counts[1] - counts[2])
     second_term = (expectation / corrected_total**2) * math.sqrt(total_counts + 4 * dark_count)
     return first_term + second_term
@@ -62,7 +62,7 @@ def measure_expectation_value(
 
     numerator = coincidence_counts[0] - coincidence_counts[1] - coincidence_counts[2] + coincidence_counts[3]
     denominator = sum(coincidence_counts) - 4 * config.dark_count
-    expectation_val = numerator / denominator
+    expectation_val = 0 if denominator == 0 else numerator / denominator
     expectation_error = calculate_chsh_expectation_error(coincidence_counts, config.dark_count)
 
     return ExpectationValue(

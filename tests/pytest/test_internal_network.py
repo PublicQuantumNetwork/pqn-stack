@@ -13,7 +13,7 @@ from pqnstack.pqn.drivers.dummies import DummyInstrument
 
 @pytest.fixture
 def messaging_services():
-    config_path = Path("./test_network_config.toml").resolve()
+    config_path = Path("./tests/pytest/test_network_config.toml").resolve()
     uv_path = shutil.which("uv")
     if not uv_path:
         msg = "Could not find 'uv' executable in PATH"
@@ -42,7 +42,7 @@ def messaging_services():
     provider_process.wait()
 
 
-def test_client_ping(messaging_services): # noqa: ARG001
+def test_client_ping(messaging_services):  # noqa: ARG001
     client = Client(host="localhost", port=5556, router_name="pqnstack-router")
     response = client.ping("pqnstack-provider")
 
@@ -53,7 +53,7 @@ def test_client_ping(messaging_services): # noqa: ARG001
     assert response.request == "PONG"
 
 
-def test_getting_all_instruments(messaging_services): # noqa: ARG001
+def test_getting_all_instruments(messaging_services):  # noqa: ARG001
     client = Client(host="localhost", port=5556, router_name="pqnstack-router")
 
     response = client.get_available_devices("pqnstack-provider")
@@ -66,7 +66,7 @@ def test_getting_all_instruments(messaging_services): # noqa: ARG001
     assert isinstance(response["dummy2"], DummyInstrument.__class__)
 
 
-def test_proxy_instrument(messaging_services): # noqa: ARG001
+def test_proxy_instrument(messaging_services):  # noqa: ARG001
     client = Client(host="localhost", port=5556, router_name="pqnstack-router")
 
     proxy_instrument = client.get_device("pqnstack-provider", "dummy1")

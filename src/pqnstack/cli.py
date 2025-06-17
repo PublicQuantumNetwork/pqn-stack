@@ -48,9 +48,7 @@ def _load_and_parse_provider_config(
         config = tomllib.load(f)
 
     if "provider" not in config:
-        msg = (
-            f"Config file {config_path} does not contain a provider section. Add provider configuration under '[provider]' section."
-        )
+        msg = f"Config file {config_path} does not contain a provider section. Add provider configuration under '[provider]' section."
         raise InvalidNetworkConfigurationError(msg)
 
     provider = config["provider"]

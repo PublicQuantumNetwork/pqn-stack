@@ -22,7 +22,9 @@ class Devices:
 def calculate_chsh_expectation_error(counts: list[int], dark_count: int = 0) -> float:
     total_counts = sum(counts)
     corrected_total = total_counts - 4 * dark_count
-    first_term = 0 if corrected_total == 0 else math.sqrt(total_counts) / corrected_total
+    if corrected_total <= 0:
+        return 0
+    first_term = math.sqrt(total_counts) / corrected_total
     expectation = abs(counts[0] + counts[3] - counts[1] - counts[2])
     second_term = (expectation / corrected_total**2) * math.sqrt(total_counts + 4 * dark_count)
     return first_term + second_term

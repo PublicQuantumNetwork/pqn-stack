@@ -116,7 +116,7 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
             except json.JSONDecodeError:
                 status = 400
                 response_content = "Invalid JSON data"
-            except Exception:  # noqa: BLE001
+            except Exception as e:  # noqa: BLE001
                 status = 500  # TODO: Log Exception
                 response_content = ""
         else:
@@ -160,8 +160,8 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
             config=MeasurementConfig(5),
         )
         payload = {
-            "chsh_value": f"{float(result['chsh_value']):.2f}",
-            "chsh_error": f"{float(result['chsh_error']):.2f}",
+            "chsh_value": f"{float(result.chsh_value):.2f}",
+            "chsh_error": f"{float(result.chsh_error):.2f}",
         }
         self.server_state.angle1 = 0.0
         self.server_state.angle2 = 0.0

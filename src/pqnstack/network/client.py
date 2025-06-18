@@ -148,7 +148,7 @@ class InstrumentClientInit(NamedTuple):
     router_name: str
     timeout: int
     instrument_name: str
-    node_name: str
+    provider_name: str
 
 
 class InstrumentClient(ClientBase):
@@ -158,11 +158,11 @@ class InstrumentClient(ClientBase):
         )
 
         self.instrument_name = init_args.instrument_name
-        self.node_name = init_args.node_name
+        self.provider_name = init_args.provider_name
 
     def trigger_operation(self, operation: str, *args: Any, **kwargs: Any) -> Any:
         packet = self.create_control_packet(
-            self.node_name, self.instrument_name + ":OPERATION:" + operation, (args, kwargs)
+            self.provider_name, self.instrument_name + ":OPERATION:" + operation, (args, kwargs)
         )
         response = self.ask(packet)
 
@@ -170,14 +170,14 @@ class InstrumentClient(ClientBase):
 
     def trigger_parameter(self, parameter: str, *args: Any, **kwargs: Any) -> Any:
         packet = self.create_control_packet(
-            self.node_name, self.instrument_name + ":PARAMETER:" + parameter, (args, kwargs)
+            self.provider_name, self.instrument_name + ":PARAMETER:" + parameter, (args, kwargs)
         )
 
         response = self.ask(packet)
         return response.payload
 
     def get_info(self) -> DeviceInfo:
-        packet = self.create_control_packet(self.node_name, self.instrument_name + ":INFO:", ((), {}))
+        packet = self.create_control_packet(self.provider_name, self.instrument_name + ":INFO:", ((), {}))
 
         response = self.ask(packet)
         if not isinstance(response.payload, DeviceInfo):
@@ -194,7 +194,7 @@ class ProxyInstrumentInit(NamedTuple):
     router_name: str
     instrument_name: str
     timeout: int
-    node_name: str
+    provider_name: str
     desc: str
     address: str
     parameters: set[str]
@@ -219,7 +219,7 @@ class ProxyInstrument(DeviceDriver):
         self.parameters = init_args.parameters
         self.operations = init_args.operations
 
-        self.node_name = init_args.node_name
+        self.provider_name = init_args.provider_name
         self.router_name = init_args.router_name
 
         # The client's name is the instrument name with "_client" appended and a random 6 character string appended.
@@ -236,7 +236,7 @@ class ProxyInstrument(DeviceDriver):
             router_name=self.router_name,
             timeout=self.timeout,
             instrument_name=self.name,
-            node_name=self.node_name,
+            provider_name=self.provider_name,
         )
         self.client = InstrumentClient(instrument_client_init)
 
@@ -278,8 +278,8 @@ class Client(ClientBase):
         )
         return self.ask(ping_packet)
 
-    def get_available_devices(self, node_name: str) -> dict[str, str]:
-        packet = self.create_data_packet(node_name, "GET_DEVICES", None)
+    def get_available_devices(self, provider_name: str) -> dict[str, str]:
+        packet = self.create_data_packet(provider_name, "GET_DEVICES", None)
         response = self.ask(packet)
 
         if not isinstance(response.payload, dict):
@@ -288,8 +288,8 @@ class Client(ClientBase):
 
         return response.payload
 
-    def get_device(self, node_name: str, device_name: str) -> DeviceDriver:
-        packet = self.create_data_packet(node_name, "GET_DEVICE_STRUCTURE", device_name)
+    def get_device(self, provider_name: str, device_name: str) -> DeviceDriver:
+        packet = self.create_data_packet(provider_name, "GET_DEVICE_STRUCTURE", device_name)
 
         response = self.ask(packet)
 
@@ -309,7 +309,7 @@ class Client(ClientBase):
             router_name=self.router_name,
             timeout=self.timeout,
             instrument_name=response.payload["name"],
-            node_name=node_name,
+            provider_name=provider_name,
             parameters=set(response.payload["parameters"]),
             operations=response.payload["operations"],
         )

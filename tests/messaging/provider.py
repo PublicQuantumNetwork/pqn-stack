@@ -1,6 +1,6 @@
 import logging
 
-from pqnstack.network.node import Node
+from pqnstack.network.instrument_provider import InstrumentProvider
 
 logging.basicConfig(level=logging.INFO)
 
@@ -12,5 +12,5 @@ if __name__ == "__main__":
             "address": "123456",
         }
     }
-    node = Node("node1", "127.0.0.1", 5555, **instruments)
-    node.start()
+    provider = InstrumentProvider("provider1", "127.0.0.1", 5555, **instruments)
+    provider.start()

@@ -29,13 +29,13 @@ All network elements implement a `dispatch` function that depends on the content
 ensures that routing information is adequately interpreted, and that the appropriate protocol is performed by the 
 desired node or group of nodes. The sequence of events in this case is as follows:
 
-1. **Node A** sends a packet to the router
+1. **InstrumentProvider A** sends a packet to the router
 2. The router determines the validity of the sender and the receiver
 3. The router extracts the signature of the packet, and separates the implementation into data, control and routing 
    backplane functions
-4. The router sends the packet to **Node B**
-5. **Node B** executes code implementing classical or quantum functions
-6. **Node B** prepares a response packet with `(source, destination)` being reversed from the original request
+4. The router sends the packet to **InstrumentProvider B**
+5. **InstrumentProvider B** executes code implementing classical or quantum functions
+6. **InstrumentProvider B** prepares a response packet with `(source, destination)` being reversed from the original request
 7. The router proceeds repeats steps 2-4
 8. If the packet `hops` value is zero, no further routing happens
 

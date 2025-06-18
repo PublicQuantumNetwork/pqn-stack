@@ -2,9 +2,9 @@ import math
 import time
 from typing import Any
 
-from pqnstack.pqn.drivers.rotator import MeasurementBasis
-from pqnstack.pqn.drivers.rotator import RotatorDevice
+from pqnstack.pqn.protocols.measurement import MeasurementBasis
 from pqnstack.pqn.protocols.measurement import MeasurementConfig
+from pqnstack.pqn.protocols.measurement import RotatorDevice
 
 
 class Devices:

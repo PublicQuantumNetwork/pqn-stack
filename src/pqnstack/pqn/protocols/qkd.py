@@ -4,10 +4,10 @@ from typing import cast
 
 from pqnstack.network.client import Client
 from pqnstack.network.client import ProxyInstrument
-from pqnstack.pqn.drivers.rotator import DEFAULT_SETTINGS
-from pqnstack.pqn.drivers.rotator import HV_BASIS
-from pqnstack.pqn.drivers.rotator import MeasurementBasis
 from pqnstack.pqn.drivers.rotator import RotatorDevice
+from pqnstack.pqn.protocols.measurement import DEFAULT_SETTINGS
+from pqnstack.pqn.protocols.measurement import HV_BASIS
+from pqnstack.pqn.protocols.measurement import MeasurementBasis
 from pqnstack.pqn.protocols.measurement import MeasurementConfig
 from pqnstack.pqn.protocols.visibility import calculate_visibility
 

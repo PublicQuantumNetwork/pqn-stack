@@ -27,7 +27,7 @@ class TimeTaggerInfo(InstrumentInfo):
 @runtime_checkable
 @dataclass(slots=True)
 class TimeTaggerInstrument(Instrument, Protocol):
-    active_channels: list[int] = field(default=[1, 2])
+    active_channels: list[int] = field(default_factory=list)
     test_signal_enabled: bool = False
     test_signal_divider: int = 1
 
@@ -51,10 +51,6 @@ class SwabianTimeTagger(TimeTaggerInstrument):
 
     def start(self) -> None:
         """Initialize the connection to the Swabian time tagger hardware and configures channels for potential coincidence counting."""
-        if self._tagger is not None:
-            logger.warning("Time tagger is already started.")
-            return
-
         logger.info("Creating Swabian Time Tagger instance.")
         self._tagger = createTimeTaggerNetwork(self.hw_address)
         if not self._tagger:

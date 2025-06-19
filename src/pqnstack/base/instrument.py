@@ -43,8 +43,8 @@ class Instrument(Protocol):
     name: str
     desc: str
     hw_address: str
-    parameters: set[str] = field(init=False, default_factory=set)
-    operations: dict[str, Callable[..., Any]] = field(init=False, default_factory=dict)
+    parameters: set[str] = field(default_factory=set)
+    operations: dict[str, Callable[..., Any]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         atexit.register(self.close)
@@ -65,7 +65,7 @@ def log_operation[T](func: Callable[..., T]) -> Callable[..., T]:
 
         ins = args[0]
         if not isinstance(ins, Instrument):
-            msg = "log_operation has been used to decorate something that is not a DeviceDriver method. This is not allowed."
+            msg = "log_operation has been used to decorate something that is not a Instrument method. This is not allowed."
             raise LogDecoratorOutsideOfClassError(msg)
 
         start_time = perf_counter()
@@ -111,7 +111,7 @@ def log_parameter[T](func: Callable[..., T]) -> Callable[..., T]:
         ins = args[0]
         if not isinstance(ins, Instrument):
             msg = (
-                "log_operation has been used to decorate something that is not a DeviceDriver method. "
+                "log_operation has been used to decorate something that is not a Instrument method. "
                 "This is not allowed."
             )
             raise LogDecoratorOutsideOfClassError(msg)

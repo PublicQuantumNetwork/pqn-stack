@@ -1,15 +1,18 @@
 from dataclasses import dataclass
 from time import sleep
+from typing import TYPE_CHECKING
 from typing import cast
 
 from pqnstack.network.client import Client
 from pqnstack.network.client import ProxyInstrument
-from pqnstack.pqn.drivers.rotator import RotatorDevice
 from pqnstack.pqn.protocols.measurement import DEFAULT_SETTINGS
 from pqnstack.pqn.protocols.measurement import HV_BASIS
 from pqnstack.pqn.protocols.measurement import MeasurementBasis
 from pqnstack.pqn.protocols.measurement import MeasurementConfig
 from pqnstack.pqn.protocols.visibility import calculate_visibility
+
+if TYPE_CHECKING:
+    from pqnstack.pqn.drivers.rotator import RotatorInstrument
 
 
 @dataclass
@@ -48,8 +51,8 @@ def qkd_run(
     key_filter = "signal" if player == "player1" else "idler"
 
     player_motors = devices.qd.get_motors(player)
-    motors: dict[str, RotatorDevice] = {
-        motor_name: cast("RotatorDevice", devices.client.get_device(info["location"], info["name"]))
+    motors: dict[str, RotatorInstrument] = {
+        motor_name: cast("RotatorInstrument", devices.client.get_device(info["location"], info["name"]))
         for motor_name, info in player_motors.items()
     }
     coincidence_counts: dict[tuple[str, str], int] = {}

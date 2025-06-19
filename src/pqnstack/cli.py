@@ -30,8 +30,8 @@ def _verify_instruments_config(instruments: list[dict[str, str]]) -> dict[str, d
         if "desc" not in item:
             msg = f"Instrument number #{i + 1} configuration is missing the field 'desc'"
             raise InvalidNetworkConfigurationError(msg)
-        if "address" not in item:
-            msg = f"Instrument number #{i + 1} configuration is missing the field 'address'"
+        if "hw_address" not in item:
+            msg = f"Instrument number #{i + 1} configuration is missing the field 'hw_address'"
             raise InvalidNetworkConfigurationError(msg)
 
         name = item.pop("name")
@@ -80,7 +80,7 @@ def start_node(  # noqa: PLR0913
     host: Annotated[
         str | None,
         typer.Option(
-            help="Host address (IP) of the node (default: 'localhost'). Usually the IP address of the Router this node will talk to."
+            help="Host hw_address (IP) of the node (default: 'localhost'). Usually the IP hw_address of the Router this node will talk to."
         ),
     ] = None,
     port: Annotated[
@@ -90,7 +90,7 @@ def start_node(  # noqa: PLR0913
     instruments: Annotated[
         str | None,
         typer.Option(
-            help='JSON formatted string with necessary arguments to instantiate instruments. Example: \'{"dummy1": {"import": "pqnstack.pqn.drivers.dummies.DummyInstrument", "desc": "Dummy Instrument 1", "address": "123456"}}\''
+            help='JSON formatted string with necessary arguments to instantiate instruments. Example: \'{"dummy1": {"import": "pqnstack.pqn.drivers.dummies.DummyInstrument", "desc": "Dummy Instrument 1", "hw_address": "123456"}}\''
         ),
     ] = None,
     config: Annotated[
@@ -153,7 +153,7 @@ def start_router(
     host: Annotated[
         str | None,
         typer.Option(
-            help="Host address (IP) of the router (default: 'localhost'). Usually the IP address of the machine running the router."
+            help="Host hw_address (IP) of the router (default: 'localhost'). Usually the IP hw_address of the machine running the router."
         ),
     ] = None,
     port: Annotated[str | None, typer.Option(help="Port of the router (default: 5555)")] = None,

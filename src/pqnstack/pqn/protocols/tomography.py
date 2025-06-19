@@ -2,8 +2,8 @@ import datetime
 import time
 from dataclasses import dataclass
 
-from pqnstack.base.driver.rotator import RotatorDevice
-from pqnstack.pqn.drivers.timetagger import TimeTaggerDevice
+from pqnstack.base.driver.rotator import RotatorInstrument
+from pqnstack.pqn.drivers.timetagger import TimeTaggerInstrument
 from pqnstack.pqn.protocols.measurement import DEFAULT_SETTINGS
 from pqnstack.pqn.protocols.measurement import MeasurementBasis
 from pqnstack.pqn.protocols.measurement import MeasurementConfig
@@ -19,11 +19,11 @@ TOMOGRAPHY_BASIS: MeasurementBasis = MeasurementBasis(
 
 @dataclass
 class Devices:
-    idler_hwp: RotatorDevice
-    idler_qwp: RotatorDevice
-    signal_hwp: RotatorDevice
-    signal_qwp: RotatorDevice
-    timetagger: TimeTaggerDevice
+    idler_hwp: RotatorInstrument
+    idler_qwp: RotatorInstrument
+    signal_hwp: RotatorInstrument
+    signal_qwp: RotatorInstrument
+    timetagger: TimeTaggerInstrument
 
 
 @dataclass
@@ -49,7 +49,7 @@ def measure_tomography_raw(
 
         time.sleep(3)
 
-        coincidence = devices.timetagger.measure_coincidence(
+        coincidence = devices.timetagger.measure_correlation(
             config.channel1,
             config.channel2,
             config.binwidth,

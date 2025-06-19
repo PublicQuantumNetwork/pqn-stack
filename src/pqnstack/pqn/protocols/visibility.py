@@ -2,13 +2,13 @@ import math
 import time
 from typing import Any
 
+from pqnstack.pqn.drivers.rotator import RotatorInstrument
 from pqnstack.pqn.protocols.measurement import MeasurementBasis
 from pqnstack.pqn.protocols.measurement import MeasurementConfig
-from pqnstack.pqn.protocols.measurement import RotatorDevice
 
 
 class Devices:
-    motors: dict[str, RotatorDevice]
+    motors: dict[str, RotatorInstrument]
     tagger: Any
 
 
@@ -53,7 +53,7 @@ def move_and_measure(
 
     time.sleep(2)
     return int(
-        devices.tagger.measure_coincidence(
+        devices.tagger.measure_correlation(
             config.channel1, config.channel2, config.binwidth, int(config.duration * 1e12)
         )
     )

@@ -4,7 +4,6 @@ import secrets
 import string
 from collections.abc import Callable
 from dataclasses import dataclass
-from dataclasses import field
 from types import TracebackType
 from typing import Any
 from typing import NamedTuple
@@ -200,11 +199,7 @@ class ProxyInstrumentInit(NamedTuple):
     address: str
     parameters: set[str]
     operations: dict[str, Callable[[Any], Any]]
-    host: str
-    port: int
-    router_name: str
     client_name: str
-    node_name: str
 
 
 @dataclass
@@ -214,29 +209,16 @@ class ProxyInstrument(Instrument):
     name: str = ""
     desc: str = ""
     hw_address: str = ""
-    parameters: set[str] = field(default_factory=set)
-    operations: dict[str, Callable[[Any], Any]] = field(default_factory=dict)
     host: str = "127.0.0.1"
     port: int = 5555
+    timeout_ms: int = 15000
     router_name: str = "router1"
     client_name: str = ""
     node_name: str = "node1"
+    instrument_name: str = "instrument1"
 
-    def __init__(self, init_args: ProxyInstrumentInit) -> None:
-        # Boolean used to control when new attributes are being set.
-        self._instantiating = True
-
-        super().__init__(init_args.name, init_args.desc, init_args.address)
-
-        self.host = init_args.host
-        self.port = init_args.port
-        self.timeout = init_args.timeout
-
-        self.parameters = init_args.parameters
-        self.operations = init_args.operations
-
-        self.provider_name = init_args.provider_name
-        self.router_name = init_args.router_name
+    # Boolean used to control when new attributes are being set.
+    _instantiating: bool = True
 
     def __post_init__(self) -> None:
         # The client's name is the instrument name with "_client" appended and a random 6 character string appended.
@@ -251,7 +233,7 @@ class ProxyInstrument(Instrument):
             host=self.host,
             port=self.port,
             router_name=self.router_name,
-            timeout=self.timeout,
+            timeout=self.timeout_ms,
             instrument_name=self.name,
             provider_name=self.provider_name,
         )
@@ -325,7 +307,7 @@ class Client(ClientBase):
             host=self.host,
             port=self.port,
             router_name=self.router_name,
-            timeout=self.timeout,
+            timeout_ms=self.timeout,
             instrument_name=response.payload["name"],
             provider_name=provider_name,
             parameters=set(response.payload["parameters"]),

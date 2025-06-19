@@ -12,7 +12,7 @@ def pq_random(n: int, tagger: Any, input_str: str | None = None) -> int:
 
     random_bits = []
     for _ in range(n):
-        bit = tagger.measure_coincidence(1, 2, 500, int(0.5e12))
+        bit = tagger.measure_correlation(1, 2, 500, int(0.5e12))
         random_bits.append(bit % 2)
 
     if input_str is not None:

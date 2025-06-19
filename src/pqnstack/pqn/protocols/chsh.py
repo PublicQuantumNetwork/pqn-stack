@@ -3,8 +3,8 @@ import math
 from dataclasses import dataclass
 from time import sleep
 
-from pqnstack.pqn.drivers.rotator import RotatorDevice
-from pqnstack.pqn.drivers.timetagger import TimeTaggerDevice
+from pqnstack.pqn.drivers.rotator import RotatorInstrument
+from pqnstack.pqn.drivers.timetagger import TimeTaggerInstrument
 from pqnstack.pqn.protocols.measurement import CHSHValue
 from pqnstack.pqn.protocols.measurement import ExpectationValue
 from pqnstack.pqn.protocols.measurement import MeasurementConfig
@@ -12,11 +12,11 @@ from pqnstack.pqn.protocols.measurement import MeasurementConfig
 
 @dataclass
 class Devices:
-    idler_hwp: RotatorDevice
-    signal_hwp: RotatorDevice
-    idler_qwp: RotatorDevice | None
-    signal_qwp: RotatorDevice | None
-    timetagger: TimeTaggerDevice
+    idler_hwp: RotatorInstrument
+    signal_hwp: RotatorInstrument
+    idler_qwp: RotatorInstrument | None
+    signal_qwp: RotatorInstrument | None
+    timetagger: TimeTaggerInstrument
 
 
 def calculate_chsh_expectation_error(counts: list[int], dark_count: int = 0) -> float:
@@ -57,7 +57,7 @@ def measure_expectation_value(
             if devices.signal_qwp is not None:
                 devices.signal_qwp.move_to(angle_signal[1])
             sleep(2)
-            counts = devices.timetagger.measure_coincidence(
+            counts = devices.timetagger.measure_correlation(
                 config.channel1, config.channel2, int(config.binwidth), int(config.duration * 1e12)
             )
             coincidence_counts.append(counts)

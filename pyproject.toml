@@ -30,6 +30,7 @@ pqn = "pqnstack.cli:app"
 webapp = [
     "fastapi>=0.115.14",
     "httpx>=0.28.1",
+    "pydantic>=2.11.7",
 ]
 
 [dependency-groups]
@@ -40,6 +41,7 @@ dev = ["mypy>=1.13.0", "pytest-cov>=6.0.0", "ruff>=0.8.0"]
 files = ["src"]
 strict = true
 pretty = true
+plugins = ['pydantic.mypy']
 
 enable_error_code = ["ignore-without-code"]
 

@@ -28,7 +28,7 @@ pqn = "pqnstack.cli:app"
 
 [project.optional-dependencies]
 webapp = [
-    "fastapi>=0.115.14",
+    "fastapi[standard]>=0.115.14",
     "httpx>=0.28.1",
     "pydantic>=2.11.7",
 ]

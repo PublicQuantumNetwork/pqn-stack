@@ -31,6 +31,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
+      - run: uv sync --extra webapp
       - run: uv run mypy
   tests:
     runs-on: ubuntu-latest

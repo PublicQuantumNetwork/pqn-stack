@@ -1,18 +1,17 @@
 import logging
 import math
-from abc import abstractmethod
 from collections import deque
+from dataclasses import KW_ONLY
 from dataclasses import dataclass
 from dataclasses import field
 from typing import Protocol
+from typing import runtime_checkable
 
 from pyfirmata2 import Arduino
 
-from pqnstack.base.driver import DeviceClass
-from pqnstack.base.driver import DeviceDriver
-from pqnstack.base.driver import DeviceInfo
-from pqnstack.base.driver import DeviceStatus
-from pqnstack.base.driver import log_operation
+from pqnstack.base.instrument import Instrument
+from pqnstack.base.instrument import InstrumentInfo
+from pqnstack.base.instrument import log_operation
 
 logger = logging.getLogger(__name__)
 
@@ -96,20 +95,49 @@ class PolarizationMeasurement:
         raise NotImplementedError
 
 
-class Polarimeter(Protocol):
+@dataclass(frozen=True, slots=True)
+class PolarimeterInfo(InstrumentInfo):
+    pass
+
+
+@runtime_checkable
+@dataclass(slots=True)
+class PolarimeterInstrument(Instrument, Protocol):
+    def __post_init__(self) -> None:
+        self.operations["read"] = self.read
+        self.operations["reset"] = self.reset
+        self.operations["start_normalizing"] = self.start_normalizing
+        self.operations["stop_normalizing"] = self.stop_normalizing
+
+    @property
+    def info(self) -> PolarimeterInfo: ...
+
+    @log_operation
     def read(self) -> PolarizationMeasurement: ...
+
+    @log_operation
+    def reset(self) -> None: ...
+
+    @log_operation
+    def start_normalizing(self) -> None: ...
+
+    @log_operation
+    def stop_normalizing(self) -> None: ...
 
 
 @dataclass(slots=True)
-class ArduinoPolarimeter(Polarimeter):
-    board: Arduino = field(default_factory=lambda: Arduino(Arduino.AUTODETECT))
-    pins: dict[str, int] = field(default_factory=lambda: dict(zip("hvda", range(4), strict=False)))
+class ArduinoPolarimeter(PolarimeterInstrument):
     sample_rate: int = 10
     average_width: int = 10
+    _: KW_ONLY
+    board: Arduino = field(default_factory=lambda: Arduino(Arduino.AUTODETECT))
+    pins: dict[str, int] = field(default_factory=lambda: dict(zip("hvda", range(4), strict=False)))
     _buffers: list[Buffer] = field(default_factory=list, init=False)
     _last_theta: float = field(default=0.0, init=False, repr=False)  # HACK: Allow reporting of full 2pi angle
 
-    def __post_init__(self) -> None:
+    def start(self) -> None:
+        if not self.board:
+            self.board = Arduino(Arduino.AUTODETECT)
         self.board.samplingOn(1000 // self.sample_rate)
         for pin in self.pins.values():
             buffer = Buffer(deque(maxlen=self.average_width))
@@ -143,71 +171,3 @@ class ArduinoPolarimeter(Polarimeter):
         pm = PolarizationMeasurement(*hvda, _last_theta=self._last_theta)
         self._last_theta = pm.theta
         return pm
-
-
-class PolarimeterDevice(DeviceDriver):
-    DEVICE_CLASS = DeviceClass.SENSOR
-
-    def __init__(self, name: str, desc: str, address: str) -> None:
-        super().__init__(name, desc, address)
-
-        self.operations["read"] = self.read
-        self.operations["reset"] = self.reset
-        self.operations["start_normalizing"] = self.start_normalizing
-        self.operations["stop_normalizing"] = self.stop_normalizing
-
-    @abstractmethod
-    @log_operation
-    def read(self) -> PolarizationMeasurement: ...
-
-    @abstractmethod
-    @log_operation
-    def reset(self) -> None: ...
-
-    @abstractmethod
-    @log_operation
-    def start_normalizing(self) -> None: ...
-
-    @abstractmethod
-    @log_operation
-    def stop_normalizing(self) -> None: ...
-
-    @abstractmethod
-    def info(self) -> DeviceInfo: ...
-
-    @abstractmethod
-    def close(self) -> None: ...
-
-    @abstractmethod
-    def start(self) -> None: ...
-
-
-class ArduinoPolarimeterDevice(PolarimeterDevice):
-    def __init__(self, name: str, desc: str, address: str, ap: ArduinoPolarimeter) -> None:
-        super().__init__(name, desc, address)
-
-        self.ap = ap
-
-    def read(self) -> PolarizationMeasurement:
-        return self.ap.read()
-
-    def reset(self) -> None:
-        self.ap.reset()
-
-    def start_normalizing(self) -> None:
-        self.ap.start_normalizing()
-
-    def stop_normalizing(self) -> None:
-        self.ap.stop_normalizing()
-
-    def info(self) -> DeviceInfo:
-        return DeviceInfo(
-            name=self.name, desc=self.desc, dtype=self.DEVICE_CLASS, status=self.status, address=self.address
-        )
-
-    def close(self) -> None:
-        self.ap.close()
-        self.status = DeviceStatus.OFF
-
-    def start(self) -> None:
-        self.status = DeviceStatus.READY

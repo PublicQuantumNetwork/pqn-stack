@@ -48,7 +48,7 @@ async def chsh(basis: tuple[float, float], other_node_address: str, http_client:
             for i in range(2):
                 for perp in [False, True]:
                     r = await http_client.get(
-                        f"http://{other_node_address}/chsh/request-angle-by-basis?i={i}&perp={perp}"
+                        f"http://{other_node_address}/chsh/request-angle-by-basis?index={i}&perp={perp}"
                     )
 
                     # TODO: Handle other status codes

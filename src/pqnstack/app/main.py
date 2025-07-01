@@ -21,10 +21,8 @@ app = FastAPI()
 class CHSHSettings():
     # Specifies which half waveplate to use for the CHSH experiment. First value is the provider's name, second is the motor name.
     hwp: tuple[str, str] = ()
-    timetagger: tuple[str, str] = ()  # Name of the timetagger to use for the CHSH experiment.
     request_hwp: tuple[str, str] = ()
     measurement_config: MeasurementConfig = field(default_factory=lambda: MeasurementConfig(5))
-
 
 @dataclass
 class Settings():
@@ -32,6 +30,7 @@ class Settings():
     router_address: str
     router_port: int
     chsh_settings: CHSHSettings
+    timetagger: tuple[str, str] = ()  # Name of the timetagger to use for the CHSH experiment.
 
 settings = Settings()
 
@@ -68,16 +67,17 @@ def _calculate_chsh_expectation_error(counts: list[int], dark_count: int = 0) ->
 
 
 @app.post("/chsh")
-async def chsh(basis: tuple[float, float], other_node_address: str, http_client: ClientDep) -> tuple[float, float]:
+async def chsh(basis: tuple[float, float], follower_node_address: str, http_client: ClientDep, timetagger_address: str | None = None,) -> tuple[float, float]:
     logger.debug("Starting CHSH")
 
     logger.debug("Instantiating client")
     client = Client(host=settings.router_address, port=settings.router_port, timeout=600_000)
 
-    tagger = client.get_device(settings.chsh_settings.timetagger[0], settings.chsh_settings.timetagger[1])
-    if tagger is None:
-        logger.error("Could not find time tagger device")
-        return {"error": "Could not find time tagger device"}
+    if timetagger_address is None:
+        tagger = client.get_device(settings.timetagger[0], settings.timetagger[1])
+        if tagger is None:
+            logger.error("Could not find time tagger device")
+            return {"error": "Could not find time tagger device"}
 
     logger.debug("Time tagger device found: %s", tagger)
 
@@ -97,19 +97,24 @@ async def chsh(basis: tuple[float, float], other_node_address: str, http_client:
                 hwp.move_to(a/2)
                 for perp in [False, True]:
                     r = await http_client.post(
-                        f"http://{other_node_address}/chsh/request-angle-by-basis?index={i}&perp={perp}"
+                        f"http://{follower_node_address}/chsh/request-angle-by-basis?index={i}&perp={perp}"
                     )
                     # TODO: Handle other status codes
                     if r.status_code != status.HTTP_200_OK:
                         logger.error("Failed to request follower: %s", r.text)
                         return {"error": "Failed to request follower"}
 
-                    count = tagger.measure_coincidence(
-                        settings.chsh_settings.measurement_config.channel1,
-                        settings.chsh_settings.measurement_config.channel2,
-                        settings.chsh_settings.measurement_config.binwidth, # might have to cast to int
-                        int(settings.chsh_settings.measurement_config.duration * 1e12)
-                    )
+                    if timetagger_address is None:
+                        count = tagger.measure_coincidence(
+                            settings.chsh_settings.measurement_config.channel1,
+                            settings.chsh_settings.measurement_config.channel2,
+                            settings.chsh_settings.measurement_config.binwidth, # might have to cast to int
+                            int(settings.chsh_settings.measurement_config.duration * 1e12)
+                        )
+                    else:
+                        r = await http_client.get(
+                            f"http://{timetagger_address}/timetagger/measure?duration={settings.chsh_settings.measurement_config.duration}&binwidth={settings.chsh_settings.measurement_config.binwidth}&channel1={settings.chsh_settings.measurement_config.channel1}&channel2={settings.chsh_settings.measurement_config.channel2}&dark_count={settings.chsh_settings.measurement_config.dark_count}"
+                        )
 
                     counts.append(count)
 
@@ -157,3 +162,28 @@ async def request_angle_by_basis(index: int, *, perp: bool = False) -> bool:
     hwp.move_to(angle/2)
     logger.info("moving waveplate", extra={"angle": angle})
     return True
+
+@app.get("timetagger/measure")
+async def timetagger_measure(duration: int, binwidth: int = 500, channel1: int = 1, channel2: int = 2, dark_count: int = 0) -> int:
+    if settings.timetagger is None:
+        logger.error("No timetagger configured")
+        return {"error": "No timetagger configured"}
+
+    mconf = MeasurementConfig(duration=duration, binwidth=binwidth, channel1=channel1, channel2=channel2)
+    client = Client(host=settings.router_address, port=settings.router_port, timeout=600_000)
+    tagger = client.get_device(settings.timetagger[0], settings.timetagger[1])
+    if tagger is None:
+        logger.error("Could not find time tagger device")
+        return {"error": "Could not find time tagger device"}
+
+    logger.debug("Time tagger device found: %s", tagger)
+
+    count = tagger.measure_coincidence(
+        mconf.channel1,
+        mconf.channel2,
+        mconf.binwidth,
+        int(mconf.duration * 1e12)  # Convert seconds to picoseconds
+    )
+
+    logger.info("Measured %d coincidences", count)
+    return count

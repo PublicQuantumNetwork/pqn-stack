@@ -76,6 +76,7 @@ extend-ignore = [
     "ISC001",
     "ISC002",
     "E501",
+    "S101", # Assert
 ]
 
 [tool.ruff.lint.extend-per-file-ignores]

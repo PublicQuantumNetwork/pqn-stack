@@ -1,6 +1,6 @@
 import logging
 from collections.abc import AsyncGenerator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Annotated
 
 import httpx
@@ -19,11 +19,11 @@ app = FastAPI()
 
 @dataclass
 class CHSHSettings():
-    # Specifies which halwaveplate to use for the CHSH experiment. First value is the provider's name, second is the motor name.
+    # Specifies which half waveplate to use for the CHSH experiment. First value is the provider's name, second is the motor name.
     hwp: tuple[str, str] = ()
     timetagger: tuple[str, str] = ()  # Name of the timetagger to use for the CHSH experiment.
     request_hwp: tuple[str, str] = ()
-    measurement_config: MeasurementConfig = MeasurementConfig(duration=5)
+    measurement_config: MeasurementConfig = field(default_factory=lambda: MeasurementConfig(5))
 
 
 @dataclass
@@ -83,7 +83,7 @@ async def chsh(basis: tuple[float, float], other_node_address: str, http_client:
 
     hwp = client.get_device(settings.chsh_settings.hwp[0], settings.chsh_settings.hwp[1])
     if hwp is None:
-        logger.error("Could not find halfwaveplate device")
+        logger.error("Could not find half waveplate device")
         return {"error": "Could not find halfwaveplate device"}
 
     logger.debug("Halfwaveplate device found: %s", hwp)
@@ -123,7 +123,22 @@ async def chsh(basis: tuple[float, float], other_node_address: str, http_client:
             error = _calculate_chsh_expectation_error(counts, settings.chsh_settings.measurement_config.dark_count)
             expectation_errors.append(error)
 
-    chsh_value = -1 * expectation_values[0] + expectation_values[1] + expectation_values[2] + expectation_values[3]
+            logger.info("For angle %s, for follower index %s, expectation value: %s, error: %s", angle, i, expectation_value, error)
+
+    logger.info("Expectation values: %s", expectation_values)
+    logger.info("Expectation errors: %s", expectation_errors)
+
+    negative_count = sum(1 for v in expectation_values if v < 0)
+    negative_indices = [i for i, v in enumerate(expectation_values) if v < 0]
+    impossible_counts = [0, 2, 4]
+
+    if negative_count in impossible_counts:
+        raise ValueError(f"Impossible negative expectation values found: {negative_indices}, expectation_values = {expectation_values}, expectation_errors = {expectation_errors}")
+
+    if len(negative_indices) > 1 or negative_indices[0] != 0:
+        logger.warning("Expectation values have unexpected negative indices: %s", negative_indices)
+
+    chsh_value = sum(abs(x) for x in expectation_values)
     chsh_error = sum((x**2 for x in expectation_errors))**0.5
 
     return chsh_value, chsh_error
@@ -133,7 +148,6 @@ async def chsh(basis: tuple[float, float], other_node_address: str, http_client:
 @app.post("/chsh/request-angle-by-basis")
 async def request_angle_by_basis(index: int, *, perp: bool = False) -> bool:
     client = Client(host=settings.router_address, port=settings.router_port, timeout=600_000)
-
     hwp = client.get_device(settings.chsh_settings.request_hwp[0], settings.chsh_settings.request_hwp[1])
     if hwp is None:
         logger.error("Could not find halfwaveplate device")

@@ -1,3 +1,4 @@
+import json
 import logging
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
@@ -18,7 +19,7 @@ from pqnstack.constants import QKDEncodingBasis, QKDAngleValuesHWP
 from pqnstack.network.client import Client
 from pqnstack.pqn.protocols.measurement import MeasurementConfig
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 app = FastAPI()
 
@@ -68,7 +69,7 @@ QKD_ANG_VAL = QKDAngleValuesHWP
 class NodeState(BaseModel):
     chsh_request_basis: list[float] = [22.5, 67.5]
     # FIXME: Use enums for this
-    qkd_basis_list: list[QKD_ENC] = [QKD_ENC.DA, QKD_ENC.HV, QKD_ENC.DA, QKD_ENC.HV]
+    qkd_basis_list: list[QKD_ENC] = [QKD_ENC.DA, QKD_ENC.HV, QKD_ENC.DA, QKD_ENC.HV, QKD_ENC.HV]
     qkd_bit_list: list = []
     qkd_resulting_bit_list: list = []  # Resulting bits after QKD
     qkd_request_basis_list: list = []  # Basis angles for QKD
@@ -202,7 +203,7 @@ async def chsh(  # noqa: C901, PLR0912, PLR0915  # Complexity is high due to the
                             detail="Failed to request follower",
                         )
 
-                    count = _count_coincidences(
+                    count = await _count_coincidences(
                         settings.chsh_settings.measurement_config, tagger, timetagger_address, http_client
                     )
 
@@ -256,7 +257,7 @@ async def request_angle_by_basis(index: int, *, perp: bool = False) -> bool:
             detail="Could not find half waveplate device",
         )
 
-    angle = state.chsh_basis[index] + 90 * perp
+    angle = state.chsh_request_basis[index] + 90 * perp
     assert hasattr(hwp, "move_to")
     hwp.move_to(angle / 2)
     logger.info("moving waveplate", extra={"angle": angle})
@@ -268,7 +269,8 @@ async def qkd(
     follower_node_address: str,
     http_client: ClientDep,
     timetagger_address: str | None = None,
-) -> dict[str, str]:
+) -> list[int]:
+    logger.debug("Starting QKD")
     client = Client(host=settings.router_address, port=settings.router_port, timeout=600_000)
     hwp = client.get_device(settings.qkd_settings.hwp[0], settings.qkd_settings.hwp[1])
 
@@ -284,7 +286,7 @@ async def qkd(
         tagger = _get_timetagger(client)
 
     counts = []
-    for basis in settings.qkd_settings.qkd_basis_list:
+    for basis in state.qkd_basis_list:
         r = await http_client.post(f"http://{follower_node_address}/qkd/single_bit")
 
         if r.status_code != status.HTTP_200_OK:
@@ -297,23 +299,20 @@ async def qkd(
 
         int_choice = random.randint(0, 1)  # FIXME: Make this real quantum random.
         state.qkd_bit_list.append(int_choice)
-
         hwp.move_to(basis.value[int_choice].value)
-
-        count = _count_coincidences(settings.qkd_settings.measurement_config, tagger, timetagger_address, http_client)
-
+        count = await _count_coincidences(settings.qkd_settings.measurement_config, tagger, timetagger_address, http_client)
         counts.append(count)
 
     bit_list = []
-    for count, choice, basis in zip(counts, state.qkd_bit_list, settings.qkd_settings.qkd_basis_list):
+    for count, choice, basis in zip(counts, state.qkd_bit_list, state.qkd_basis_list):
         if basis == QKD_ENC.HV:
             if choice == 0:
-                if counts > settings.qkd_settings.discriminating_threshold:
+                if count > settings.qkd_settings.discriminating_threshold:
                     bit_list.append(1)
                 else:
                     bit_list.append(0)
             elif choice == 1:
-                if counts > settings.qkd_settings.discriminating_threshold:
+                if count > settings.qkd_settings.discriminating_threshold:
                     bit_list.append(0)
                 else:
                     bit_list.append(1)
@@ -321,20 +320,20 @@ async def qkd(
                 raise RuntimeError("something went really wrong with QKD choice list")
         elif basis == QKD_ENC.DA:
             if choice == 0:
-                if counts > settings.qkd_settings.discriminating_threshold:
+                if count > settings.qkd_settings.discriminating_threshold:
                     bit_list.append(0)
                 else:
                     bit_list.append(1)
             elif choice == 1:
-                if counts > settings.qkd_settings.discriminating_threshold:
+                if count > settings.qkd_settings.discriminating_threshold:
                     bit_list.append(1)
                 else:
                     bit_list.append(0)
             else:
                 raise RuntimeError("something went really wrong with QKD choice list")
 
-    basis_list = [basis.name for basis in settings.qkd_settings.qkd_basis_list]
-    r = await http_client.post(f"http://{follower_node_address}/qkd/request_basis_list?leader_basis_list={basis_list}")
+    basis_list = [basis.name for basis in state.qkd_basis_list]
+    r = await http_client.post(f"http://{follower_node_address}/qkd/request_basis_list", json=basis_list)
     if r.status_code != status.HTTP_200_OK:
         logger.error("Failed to request basis list from follower: %s", r.text)
         raise HTTPException(
@@ -365,7 +364,7 @@ async def request_qkd_single_pass() -> bool:
 
     logger.debug("Halfwaveplate device found: %s", hwp)
 
-    basis_choice = random.choices([QKD_ENC.HV, QKD_ENC.DA])  # FIXME: Make this real quantum random.
+    basis_choice = random.choices([QKD_ENC.HV, QKD_ENC.DA])[0]  # FIXME: Make this real quantum random.
     int_choice = random.randint(0, 1)  # FIXME: Make this real quantum random.
 
     state.qkd_request_basis_list.append(basis_choice)
@@ -379,12 +378,11 @@ async def request_qkd_single_pass() -> bool:
     return True
 
 
-@app.get("/qkd/request_basis_list")
+@app.post("/qkd/request_basis_list")
 def request_qkd_basis_list(leader_basis_list: list[str]) -> list[str]:
     """
     Returns the list of basis angles for QKD.
     """
-
     # Check that lengths match
     if len(leader_basis_list) != len(state.qkd_request_basis_list):
         logger.error("Length of leader basis list does not match length of request basis list")
@@ -394,13 +392,12 @@ def request_qkd_basis_list(leader_basis_list: list[str]) -> list[str]:
         )
 
     ret = [basis.name for basis in state.qkd_request_basis_list]
-
     index_list = [i for i in range(len(leader_basis_list)) if ret[i] == leader_basis_list[i]]
     final_bits = [state.qkd_request_bit_list[i] for i in index_list]
-
     logger.error("Final bits: %s", final_bits)
 
     state.qkd_request_basis_list.clear()
+    state.qkd_request_bit_list.clear()
 
     return ret
 

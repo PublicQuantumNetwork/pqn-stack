@@ -4,9 +4,7 @@ from typing import cast
 
 from pqnstack.network.client import Client
 from pqnstack.network.client import ProxyInstrument
-from pqnstack.pqn.drivers.rotator import DEFAULT_SETTINGS
-from pqnstack.pqn.drivers.rotator import HV_BASIS
-from pqnstack.pqn.drivers.rotator import MeasurementBasis
+from pqnstack.constants import DEFAULT_SETTINGS, HV_BASIS, MeasurementBasis
 from pqnstack.pqn.drivers.rotator import RotatorDevice
 from pqnstack.pqn.protocols.measurement import MeasurementConfig
 from pqnstack.pqn.protocols.visibility import calculate_visibility
@@ -92,4 +90,4 @@ if __name__ == "__main__":
     from pqnstack.network.devices.client import client
 
     client = client(host="172.30.63.109", timeout=30000)
-    qd_device = client.et_device("qkd_device", "devices.qd")
+    qd_device = client.get_device("qkd_device", "devices.qd")

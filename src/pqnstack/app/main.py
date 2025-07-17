@@ -15,7 +15,7 @@ from fastapi import status
 from pydantic import BaseModel
 
 from pqnstack.base.driver import DeviceDriver
-from pqnstack.constants import QKDEncodingBasis, QKDAngleValuesHWP, BellState
+from pqnstack.constants import QKDEncodingBasis, QKDAngleValuesHWP, BellState, BasisBool
 from pqnstack.network.client import Client
 from pqnstack.pqn.protocols.measurement import MeasurementConfig
 
@@ -52,7 +52,19 @@ class Settings:
     timetagger: tuple[str, str] | None = None  # Name of the timetagger to use for the CHSH experiment.
 
 
-settings = Settings("", "", 0, CHSHSettings(), qkd_settings=QKDSettings())
+settings = Settings(
+    router_name = "router1",
+    router_address = "172.30.63.109",
+    router_port = 5555,
+    timetagger = ("mini_pc", "tagger"),
+    chsh_settings = CHSHSettings(
+        hwp=("loomis_server", "signal_hwp"),
+    ),
+    qkd_settings = QKDSettings(
+        hwp=("loomis_server", "signal_hwp"),
+    )
+
+)
 
 
 # FIXME: This should probably be toggable depending on what the purpose of the call.
@@ -70,7 +82,7 @@ QKD_ANG_VAL = QKDAngleValuesHWP
 class NodeState(BaseModel):
     chsh_request_basis: list[float] = [22.5, 67.5]
     # FIXME: Use enums for this
-    qkd_basis_list: list[QKD_ENC] = [QKD_ENC.DA, QKD_ENC.HV, QKD_ENC.DA, QKD_ENC.HV, QKD_ENC.HV]
+    qkd_basis_list: list[QKD_ENC] = [QKD_ENC.DA, QKD_ENC.DA, QKD_ENC.DA, QKD_ENC.DA, QKD_ENC.DA, QKD_ENC.DA, QKD_ENC.HV, QKD_ENC.HV, QKD_ENC.HV, QKD_ENC.HV, QKD_ENC.HV]
     qkd_bit_list: list = []
     qkd_resulting_bit_list: list = []  # Resulting bits after QKD
     qkd_request_basis_list: list = []  # Basis angles for QKD
@@ -299,9 +311,12 @@ async def qkd(
         logger.debug("Handshake with follower successful")
 
         int_choice = random.randint(0, 1)  # FIXME: Make this real quantum random.
+        logger.debug("Chosen integer choice: %s", int_choice)
         state.qkd_bit_list.append(int_choice)
         hwp.move_to(basis.value[int_choice].value)
+        logger.debug("Moving half waveplate to angle: %s", basis.value[int_choice].value)
         count = await _count_coincidences(settings.qkd_settings.measurement_config, tagger, timetagger_address, http_client)
+        logger.debug("Counted %d coincidences", count)
         counts.append(count)
 
     def get_outcome(state, basis, choice, counts):
@@ -310,10 +325,14 @@ async def qkd(
         return outcome
 
     outcome = []
+    logger.debug("Going for qkd_basis_list: %s, qkd_bit_list: %s, counts: %s", state.qkd_basis_list, state.qkd_bit_list, counts)
     for (basis, choice, count) in zip(state.qkd_basis_list, state.qkd_bit_list, counts):
-        outcome.append(get_outcome(settings.bell_state.value, basis, choice, count))
+        out = get_outcome(settings.bell_state.value, BasisBool[basis.name].value, choice, count)
+        logger.debug("Calculating outcome for basis: %s, choice: %s, count: %s, outcome: %s", basis.name, choice, count, out)
+        outcome.append(out)
 
     basis_list = [basis.name for basis in state.qkd_basis_list]
+
     # FIXME: Send already binary basis instead of HV/AD.
     r = await http_client.post(f"http://{follower_node_address}/qkd/request_basis_list", json=basis_list)
     if r.status_code != status.HTTP_200_OK:

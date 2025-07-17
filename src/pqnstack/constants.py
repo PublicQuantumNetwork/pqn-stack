@@ -11,13 +11,13 @@ class QKDAngleValuesHWP(Enum):
 
 class QKDEncodingBasis(Enum):
     HV = [QKDAngleValuesHWP.H, QKDAngleValuesHWP.V]
-    AD = [QKDAngleValuesHWP.A, QKDAngleValuesHWP.D]
+    DA = [QKDAngleValuesHWP.D, QKDAngleValuesHWP.A]
 
 
 
 class BasisBool(Enum):
     HV=0
-    AD=1
+    DA=1
 
 # FIXME: Populate missing bell states.
 class BellState(Enum):

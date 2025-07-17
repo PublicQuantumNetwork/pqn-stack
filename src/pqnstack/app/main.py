@@ -15,7 +15,7 @@ from fastapi import status
 from pydantic import BaseModel
 
 from pqnstack.base.driver import DeviceDriver
-from pqnstack.constants import QKDEncodingBasis, QKDAngleValuesHWP
+from pqnstack.constants import QKDEncodingBasis, QKDAngleValuesHWP, BellState
 from pqnstack.network.client import Client
 from pqnstack.pqn.protocols.measurement import MeasurementConfig
 
@@ -48,6 +48,7 @@ class Settings:
     router_port: int
     chsh_settings: CHSHSettings
     qkd_settings: QKDSettings
+    bell_state: BellState = BellState.Phi_plus
     timetagger: tuple[str, str] | None = None  # Name of the timetagger to use for the CHSH experiment.
 
 
@@ -303,36 +304,17 @@ async def qkd(
         count = await _count_coincidences(settings.qkd_settings.measurement_config, tagger, timetagger_address, http_client)
         counts.append(count)
 
-    bit_list = []
-    for count, choice, basis in zip(counts, state.qkd_bit_list, state.qkd_basis_list):
-        if basis == QKD_ENC.HV:
-            if choice == 0:
-                if count > settings.qkd_settings.discriminating_threshold:
-                    bit_list.append(1)
-                else:
-                    bit_list.append(0)
-            elif choice == 1:
-                if count > settings.qkd_settings.discriminating_threshold:
-                    bit_list.append(0)
-                else:
-                    bit_list.append(1)
-            else:
-                raise RuntimeError("something went really wrong with QKD choice list")
-        elif basis == QKD_ENC.DA:
-            if choice == 0:
-                if count > settings.qkd_settings.discriminating_threshold:
-                    bit_list.append(0)
-                else:
-                    bit_list.append(1)
-            elif choice == 1:
-                if count > settings.qkd_settings.discriminating_threshold:
-                    bit_list.append(1)
-                else:
-                    bit_list.append(0)
-            else:
-                raise RuntimeError("something went really wrong with QKD choice list")
+    def get_outcome(state, basis, choice, counts):
+        above = counts > settings.qkd_settings.discriminating_threshold
+        outcome = ((int(above) ^ choice) ^ (1 - state)) ^ basis
+        return outcome
+
+    outcome = []
+    for (basis, choice, count) in zip(state.qkd_basis_list, state.qkd_bit_list, counts):
+        outcome.append(get_outcome(settings.bell_state.value, basis, choice, count))
 
     basis_list = [basis.name for basis in state.qkd_basis_list]
+    # FIXME: Send already binary basis instead of HV/AD.
     r = await http_client.post(f"http://{follower_node_address}/qkd/request_basis_list", json=basis_list)
     if r.status_code != status.HTTP_200_OK:
         logger.error("Failed to request basis list from follower: %s", r.text)
@@ -343,7 +325,7 @@ async def qkd(
     follower_basis_list = r.json()
 
     index_list = [i for i in range(len(follower_basis_list)) if follower_basis_list[i] == basis_list[i]]
-    final_bits = [bit_list[i] for i in index_list]
+    final_bits = [outcome[i] for i in index_list]
 
     logger.info("Final bits: %s", final_bits)
 

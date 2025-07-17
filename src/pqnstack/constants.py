@@ -5,13 +5,30 @@ from enum import Enum
 class QKDAngleValuesHWP(Enum):
     H = 0
     V = 45
-    D = 22.5
     A = -22.5
+    D = 22.5
 
 
 class QKDEncodingBasis(Enum):
     HV = [QKDAngleValuesHWP.H, QKDAngleValuesHWP.V]
-    DA = [QKDAngleValuesHWP.D, QKDAngleValuesHWP.A]
+    AD = [QKDAngleValuesHWP.A, QKDAngleValuesHWP.D]
+
+
+
+class BasisBool(Enum):
+    HV=0
+    AD=1
+
+# FIXME: Populate missing bell states.
+class BellState(Enum):
+    """
+    Encodes
+    """
+    Phi_plus = 0
+    Psi_plus = 1
+
+
+
 
 
 DEFAULT_SETTINGS: dict[str, tuple[float, float]] = {

@@ -52,20 +52,6 @@ class Settings:
     timetagger: tuple[str, str] | None = None  # Name of the timetagger to use for the CHSH experiment.
 
 
-settings = Settings(
-    router_name = "router1",
-    router_address = "172.30.63.109",
-    router_port = 5555,
-    timetagger = ("mini_pc", "tagger"),
-    chsh_settings = CHSHSettings(
-        hwp=("loomis_server", "signal_hwp"),
-    ),
-    qkd_settings = QKDSettings(
-        hwp=("loomis_server", "signal_hwp"),
-    )
-
-)
-
 
 # FIXME: This should probably be toggable depending on what the purpose of the call.
 async def get_http_client() -> AsyncGenerator[httpx.AsyncClient, None]:

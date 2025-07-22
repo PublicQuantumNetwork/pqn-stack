@@ -1,13 +1,18 @@
 from dataclasses import dataclass
 from time import sleep
+from typing import TYPE_CHECKING
 from typing import cast
 
+from pqnstack.constants import DEFAULT_SETTINGS
+from pqnstack.constants import HV_BASIS
+from pqnstack.constants import MeasurementBasis
 from pqnstack.network.client import Client
 from pqnstack.network.client import ProxyInstrument
-from pqnstack.constants import DEFAULT_SETTINGS, HV_BASIS, MeasurementBasis
-from pqnstack.pqn.drivers.rotator import RotatorDevice
 from pqnstack.pqn.protocols.measurement import MeasurementConfig
 from pqnstack.pqn.protocols.visibility import calculate_visibility
+
+if TYPE_CHECKING:
+    from pqnstack.pqn.drivers.rotator import RotatorDevice
 
 
 @dataclass

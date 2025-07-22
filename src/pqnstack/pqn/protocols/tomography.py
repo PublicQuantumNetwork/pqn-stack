@@ -3,7 +3,8 @@ import time
 from dataclasses import dataclass
 
 from pqnstack.base.driver.rotator import RotatorDevice
-from pqnstack.constants import DEFAULT_SETTINGS, MeasurementBasis
+from pqnstack.constants import DEFAULT_SETTINGS
+from pqnstack.constants import MeasurementBasis
 from pqnstack.pqn.drivers.timetagger import TimeTaggerDevice
 from pqnstack.pqn.protocols.measurement import MeasurementConfig
 

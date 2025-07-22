@@ -1,11 +1,9 @@
-import json
 import logging
+import random
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from dataclasses import field
 from typing import Annotated
-
-import random
 
 import httpx
 from fastapi import Depends
@@ -15,7 +13,10 @@ from fastapi import status
 from pydantic import BaseModel
 
 from pqnstack.base.driver import DeviceDriver
-from pqnstack.constants import QKDEncodingBasis, QKDAngleValuesHWP, BellState, BasisBool
+from pqnstack.constants import BasisBool
+from pqnstack.constants import BellState
+from pqnstack.constants import QKDAngleValuesHWP
+from pqnstack.constants import QKDEncodingBasis
 from pqnstack.network.client import Client
 from pqnstack.pqn.protocols.measurement import MeasurementConfig
 
@@ -52,6 +53,15 @@ class Settings:
     timetagger: tuple[str, str] | None = None  # Name of the timetagger to use for the CHSH experiment.
 
 
+static_typecheck_msg = "Please set the global 'settings' variable before use."
+
+
+def get_settings() -> Settings:
+    raise NotImplementedError(static_typecheck_msg)
+
+
+settings = get_settings()
+
 
 # FIXME: This should probably be toggable depending on what the purpose of the call.
 async def get_http_client() -> AsyncGenerator[httpx.AsyncClient, None]:
@@ -68,7 +78,19 @@ QKD_ANG_VAL = QKDAngleValuesHWP
 class NodeState(BaseModel):
     chsh_request_basis: list[float] = [22.5, 67.5]
     # FIXME: Use enums for this
-    qkd_basis_list: list[QKD_ENC] = [QKD_ENC.DA, QKD_ENC.DA, QKD_ENC.DA, QKD_ENC.DA, QKD_ENC.DA, QKD_ENC.DA, QKD_ENC.HV, QKD_ENC.HV, QKD_ENC.HV, QKD_ENC.HV, QKD_ENC.HV]
+    qkd_basis_list: list[QKD_ENC] = [
+        QKD_ENC.DA,
+        QKD_ENC.DA,
+        QKD_ENC.DA,
+        QKD_ENC.DA,
+        QKD_ENC.DA,
+        QKD_ENC.DA,
+        QKD_ENC.HV,
+        QKD_ENC.HV,
+        QKD_ENC.HV,
+        QKD_ENC.HV,
+        QKD_ENC.HV,
+    ]
     qkd_bit_list: list = []
     qkd_resulting_bit_list: list = []  # Resulting bits after QKD
     qkd_request_basis_list: list = []  # Basis angles for QKD
@@ -109,10 +131,12 @@ async def _count_coincidences(
     http_client: httpx.AsyncClient | None = None,
 ) -> int:
     if tagger is None and tagger_address is None:
-        raise ValueError("Either tagger or tagger_address must be provided")
+        msg = "Either tagger or tagger_address must be provided"
+        raise ValueError(msg)
 
     if tagger_address is not None and http_client is None:
-        raise ValueError("http_client must be provided if tagger_address is provided")
+        msg = "http_client must be provided if tagger_address is provided"
+        raise ValueError(msg)
 
     if tagger_address is None:
         assert hasattr(tagger, "measure_coincidence")
@@ -156,7 +180,7 @@ def _calculate_chsh_expectation_error(counts: list[int], dark_count: int = 0) ->
 
 # TODO: Refactor timetagger handling since it is going to be used in multiple places.
 @app.post("/chsh")
-async def chsh(  # noqa: C901, PLR0912, PLR0915  # Complexity is high due to the nature of the CHSH experiment.
+async def chsh(  # Complexity is high due to the nature of the CHSH experiment.
     basis: tuple[float, float],
     follower_node_address: str,
     http_client: ClientDep,
@@ -301,20 +325,25 @@ async def qkd(
         state.qkd_bit_list.append(int_choice)
         hwp.move_to(basis.value[int_choice].value)
         logger.debug("Moving half waveplate to angle: %s", basis.value[int_choice].value)
-        count = await _count_coincidences(settings.qkd_settings.measurement_config, tagger, timetagger_address, http_client)
+        count = await _count_coincidences(
+            settings.qkd_settings.measurement_config, tagger, timetagger_address, http_client
+        )
         logger.debug("Counted %d coincidences", count)
         counts.append(count)
 
     def get_outcome(state, basis, choice, counts):
         above = counts > settings.qkd_settings.discriminating_threshold
-        outcome = ((int(above) ^ choice) ^ (1 - state)) ^ basis
-        return outcome
+        return ((int(above) ^ choice) ^ (1 - state)) ^ basis
 
     outcome = []
-    logger.debug("Going for qkd_basis_list: %s, qkd_bit_list: %s, counts: %s", state.qkd_basis_list, state.qkd_bit_list, counts)
-    for (basis, choice, count) in zip(state.qkd_basis_list, state.qkd_bit_list, counts):
+    logger.debug(
+        "Going for qkd_basis_list: %s, qkd_bit_list: %s, counts: %s", state.qkd_basis_list, state.qkd_bit_list, counts
+    )
+    for basis, choice, count in zip(state.qkd_basis_list, state.qkd_bit_list, counts, strict=False):
         out = get_outcome(settings.bell_state.value, BasisBool[basis.name].value, choice, count)
-        logger.debug("Calculating outcome for basis: %s, choice: %s, count: %s, outcome: %s", basis.name, choice, count, out)
+        logger.debug(
+            "Calculating outcome for basis: %s, choice: %s, count: %s, outcome: %s", basis.name, choice, count, out
+        )
         outcome.append(out)
 
     basis_list = [basis.name for basis in state.qkd_basis_list]
@@ -367,9 +396,7 @@ async def request_qkd_single_pass() -> bool:
 
 @app.post("/qkd/request_basis_list")
 def request_qkd_basis_list(leader_basis_list: list[str]) -> list[str]:
-    """
-    Returns the list of basis angles for QKD.
-    """
+    """Return the list of basis angles for QKD."""
     # Check that lengths match
     if len(leader_basis_list) != len(state.qkd_request_basis_list):
         logger.error("Length of leader basis list does not match length of request basis list")

@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
+from typing import ClassVar
 
 
 class QKDAngleValuesHWP(Enum):
@@ -10,25 +11,21 @@ class QKDAngleValuesHWP(Enum):
 
 
 class QKDEncodingBasis(Enum):
-    HV = [QKDAngleValuesHWP.H, QKDAngleValuesHWP.V]
-    DA = [QKDAngleValuesHWP.D, QKDAngleValuesHWP.A]
-
+    HV: ClassVar[list] = [QKDAngleValuesHWP.H, QKDAngleValuesHWP.V]
+    DA: ClassVar[list] = [QKDAngleValuesHWP.D, QKDAngleValuesHWP.A]
 
 
 class BasisBool(Enum):
-    HV=0
-    DA=1
+    HV = 0
+    DA = 1
+
 
 # FIXME: Populate missing bell states.
 class BellState(Enum):
-    """
-    Encodes
-    """
+    """Encodes."""
+
     Phi_plus = 0
     Psi_plus = 1
-
-
-
 
 
 DEFAULT_SETTINGS: dict[str, tuple[float, float]] = {

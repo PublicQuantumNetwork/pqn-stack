@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import ClassVar
 
 
 class QKDAngleValuesHWP(Enum):
@@ -11,8 +10,17 @@ class QKDAngleValuesHWP(Enum):
 
 
 class QKDEncodingBasis(Enum):
-    HV: ClassVar[list] = [QKDAngleValuesHWP.H, QKDAngleValuesHWP.V]
-    DA: ClassVar[list] = [QKDAngleValuesHWP.D, QKDAngleValuesHWP.A]
+    HV = 0
+    DA = 1
+
+    @property
+    def angles(self) -> list[QKDAngleValuesHWP]:
+        if self is QKDEncodingBasis.HV:
+            return [QKDAngleValuesHWP.H, QKDAngleValuesHWP.V]
+        if self is QKDEncodingBasis.DA:
+            return [QKDAngleValuesHWP.D, QKDAngleValuesHWP.A]
+        msg = f"Unknown basis: {self}"
+        raise ValueError(msg)
 
 
 class BasisBool(Enum):

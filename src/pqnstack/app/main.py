@@ -4,6 +4,8 @@ from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from dataclasses import field
 from typing import Annotated
+from typing import Any
+from typing import cast
 
 import httpx
 from fastapi import Depends
@@ -78,7 +80,7 @@ QKD_ANG_VAL = QKDAngleValuesHWP
 class NodeState(BaseModel):
     chsh_request_basis: list[float] = [22.5, 67.5]
     # FIXME: Use enums for this
-    qkd_basis_list: list[QKD_ENC] = [
+    qkd_basis_list: list[QKDEncodingBasis] = [
         QKD_ENC.DA,
         QKD_ENC.DA,
         QKD_ENC.DA,
@@ -91,10 +93,10 @@ class NodeState(BaseModel):
         QKD_ENC.HV,
         QKD_ENC.HV,
     ]
-    qkd_bit_list: list = []
-    qkd_resulting_bit_list: list = []  # Resulting bits after QKD
-    qkd_request_basis_list: list = []  # Basis angles for QKD
-    qkd_request_bit_list: list = []
+    qkd_bit_list: list[int] = []
+    qkd_resulting_bit_list: list[int] = []  # Resulting bits after QKD
+    qkd_request_basis_list: list[QKDEncodingBasis] = []  # Basis angles for QKD
+    qkd_request_bit_list: list[int] = []
 
 
 state = NodeState()
@@ -105,7 +107,7 @@ async def root() -> dict[str, str]:
     return {"message": "Hello World"}
 
 
-def _get_timetagger(client) -> DeviceDriver:
+def _get_timetagger(client: Client) -> DeviceDriver:
     if settings.timetagger is None:
         logger.error("No timetagger configured")
         raise HTTPException(
@@ -139,6 +141,7 @@ async def _count_coincidences(
         raise ValueError(msg)
 
     if tagger_address is None:
+        assert tagger is not None
         assert hasattr(tagger, "measure_coincidence")
         count = tagger.measure_coincidence(
             measurement_config.channel1,
@@ -147,6 +150,7 @@ async def _count_coincidences(
             int(measurement_config.duration * 1e12),
         )
     else:
+        assert http_client is not None
         r = await http_client.get(
             f"http://{tagger_address}/timetagger/measure?duration={measurement_config.duration}&binwidth={measurement_config.binwidth}&channel1={measurement_config.channel1}&channel2={measurement_config.channel2}&dark_count={measurement_config.dark_count}"
         )
@@ -156,7 +160,7 @@ async def _count_coincidences(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to measure coincidences",
             )
-        count = r.json()
+        count = cast("int", r.json())
         if not isinstance(count, int):
             logger.error("Invalid response from timetagger: %s", count)
             raise HTTPException(
@@ -164,7 +168,7 @@ async def _count_coincidences(
                 detail="Invalid response from timetagger",
             )
         logger.debug("Measured %d coincidences", count)
-    return count
+    return int(count)
 
 
 def _calculate_chsh_expectation_error(counts: list[int], dark_count: int = 0) -> float:
@@ -281,7 +285,7 @@ async def request_angle_by_basis(index: int, *, perp: bool = False) -> bool:
         )
 
     angle = state.chsh_request_basis[index] + 90 * perp
-    assert hasattr(hwp, "move_to")
+    hwp = cast("Any", hwp)
     hwp.move_to(angle / 2)
     logger.info("moving waveplate", extra={"angle": angle})
     return True
@@ -304,6 +308,7 @@ async def qkd(
             detail="Could not find half waveplate device",
         )
 
+    hwp = cast("Any", hwp)
     tagger = None
     if timetagger_address is None:
         tagger = _get_timetagger(client)
@@ -323,15 +328,15 @@ async def qkd(
         int_choice = random.randint(0, 1)  # FIXME: Make this real quantum random.
         logger.debug("Chosen integer choice: %s", int_choice)
         state.qkd_bit_list.append(int_choice)
-        hwp.move_to(basis.value[int_choice].value)
-        logger.debug("Moving half waveplate to angle: %s", basis.value[int_choice].value)
+        hwp.move_to(basis.angles[int_choice].value)
+        logger.debug("Moving half waveplate to angle: %s", basis.angles[int_choice].value)
         count = await _count_coincidences(
             settings.qkd_settings.measurement_config, tagger, timetagger_address, http_client
         )
         logger.debug("Counted %d coincidences", count)
         counts.append(count)
 
-    def get_outcome(state, basis, choice, counts):
+    def get_outcome(state: int, basis: int, choice: int, counts: int) -> int:
         above = counts > settings.qkd_settings.discriminating_threshold
         return ((int(above) ^ choice) ^ (1 - state)) ^ basis
 
@@ -379,16 +384,15 @@ async def request_qkd_single_pass() -> bool:
         )
 
     logger.debug("Halfwaveplate device found: %s", hwp)
+    hwp = cast("Any", hwp)
 
     basis_choice = random.choices([QKD_ENC.HV, QKD_ENC.DA])[0]  # FIXME: Make this real quantum random.
     int_choice = random.randint(0, 1)  # FIXME: Make this real quantum random.
 
     state.qkd_request_basis_list.append(basis_choice)
     state.qkd_request_bit_list.append(int_choice)
+    angle = basis_choice.angles[int_choice].value
 
-    angle = basis_choice.value[int_choice].value
-
-    assert hasattr(hwp, "move_to")
     hwp.move_to(angle)
 
     return True

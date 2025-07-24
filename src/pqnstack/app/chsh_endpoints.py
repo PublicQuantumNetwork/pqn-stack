@@ -19,9 +19,9 @@ logger = logging.getLogger(__name__)
 
 @router.post("")
 async def chsh(  # Complexity is high due to the nature of the CHSH experiment.
-    basis: tuple[float, float],
     follower_node_address: str,
     http_client: ClientDep,
+    basis: tuple[float, float] = state.chsh_basis,
     timetagger_address: str | None = None,
 ) -> tuple[float, float]:
     logger.debug("Starting CHSH")
@@ -122,4 +122,28 @@ async def request_angle_by_basis(index: int, *, perp: bool = False) -> bool:
     assert hasattr(hwp, "move_to")
     hwp.move_to(angle / 2)
     logger.info("moving waveplate", extra={"angle": angle})
+    return True
+
+@router.post("/set_angle")
+async def set_angle(angle: float, position: int = 1) -> bool:
+    """
+
+    :param angle:
+    :param position:
+    :return:
+    """
+
+    if position not in [1, 2]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Position must be either 1 or 2",
+        )
+
+    if angle > 360 or angle < 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Angle must be between 0 and 360 degrees",
+        )
+
+    state.chsh_basis[position - 1] = angle
     return True

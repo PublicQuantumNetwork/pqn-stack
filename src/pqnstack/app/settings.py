@@ -51,6 +51,7 @@ settings = get_settings()
 
 
 class NodeState(BaseModel):
+    chsh_basis: list[float] = [0.0, 45.0]
     chsh_request_basis: list[float] = [22.5, 67.5]
     # FIXME: Use enums for this
     qkd_basis_list: list[QKDEncodingBasis] = [

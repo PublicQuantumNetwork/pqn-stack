@@ -19,8 +19,7 @@ router = APIRouter(prefix="/qkd")
 logger = logging.getLogger(__name__)
 
 
-@router.post("")
-async def qkd(
+async def _qkd(
     follower_node_address: str,
     http_client: ClientDep,
     timetagger_address: str | None = None,
@@ -97,6 +96,23 @@ async def qkd(
     logger.info("Final bits: %s", final_bits)
 
     return final_bits
+
+
+@router.post("")
+async def qkd(
+    follower_node_address: str,
+    http_client: ClientDep,
+    timetagger_address: str | None = None,
+) -> list[int]:
+    """Perform a QKD protocol with the given follower node."""
+    if not state.qkd_basis_list:
+        logger.error("QKD basis list is empty")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="QKD basis list is empty",
+        )
+
+    return await _qkd(follower_node_address, http_client, timetagger_address)
 
 
 @router.post("/single_bit")

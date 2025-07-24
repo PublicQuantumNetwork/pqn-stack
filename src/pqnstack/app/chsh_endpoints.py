@@ -17,8 +17,7 @@ router = APIRouter(prefix="/chsh")
 logger = logging.getLogger(__name__)
 
 
-@router.post("")
-async def chsh(  # Complexity is high due to the nature of the CHSH experiment.
+async def _chsh(  # Complexity is high due to the nature of the CHSH experiment.
     basis: tuple[float, float],
     follower_node_address: str,
     http_client: ClientDep,
@@ -106,6 +105,23 @@ async def chsh(  # Complexity is high due to the nature of the CHSH experiment.
     chsh_error = sum(x**2 for x in expectation_errors) ** 0.5
 
     return chsh_value, chsh_error
+
+
+@router.post("")
+async def chsh(
+    basis: tuple[float, float],
+    follower_node_address: str,
+    http_client: ClientDep,
+    timetagger_address: str | None = None,
+) -> dict[str, float]:
+    logger.info("Starting CHSH experiment with basis: %s", basis)
+
+    chsh_value, chsh_error = await _chsh(basis, follower_node_address, http_client, timetagger_address)
+
+    return {
+        "chsh_value": chsh_value,
+        "chsh_error": chsh_error,
+    }
 
 
 @router.post("/request-angle-by-basis")

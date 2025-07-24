@@ -5,7 +5,6 @@ from fastapi import FastAPI
 from pqnstack.app.chsh_endpoints import router as chsh_router
 from pqnstack.app.qkd_endpoints import router as qkd_router
 from pqnstack.app.timetagger_endpoints import router as timetagger_router
-from pqnstack.app.polarimeter_endpoints import router as polarimeter_router
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -15,7 +14,6 @@ app = FastAPI()
 app.include_router(chsh_router)
 app.include_router(qkd_router)
 app.include_router(timetagger_router)
-app.include_router(polarimeter_router)
 
 
 @app.get("/")

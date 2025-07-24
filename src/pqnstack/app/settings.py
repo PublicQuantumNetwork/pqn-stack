@@ -49,7 +49,6 @@ def get_settings() -> Settings:
 
 settings = get_settings()
 
-
 class NodeState(BaseModel):
     chsh_request_basis: list[float] = [22.5, 67.5]
     # FIXME: Use enums for this

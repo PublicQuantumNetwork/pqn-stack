@@ -285,7 +285,7 @@ async def request_angle_by_basis(index: int, *, perp: bool = False) -> bool:
         )
 
     angle = state.chsh_request_basis[index] + 90 * perp
-    hwp = cast("Any", hwp)
+    assert hasattr(hwp, "move_to")
     hwp.move_to(angle / 2)
     logger.info("moving waveplate", extra={"angle": angle})
     return True

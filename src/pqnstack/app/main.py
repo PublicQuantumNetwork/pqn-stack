@@ -1,7 +1,7 @@
 import logging
+
 from fastapi import FastAPI
-from pqnstack.app.settings import settings
-from pqnstack.app.dependencies import get_http_client, ClientDep
+
 from pqnstack.app.chsh_endpoints import router as chsh_router
 from pqnstack.app.qkd_endpoints import router as qkd_router
 from pqnstack.app.timetagger_endpoints import router as timetagger_router
@@ -14,6 +14,7 @@ app = FastAPI()
 app.include_router(chsh_router)
 app.include_router(qkd_router)
 app.include_router(timetagger_router)
+
 
 @app.get("/")
 async def root() -> dict[str, str]:

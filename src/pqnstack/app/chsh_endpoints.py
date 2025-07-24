@@ -1,15 +1,21 @@
 import logging
-from typing import cast
-from fastapi import APIRouter, HTTPException, status, Depends
+
+from fastapi import APIRouter
+from fastapi import HTTPException
+from fastapi import status
 
 from pqnstack.app.dependencies import ClientDep
-from pqnstack.app.settings import settings, state
-from pqnstack.app.utils import _get_timetagger, _count_coincidences, _calculate_chsh_expectation_error
+from pqnstack.app.settings import settings
+from pqnstack.app.settings import state
+from pqnstack.app.utils import _calculate_chsh_expectation_error
+from pqnstack.app.utils import _count_coincidences
+from pqnstack.app.utils import _get_timetagger
 from pqnstack.network.client import Client
 
 router = APIRouter(prefix="/chsh")
 
 logger = logging.getLogger(__name__)
+
 
 @router.post("")
 async def chsh(  # Complexity is high due to the nature of the CHSH experiment.
@@ -101,6 +107,7 @@ async def chsh(  # Complexity is high due to the nature of the CHSH experiment.
 
     return chsh_value, chsh_error
 
+
 @router.post("/request-angle-by-basis")
 async def request_angle_by_basis(index: int, *, perp: bool = False) -> bool:
     client = Client(host=settings.router_address, port=settings.router_port, timeout=600_000)
@@ -112,7 +119,7 @@ async def request_angle_by_basis(index: int, *, perp: bool = False) -> bool:
         )
 
     angle = state.chsh_request_basis[index] + 90 * perp
-    hwp = cast("Any", hwp)
+    assert hasattr(hwp, "move_to")
     hwp.move_to(angle / 2)
     logger.info("moving waveplate", extra={"angle": angle})
     return True

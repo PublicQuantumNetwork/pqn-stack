@@ -1,13 +1,17 @@
 import logging
-from fastapi import APIRouter, HTTPException, status
-from pqnstack.network.client import Client
-from pqnstack.pqn.protocols.measurement import MeasurementConfig
+
+from fastapi import APIRouter
+from fastapi import HTTPException
+from fastapi import status
 
 from pqnstack.app.settings import settings
+from pqnstack.network.client import Client
+from pqnstack.pqn.protocols.measurement import MeasurementConfig
 
 router = APIRouter(prefix="/timetagger")
 
 logger = logging.getLogger(__name__)
+
 
 @router.get("/measure")
 async def timetagger_measure(duration: int, binwidth: int = 500, channel1: int = 1, channel2: int = 2) -> int:

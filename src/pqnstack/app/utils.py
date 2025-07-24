@@ -1,13 +1,17 @@
 import logging
 from typing import cast
-from fastapi import HTTPException, status
+
 import httpx
-from pqnstack.network.client import Client
-from pqnstack.base.driver import DeviceDriver
-from pqnstack.pqn.protocols.measurement import MeasurementConfig
+from fastapi import HTTPException
+from fastapi import status
+
 from pqnstack.app.settings import settings
+from pqnstack.base.driver import DeviceDriver
+from pqnstack.network.client import Client
+from pqnstack.pqn.protocols.measurement import MeasurementConfig
 
 logger = logging.getLogger(__name__)
+
 
 def _get_timetagger(client: Client) -> DeviceDriver:
     if settings.timetagger is None:
@@ -26,6 +30,7 @@ def _get_timetagger(client: Client) -> DeviceDriver:
 
     logger.debug("Time tagger device found: %s", tagger)
     return tagger
+
 
 async def _count_coincidences(
     measurement_config: MeasurementConfig,
@@ -70,6 +75,7 @@ async def _count_coincidences(
             )
         logger.debug("Measured %d coincidences", count)
     return int(count)
+
 
 def _calculate_chsh_expectation_error(counts: list[int], dark_count: int = 0) -> float:
     total_counts = sum(counts)

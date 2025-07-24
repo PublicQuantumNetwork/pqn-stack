@@ -1,18 +1,23 @@
 import logging
 import random
-from typing import cast
 
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter
+from fastapi import HTTPException
+from fastapi import status
 
 from pqnstack.app.dependencies import ClientDep
-from pqnstack.app.settings import settings, state
-from pqnstack.app.utils import _get_timetagger, _count_coincidences
+from pqnstack.app.settings import settings
+from pqnstack.app.settings import state
+from pqnstack.app.utils import _count_coincidences
+from pqnstack.app.utils import _get_timetagger
+from pqnstack.constants import BasisBool
+from pqnstack.constants import QKDEncodingBasis
 from pqnstack.network.client import Client
-from pqnstack.constants import BasisBool, QKDEncodingBasis
 
 router = APIRouter(prefix="/qkd")
 
 logger = logging.getLogger(__name__)
+
 
 @router.post("")
 async def qkd(
@@ -31,7 +36,6 @@ async def qkd(
             detail="Could not find half waveplate device",
         )
 
-    hwp = cast("Any", hwp)
     tagger = None
     if timetagger_address is None:
         tagger = _get_timetagger(client)
@@ -51,6 +55,7 @@ async def qkd(
         int_choice = random.randint(0, 1)  # FIXME: Make this real quantum random.
         logger.debug("Chosen integer choice: %s", int_choice)
         state.qkd_bit_list.append(int_choice)
+        assert hasattr(hwp, "move_to")
         hwp.move_to(basis.angles[int_choice].value)
         logger.debug("Moving half waveplate to angle: %s", basis.angles[int_choice].value)
         count = await _count_coincidences(
@@ -93,6 +98,7 @@ async def qkd(
 
     return final_bits
 
+
 @router.post("/single_bit")
 async def request_qkd_single_pass() -> bool:
     client = Client(host=settings.router_address, port=settings.router_port, timeout=600_000)
@@ -106,9 +112,11 @@ async def request_qkd_single_pass() -> bool:
         )
 
     logger.debug("Halfwaveplate device found: %s", hwp)
-    hwp = cast("Any", hwp)
+    assert hasattr(hwp, "move_to")
 
-    basis_choice = random.choices([QKDEncodingBasis.HV, QKDEncodingBasis.DA])[0]  # FIXME: Make this real quantum random.
+    basis_choice = random.choices([QKDEncodingBasis.HV, QKDEncodingBasis.DA])[
+        0
+    ]  # FIXME: Make this real quantum random.
     int_choice = random.randint(0, 1)  # FIXME: Make this real quantum random.
 
     state.qkd_request_basis_list.append(basis_choice)
@@ -118,6 +126,7 @@ async def request_qkd_single_pass() -> bool:
     hwp.move_to(angle)
 
     return True
+
 
 @router.post("/request_basis_list")
 def request_qkd_basis_list(leader_basis_list: list[str]) -> list[str]:

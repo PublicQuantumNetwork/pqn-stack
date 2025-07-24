@@ -37,6 +37,7 @@ class Settings:
     qkd_settings: QKDSettings
     bell_state: BellState = BellState.Phi_plus
     timetagger: tuple[str, str] | None = None  # Name of the timetagger to use for the CHSH experiment.
+    polarimeter_theta: float = 0.0
 
 
 static_typecheck_msg = "Please set the global 'settings' variable before use."

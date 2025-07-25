@@ -4,7 +4,7 @@ from fastapi import APIRouter
 from fastapi import HTTPException
 from fastapi import status
 
-from pqnstack.app.settings import settings
+from pqnstack.app.core.config import settings
 from pqnstack.network.client import Client
 from pqnstack.pqn.protocols.measurement import MeasurementConfig
 

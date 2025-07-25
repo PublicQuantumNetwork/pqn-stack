@@ -1,19 +1,15 @@
-import atexit
 import logging
-from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Any
 
-from ThorlabsPM100 import ThorlabsPM100, USBTMC
+from ThorlabsPM100 import USBTMC
+from ThorlabsPM100 import ThorlabsPM100
 
-from pqnstack.base.driver import (
-    DeviceClass,
-    DeviceDriver,
-    DeviceInfo,
-    DeviceStatus,
-    log_operation,
-    log_parameter,
-)
+from pqnstack.base.driver import DeviceClass
+from pqnstack.base.driver import DeviceDriver
+from pqnstack.base.driver import DeviceInfo
+from pqnstack.base.driver import DeviceStatus
+from pqnstack.base.driver import log_operation
+from pqnstack.base.driver import log_parameter
 from pqnstack.base.errors import DeviceNotStartedError
 
 logger = logging.getLogger(__name__)
@@ -53,7 +49,6 @@ class PM100DDevice(DeviceDriver):
         """Connect to the PM100D via USBTMC or VISA and prepare for readings."""
         inst = USBTMC(device=self.address)
         self._device = ThorlabsPM100(inst=inst)
-        self._device = ThorlabsPM100(inst=inst)
         self.status = DeviceStatus.READY
         logger.info("PM100D connected at %s", self.address)
 
@@ -73,16 +68,8 @@ class PM100DDevice(DeviceDriver):
             address=self.address,
             power=self.power,
             wavelength=self.wavelength,
-            range_auto=(
-                self._device.sense.power.dc.range.auto
-                if self._device is not None
-                else None
-            ),
-            average_count=(
-                self._device.sense.average.count
-                if self._device is not None
-                else None
-            ),
+            range_auto=(self._device.sense.power.dc.range.auto if self._device is not None else None),
+            average_count=(self._device.sense.average.count if self._device is not None else None),
         )
 
     @log_operation
@@ -92,7 +79,7 @@ class PM100DDevice(DeviceDriver):
 
     @log_operation
     def get_wavelength(self) -> float:
-        """Retrieve the meter’s current operating wavelength (in nm)."""
+        """Retrieve the meters current operating wavelength (in nm)."""
         return self.wavelength
 
     @log_operation
@@ -105,21 +92,23 @@ class PM100DDevice(DeviceDriver):
     def power(self) -> float:
         """Power reading in watts (uses the SCPI READ command)."""
         if self._device is None:
-            raise DeviceNotStartedError("Start the PM100D before reading power")
-        return self._device.read
+            msg = "Start the PM100D before reading power"
+            raise DeviceNotStartedError(msg)
+        return float(self._device.read)
 
     @property
     @log_parameter
     def wavelength(self) -> float:
-        """Get the console’s operating wavelength (SCPI Sense:Correction:WAVelength)."""
+        """Get the console operating wavelength (SCPI Sense:Correction:WAVelength)."""
         if self._device is None:
-            raise DeviceNotStartedError("Start the PM100D before reading wavelength")
-        return self._device.sense.correction.wavelength
+            msg = "Start the PM100D before setting wavelength"
+            raise DeviceNotStartedError(msg)
+        return float(self._device.sense.correction.wavelength)
 
     @wavelength.setter
     @log_parameter
     def wavelength(self, wl: float) -> None:
         if self._device is None:
-            raise DeviceNotStartedError("Start the PM100D before setting wavelength")
+            msg = "Start the PM100D before setting wavelength"
+            raise DeviceNotStartedError(msg)
         self._device.sense.correction.wavelength = wl
-

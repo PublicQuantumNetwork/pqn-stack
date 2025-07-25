@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import math
 from abc import abstractmethod
@@ -5,17 +6,21 @@ from collections import deque
 from dataclasses import dataclass
 from dataclasses import field
 from typing import Protocol
+from typing import cast
 
-from pyfirmata2 import Arduino
 import usbtmc
+from pyfirmata2 import Arduino
 
 from pqnstack.base.driver import DeviceClass
 from pqnstack.base.driver import DeviceDriver
 from pqnstack.base.driver import DeviceInfo
 from pqnstack.base.driver import DeviceStatus
 from pqnstack.base.driver import log_operation
+from pqnstack.base.driver import log_parameter
+from pqnstack.base.errors import DeviceNotStartedError
 
 logger = logging.getLogger(__name__)
+
 
 @dataclass
 class PAX1000Info(DeviceInfo):
@@ -24,10 +29,17 @@ class PAX1000Info(DeviceInfo):
     ellipticity_deg: float
     phi_deg: float
 
+
 class PAX1000IR2Device(DeviceDriver):
     DEVICE_CLASS = DeviceClass.SENSOR
 
-    def __init__(self, name: str, desc: str, address: str, wavelength_nm: float | None = None):
+    def __init__(
+        self,
+        name: str,
+        desc: str,
+        address: str,
+        wavelength_nm: float | None = None,
+    ):
         super().__init__(name, desc, address)
         self.wavelength_nm = wavelength_nm
         self._inst: usbtmc.Instrument | None = None
@@ -56,10 +68,8 @@ class PAX1000IR2Device(DeviceDriver):
         """Close the USBTMC session."""
         if self._inst is not None:
             logger.info("Closing PAX1000IR2 connection")
-            try:
+            with contextlib.suppress(Exception):
                 self._inst.close()
-            except Exception:
-                pass
         self.status = DeviceStatus.OFF
 
     def info(self) -> PAX1000Info:
@@ -77,13 +87,15 @@ class PAX1000IR2Device(DeviceDriver):
             power_watts=p,
             azimuth_deg=azi,
             ellipticity_deg=ell,
-            phi_deg=phi
+            phi_deg=phi,
         )
 
     def _query(self, cmd: str) -> str:
         if self._inst is None:
-            raise DeviceNotStartedError("Device not started")
-        return self._inst.ask(cmd).strip()
+            msg = "Device not started"
+            raise DeviceNotStartedError(msg)
+        raw = cast("str", self._inst.ask(cmd))
+        return raw.strip()
 
     @log_parameter
     def read_power(self) -> float:
@@ -107,14 +119,12 @@ class PAX1000IR2Device(DeviceDriver):
 
     @log_parameter
     def read_theta_phi(self) -> tuple[float, float]:
-        """
-        Return (phi, theta) where phi = 2·η and theta is the SCPI θ,
-        giving spherical‐coordinate style angles.
-        """
+        """Return (phi, theta) where phi = 2·η and theta is the SCPI θ, giving spherical coordinate style angles."""
         theta = self.read_azimuth()
         eta = self.read_ellipticity()
         phi = 2 * eta
         return phi, theta
+
 
 @dataclass(slots=True)
 class Buffer:
@@ -158,7 +168,7 @@ class PolarizationMeasurement:
     v: float
     d: float
     a: float
-    _last_theta: float = field(default=0.0, repr=False, kw_only=True)  # HACK: Allow reporting of full 2pi angle
+    _last_theta: float = field(default=0.0, repr=False, kw_only=True)
 
     def __format__(self, spec: str, /) -> str:
         if not spec:
@@ -171,13 +181,11 @@ class PolarizationMeasurement:
         if self.h + self.v == 0 or self.d + self.a == 0:
             return 0.0
 
-        # Read polarization angle from photodiodes
         h = self.h / (self.h + self.v)
         radians = math.acos(math.sqrt(h))
         sign = math.copysign(1, self.a - self.d)
         degrees = sign * math.degrees(radians) % 180
 
-        # Shift based on previous angle to allow full 0-360 range
         shifted = self._last_theta // 180
         prev_wedge = self._last_theta % 180 // 60
         new_wedge = degrees // 60
@@ -206,7 +214,7 @@ class ArduinoPolarimeter(Polarimeter):
     sample_rate: int = 10
     average_width: int = 10
     _buffers: list[Buffer] = field(default_factory=list, init=False)
-    _last_theta: float = field(default=0.0, init=False, repr=False)  # HACK: Allow reporting of full 2pi angle
+    _last_theta: float = field(default=0.0, init=False, repr=False)
 
     def __post_init__(self) -> None:
         self.board.samplingOn(1000 // self.sample_rate)
@@ -284,7 +292,6 @@ class PolarimeterDevice(DeviceDriver):
 class ArduinoPolarimeterDevice(PolarimeterDevice):
     def __init__(self, name: str, desc: str, address: str, ap: ArduinoPolarimeter) -> None:
         super().__init__(name, desc, address)
-
         self.ap = ap
 
     def read(self) -> PolarizationMeasurement:
@@ -301,7 +308,11 @@ class ArduinoPolarimeterDevice(PolarimeterDevice):
 
     def info(self) -> DeviceInfo:
         return DeviceInfo(
-            name=self.name, desc=self.desc, dtype=self.DEVICE_CLASS, status=self.status, address=self.address
+            name=self.name,
+            desc=self.desc,
+            dtype=self.DEVICE_CLASS,
+            status=self.status,
+            address=self.address,
         )
 
     def close(self) -> None:

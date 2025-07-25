@@ -10,6 +10,7 @@ from pqnstack.app.settings import settings
 from pqnstack.app.settings import state
 from pqnstack.app.utils import _count_coincidences
 from pqnstack.app.utils import _get_timetagger
+from pqnstack.base.errors import PacketError
 from pqnstack.constants import BasisBool
 from pqnstack.constants import QKDEncodingBasis
 from pqnstack.network.client import Client
@@ -37,7 +38,10 @@ async def _qkd(
 
     tagger = None
     if timetagger_address is None:
-        tagger = _get_timetagger(client)
+        try:
+            tagger = _get_timetagger(client, settings.timetagger[0], settings.timetagger[1])
+        except PacketError as e:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
 
     counts = []
     for basis in state.qkd_basis_list:

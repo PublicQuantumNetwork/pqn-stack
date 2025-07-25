@@ -10,6 +10,7 @@ from pqnstack.app.settings import state
 from pqnstack.app.utils import _calculate_chsh_expectation_error
 from pqnstack.app.utils import _count_coincidences
 from pqnstack.app.utils import _get_timetagger
+from pqnstack.base.errors import PacketError
 from pqnstack.network.client import Client
 
 router = APIRouter(prefix="/chsh")
@@ -30,7 +31,10 @@ async def _chsh(  # Complexity is high due to the nature of the CHSH experiment.
 
     tagger = None
     if timetagger_address is None:
-        tagger = _get_timetagger(client)
+        try:
+            tagger = _get_timetagger(client, settings.timetagger[0], settings.timetagger[1])
+        except PacketError as e:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
 
     # TODO: Check if settings.chsh_settings.hwp is set before even trying to get the device.
     hwp = client.get_device(settings.chsh_settings.hwp[0], settings.chsh_settings.hwp[1])

@@ -5,7 +5,7 @@ import httpx
 from fastapi import HTTPException
 from fastapi import status
 
-from pqnstack.app.settings import settings
+from pqnstack.base.errors import PacketError
 from pqnstack.base.driver import DeviceDriver
 from pqnstack.network.client import Client
 from pqnstack.pqn.protocols.measurement import MeasurementConfig
@@ -13,15 +13,14 @@ from pqnstack.pqn.protocols.measurement import MeasurementConfig
 logger = logging.getLogger(__name__)
 
 
-def _get_timetagger(client: Client) -> DeviceDriver:
-    if settings.timetagger is None:
-        logger.error("No timetagger configured")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="No timetagger configured",
-        )
+def _get_timetagger(client: Client, provider_name: str, tagger_name: str) -> DeviceDriver:
+    try:
+        tagger = client.get_device(provider_name, tagger_name)
+    except PacketError as e:
+        msg = f"Could not find time tagger device with name: {tagger_name} in provider {provider_name}. Please check the settings and ensure the device is running correctly."
+        logger.error(msg, e)
+        raise PacketError(msg)
 
-    tagger = client.get_device(settings.timetagger[0], settings.timetagger[1])
     if tagger is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

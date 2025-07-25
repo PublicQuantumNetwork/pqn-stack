@@ -5,8 +5,8 @@ import httpx
 from fastapi import HTTPException
 from fastapi import status
 
-from pqnstack.base.errors import PacketError
 from pqnstack.base.driver import DeviceDriver
+from pqnstack.base.errors import PacketError
 from pqnstack.network.client import Client
 from pqnstack.pqn.protocols.measurement import MeasurementConfig
 
@@ -18,8 +18,8 @@ def _get_timetagger(client: Client, provider_name: str, tagger_name: str) -> Dev
         tagger = client.get_device(provider_name, tagger_name)
     except PacketError as e:
         msg = f"Could not find time tagger device with name: {tagger_name} in provider {provider_name}. Please check the settings and ensure the device is running correctly."
-        logger.error(msg, e)
-        raise PacketError(msg)
+        logger.exception(msg)
+        raise PacketError(msg) from e
 
     if tagger is None:
         raise HTTPException(

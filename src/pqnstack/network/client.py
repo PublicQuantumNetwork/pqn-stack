@@ -93,7 +93,7 @@ class ClientBase:
         logger.info("Disconnected from %s", self.address)
 
     def ask(self, packet: Packet) -> Packet:
-        logger.debug(f"Asking {packet}")
+        logger.debug("Asking %s", packet)
         if not self.connected:
             msg = "No connection yet."
             logger.error(msg)

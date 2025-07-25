@@ -18,7 +18,7 @@ router = APIRouter(prefix="/chsh")
 logger = logging.getLogger(__name__)
 
 
-async def _chsh(  # Complexity is high due to the nature of the CHSH experiment.
+async def _chsh(  # noqa: C901 # Complexity is high due to the nature of the CHSH experiment.
     basis: tuple[float, float],
     follower_node_address: str,
     http_client: ClientDep,
@@ -31,10 +31,16 @@ async def _chsh(  # Complexity is high due to the nature of the CHSH experiment.
 
     tagger = None
     if timetagger_address is None:
+        if settings.timetagger is None:
+            logger.error("No timetagger configured")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="No timetagger configured, please pass a timetagger_address",
+            )
         try:
             tagger = _get_timetagger(client, settings.timetagger[0], settings.timetagger[1])
         except PacketError as e:
-            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e)) from e
 
     # TODO: Check if settings.chsh_settings.hwp is set before even trying to get the device.
     hwp = client.get_device(settings.chsh_settings.hwp[0], settings.chsh_settings.hwp[1])

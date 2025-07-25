@@ -38,10 +38,16 @@ async def _qkd(
 
     tagger = None
     if timetagger_address is None:
+        if settings.timetagger is None:
+            logger.error("No timetagger configured")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="No timetagger configured, please pass a timetagger_address",
+            )
         try:
             tagger = _get_timetagger(client, settings.timetagger[0], settings.timetagger[1])
         except PacketError as e:
-            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e)) from e
 
     counts = []
     for basis in state.qkd_basis_list:

@@ -43,15 +43,7 @@ static_typecheck_msg = "Please set the global 'settings' variable before use."
 
 
 def get_settings() -> Settings:
-    set = Settings(
-        router_name="router1",
-        router_address="172.30.63.109",
-        router_port=5555,
-        timetagger=("mini_pc", "tagger2"),
-        chsh_settings=CHSHSettings(hwp=("ufl_closet", "signal_hwp"), request_hwp=("ufl_closet", "signal_hwp")),
-        qkd_settings=QKDSettings(hwp=("ufl_closet", "signal_hwp"), request_hwp=("ufl_closet", "signal_hwp")),
-    )
-    return set
+    raise NotImplementedError(static_typecheck_msg)
 
 
 settings = get_settings()

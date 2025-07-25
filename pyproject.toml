@@ -18,8 +18,10 @@ authors = [
 dependencies = [
     "numpy<2.0",
     "pyfirmata2>=2.5.0",
+    "python-usbtmc>=0.8",
     "pyzmq>=26.2.0",
     "thorlabs-apt-device>=0.3.8",
+    "thorlabspm100>=1.2.2",
     "typer>=0.15.1",
 ]
 

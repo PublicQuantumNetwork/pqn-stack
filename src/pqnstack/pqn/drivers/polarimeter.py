@@ -7,6 +7,7 @@ from dataclasses import field
 from typing import Protocol
 
 from pyfirmata2 import Arduino
+import usbtmc
 
 from pqnstack.base.driver import DeviceClass
 from pqnstack.base.driver import DeviceDriver
@@ -16,6 +17,104 @@ from pqnstack.base.driver import log_operation
 
 logger = logging.getLogger(__name__)
 
+@dataclass
+class PAX1000Info(DeviceInfo):
+    power_watts: float
+    azimuth_deg: float
+    ellipticity_deg: float
+    phi_deg: float
+
+class PAX1000IR2Device(DeviceDriver):
+    DEVICE_CLASS = DeviceClass.SENSOR
+
+    def __init__(self, name: str, desc: str, address: str, wavelength_nm: float | None = None):
+        super().__init__(name, desc, address)
+        self.wavelength_nm = wavelength_nm
+        self._inst: usbtmc.Instrument | None = None
+
+        self.operations["read_power"] = self.read_power
+        self.operations["read_azimuth"] = self.read_azimuth
+        self.operations["read_ellipticity"] = self.read_ellipticity
+        self.operations["read_theta_phi"] = self.read_theta_phi
+
+        self.parameters.add("power_watts")
+        self.parameters.add("azimuth_deg")
+        self.parameters.add("ellipticity_deg")
+        self.parameters.add("phi_deg")
+
+    def start(self) -> None:
+        """Open USBTMC connection and set wavelength if provided."""
+        logger.info("Connecting to PAX1000IR2 at %s", self.address)
+        self._inst = usbtmc.Instrument(self.address)
+        self._inst.timeout = 5000  # ms
+        if self.wavelength_nm is not None:
+            cmd = f"SOURce:CORRection:WAVelength {self.wavelength_nm}"
+            self._inst.write(cmd)
+        self.status = DeviceStatus.READY
+
+    def close(self) -> None:
+        """Close the USBTMC session."""
+        if self._inst is not None:
+            logger.info("Closing PAX1000IR2 connection")
+            try:
+                self._inst.close()
+            except Exception:
+                pass
+        self.status = DeviceStatus.OFF
+
+    def info(self) -> PAX1000Info:
+        """Return all current readings in one info object."""
+        p = self.read_power()
+        azi = self.read_azimuth()
+        ell = self.read_ellipticity()
+        phi, theta = self.read_theta_phi()
+        return PAX1000Info(
+            name=self.name,
+            desc=self.desc,
+            dtype=self.DEVICE_CLASS,
+            status=self.status,
+            address=self.address,
+            power_watts=p,
+            azimuth_deg=azi,
+            ellipticity_deg=ell,
+            phi_deg=phi
+        )
+
+    def _query(self, cmd: str) -> str:
+        if self._inst is None:
+            raise DeviceNotStartedError("Device not started")
+        return self._inst.ask(cmd).strip()
+
+    @log_parameter
+    def read_power(self) -> float:
+        """Read optical power in watts."""
+        resp = self._query("MEASure:POWer:DC?")
+        return float(resp)
+
+    @log_parameter
+    def read_azimuth(self) -> float:
+        """Read polarization azimuth (θ) in degrees."""
+        data = self._query("SENSE1:DATA:LATEST?")
+        theta_str = data.split(",")[0]
+        return float(theta_str)
+
+    @log_parameter
+    def read_ellipticity(self) -> float:
+        """Read polarization ellipticity (η) in degrees."""
+        data = self._query("SENSE1:DATA:LATEST?")
+        eta_str = data.split(",")[1]
+        return float(eta_str)
+
+    @log_parameter
+    def read_theta_phi(self) -> tuple[float, float]:
+        """
+        Return (phi, theta) where phi = 2·η and theta is the SCPI θ,
+        giving spherical‐coordinate style angles.
+        """
+        theta = self.read_azimuth()
+        eta = self.read_ellipticity()
+        phi = 2 * eta
+        return phi, theta
 
 @dataclass(slots=True)
 class Buffer:

@@ -1,0 +1,21 @@
+#!/usr/bin/env python
+from pqnstack.pqn.drivers.polarimeter  import PAX1000IR2Device
+
+device = PAX1000IR2Device(
+    name="polar1",
+    desc="Thorlabs PAX1000IR2",
+    address="/dev/usbtmc0",
+    wavelength_nm=1550.0
+)
+device.start()
+
+try:
+    while True:
+        power = device.read_power()
+        azi = device.read_azimuth()
+        ell = device.read_ellipticity()
+        print(f"\rPower: {power:.6f} W  Azimuth: {azi:.3f}°  Ellipticity: {ell:.3f}°", end="")
+        time.sleep(0.1)
+finally:
+    device.close()
+

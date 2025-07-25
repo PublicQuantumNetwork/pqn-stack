@@ -5,7 +5,8 @@ from fastapi import APIRouter
 from fastapi import HTTPException
 from fastapi import status
 
-from pqnstack.app.dependencies import ClientDep
+from pqnstack.app.dependencies import HTTPClientDep
+from pqnstack.app.dependencies import InternalClientDep
 from pqnstack.app.settings import settings
 from pqnstack.app.settings import state
 from pqnstack.app.utils import _count_coincidences
@@ -22,12 +23,12 @@ logger = logging.getLogger(__name__)
 
 async def _qkd(
     follower_node_address: str,
-    http_client: ClientDep,
+    http_client: HTTPClientDep,
+    int_client: Client,
     timetagger_address: str | None = None,
 ) -> list[int]:
     logger.debug("Starting QKD")
-    client = Client(host=settings.router_address, port=settings.router_port, timeout=600_000)
-    hwp = client.get_device(settings.qkd_settings.hwp[0], settings.qkd_settings.hwp[1])
+    hwp = int_client.get_device(settings.qkd_settings.hwp[0], settings.qkd_settings.hwp[1])
 
     if hwp is None:
         logger.error("Could not find half waveplate device")
@@ -45,7 +46,7 @@ async def _qkd(
                 detail="No timetagger configured, please pass a timetagger_address",
             )
         try:
-            tagger = _get_timetagger(client, settings.timetagger[0], settings.timetagger[1])
+            tagger = _get_timetagger(int_client, settings.timetagger[0], settings.timetagger[1])
         except PacketError as e:
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e)) from e
 
@@ -111,7 +112,8 @@ async def _qkd(
 @router.post("")
 async def qkd(
     follower_node_address: str,
-    http_client: ClientDep,
+    http_client: HTTPClientDep,
+    int_client: InternalClientDep,
     timetagger_address: str | None = None,
 ) -> list[int]:
     """Perform a QKD protocol with the given follower node."""
@@ -122,13 +124,12 @@ async def qkd(
             detail="QKD basis list is empty",
         )
 
-    return await _qkd(follower_node_address, http_client, timetagger_address)
+    return await _qkd(follower_node_address, http_client, int_client, timetagger_address)
 
 
 @router.post("/single_bit")
-async def request_qkd_single_pass() -> bool:
-    client = Client(host=settings.router_address, port=settings.router_port, timeout=600_000)
-    hwp = client.get_device(settings.qkd_settings.request_hwp[0], settings.qkd_settings.request_hwp[1])
+async def request_qkd_single_pass(int_client: InternalClientDep) -> bool:
+    hwp = int_client.get_device(settings.qkd_settings.request_hwp[0], settings.qkd_settings.request_hwp[1])
 
     if hwp is None:
         logger.error("Could not find half waveplate device")

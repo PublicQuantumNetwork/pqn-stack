@@ -4,7 +4,8 @@ from fastapi import APIRouter
 from fastapi import HTTPException
 from fastapi import status
 
-from pqnstack.app.dependencies import ClientDep
+from pqnstack.app.dependencies import HTTPClientDep
+from pqnstack.app.dependencies import InternalClientDep
 from pqnstack.app.settings import settings
 from pqnstack.app.settings import state
 from pqnstack.app.utils import _calculate_chsh_expectation_error
@@ -21,13 +22,13 @@ logger = logging.getLogger(__name__)
 async def _chsh(  # noqa: C901 # Complexity is high due to the nature of the CHSH experiment.
     basis: tuple[float, float],
     follower_node_address: str,
-    http_client: ClientDep,
+    http_client: HTTPClientDep,
+    int_client: Client,
     timetagger_address: str | None = None,
 ) -> tuple[float, float]:
     logger.debug("Starting CHSH")
 
     logger.debug("Instantiating client")
-    client = Client(host=settings.router_address, port=settings.router_port, timeout=600_000)
 
     tagger = None
     if timetagger_address is None:
@@ -38,12 +39,12 @@ async def _chsh(  # noqa: C901 # Complexity is high due to the nature of the CHS
                 detail="No timetagger configured, please pass a timetagger_address",
             )
         try:
-            tagger = _get_timetagger(client, settings.timetagger[0], settings.timetagger[1])
+            tagger = _get_timetagger(int_client, settings.timetagger[0], settings.timetagger[1])
         except PacketError as e:
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e)) from e
 
     # TODO: Check if settings.chsh_settings.hwp is set before even trying to get the device.
-    hwp = client.get_device(settings.chsh_settings.hwp[0], settings.chsh_settings.hwp[1])
+    hwp = int_client.get_device(settings.chsh_settings.hwp[0], settings.chsh_settings.hwp[1])
     if hwp is None:
         logger.error("Could not find half waveplate device")
         raise HTTPException(
@@ -121,12 +122,13 @@ async def _chsh(  # noqa: C901 # Complexity is high due to the nature of the CHS
 async def chsh(
     basis: tuple[float, float],
     follower_node_address: str,
-    http_client: ClientDep,
+    http_client: HTTPClientDep,
+    int_client: InternalClientDep,
     timetagger_address: str | None = None,
 ) -> dict[str, float]:
     logger.info("Starting CHSH experiment with basis: %s", basis)
 
-    chsh_value, chsh_error = await _chsh(basis, follower_node_address, http_client, timetagger_address)
+    chsh_value, chsh_error = await _chsh(basis, follower_node_address, http_client, int_client, timetagger_address)
 
     return {
         "chsh_value": chsh_value,
@@ -135,9 +137,8 @@ async def chsh(
 
 
 @router.post("/request-angle-by-basis")
-async def request_angle_by_basis(index: int, *, perp: bool = False) -> bool:
-    client = Client(host=settings.router_address, port=settings.router_port, timeout=600_000)
-    hwp = client.get_device(settings.chsh_settings.request_hwp[0], settings.chsh_settings.request_hwp[1])
+async def request_angle_by_basis(index: int, int_client: InternalClientDep, *, perp: bool = False) -> bool:
+    hwp = int_client.get_device(settings.chsh_settings.request_hwp[0], settings.chsh_settings.request_hwp[1])
     if hwp is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

@@ -4,8 +4,8 @@ from fastapi import APIRouter
 from fastapi import HTTPException
 from fastapi import status
 
+from pqnstack.app.dependencies import InternalClientDep
 from pqnstack.app.settings import settings
-from pqnstack.network.client import Client
 from pqnstack.pqn.protocols.measurement import MeasurementConfig
 
 router = APIRouter(prefix="/timetagger")
@@ -14,7 +14,13 @@ logger = logging.getLogger(__name__)
 
 
 @router.get("/measure")
-async def timetagger_measure(duration: int, binwidth: int = 500, channel1: int = 1, channel2: int = 2) -> int:
+async def timetagger_measure(
+    duration: int,
+    int_client: InternalClientDep,
+    binwidth: int = 500,
+    channel1: int = 1,
+    channel2: int = 2,
+) -> int:
     if settings.timetagger is None:
         logger.error("No timetagger configured")
         raise HTTPException(
@@ -23,8 +29,7 @@ async def timetagger_measure(duration: int, binwidth: int = 500, channel1: int =
         )
 
     mconf = MeasurementConfig(duration=duration, binwidth=binwidth, channel1=channel1, channel2=channel2)
-    client = Client(host=settings.router_address, port=settings.router_port, timeout=600_000)
-    tagger = client.get_device(settings.timetagger[0], settings.timetagger[1])
+    tagger = int_client.get_device(settings.timetagger[0], settings.timetagger[1])
     if tagger is None:
         logger.error("Could not find time tagger device")
         raise HTTPException(

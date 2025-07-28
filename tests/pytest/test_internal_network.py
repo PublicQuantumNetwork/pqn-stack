@@ -30,7 +30,7 @@ def messaging_services():
     logger.debug("Using uv path: %s, starting router and provider with config: %s", uv_path, config_path)
 
     # Start router process
-    router_process = subprocess.Popen(
+    router_process = subprocess.Popen(  # Noqa: S603 # Subprocess is used for testing purposes, not in production code.
         [uv_path, "run", "pqn", "start-router", "--config", str(config_path)],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -40,7 +40,7 @@ def messaging_services():
     time.sleep(1)
 
     # Start provider process
-    provider_process = subprocess.Popen(
+    provider_process = subprocess.Popen(  # Noqa: S603 # Subprocess is used for testing purposes, not in production code.
         [uv_path, "run", "pqn", "start-provider", "--config", str(config_path)],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,

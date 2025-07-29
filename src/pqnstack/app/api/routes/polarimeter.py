@@ -8,10 +8,11 @@ from pqnstack.pqn.drivers.rotaryencoder import SerialRotaryEncoder
 
 router = APIRouter()
 
+dev = SerialRotaryEncoder(label = "name", address = "/dev/ttyACM0")
 
 @router.get("/polarimeter/theta")
 async def get_theta():
-    return {"theta": settings.polarimeter_theta}
+    return {"theta": dev.read()}
 
 
 def update_theta_terminal(settings_obj):
@@ -43,7 +44,7 @@ def update_theta_rotary(settings_obj):
 def is_reloader():
     return os.environ.get("RUN_MAIN") == "true" or os.environ.get("UVICORN_RELOAD") == "true"
 
-
+"""
 if not is_reloader():
     try:
         input_thread_pol = threading.Thread(target=update_theta_rotary, args=(settings,), daemon=True)
@@ -51,3 +52,4 @@ if not is_reloader():
     except:
         input_thread = threading.Thread(target=update_theta_terminal, args=(settings,), daemon=True)
         input_thread.start()
+"""

@@ -5,11 +5,11 @@ from fastapi import APIRouter
 from fastapi import HTTPException
 from fastapi import status
 
+from pqnstack.app.api.deps import ClientDep
 from pqnstack.app.core.config import settings
 from pqnstack.app.core.config import state
 from pqnstack.app.core.models import count_coincidences
 from pqnstack.app.core.models import get_timetagger
-from pqnstack.app.dependencies import ClientDep
 from pqnstack.constants import BasisBool
 from pqnstack.constants import QKDEncodingBasis
 from pqnstack.network.client import Client

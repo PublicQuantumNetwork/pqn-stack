@@ -1,0 +1,109 @@
+#!/usr/bin/env python3
+
+import argparse
+import csv
+import sys
+import time
+import logging
+from datetime import datetime
+from ThorlabsPM100 import ThorlabsPM100, USBTMC
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Continuously log fastest-possible measurements from two Thorlabs PM100D powermeters to a CSV file."
+    )
+    parser.add_argument('--dev1', required=True, help="Device path for powermeter 1, e.g. /dev/usbtmc0")
+    parser.add_argument('--dev2', required=True, help="Device path for powermeter 2, e.g. /dev/usbtmc1")
+    parser.add_argument('--outfile', required=True, help="CSV file to write measurements to")
+    parser.add_argument('--logfile', default=None, help="Optional log file for events and errors")
+    return parser.parse_args()
+
+def setup_logger(logfile=None):
+    logger = logging.getLogger("pm100d_logger")
+    logger.setLevel(logging.INFO)
+    formatter = logging.Formatter(
+        "%(asctime)s [%(levelname)s] %(message)s", "%Y-%m-%d %H:%M:%S"
+    )
+
+    handler = logging.FileHandler(logfile) if logfile else logging.StreamHandler(sys.stderr)
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    return logger
+
+def main():
+    args = parse_args()
+    logger = setup_logger(args.logfile)
+
+    logger.info("Starting powermeter logging script")
+    logger.info("Powermeter 1 device: %s", args.dev1)
+    logger.info("Powermeter 2 device: %s", args.dev2)
+    logger.info("Output CSV: %s", args.outfile)
+    logger.info("Polling at fastest rate allowed by hardware.")
+
+    try:
+        inst1 = USBTMC(device=args.dev1)
+        inst2 = USBTMC(device=args.dev2)
+        pm1 = ThorlabsPM100(inst=inst1)
+        pm2 = ThorlabsPM100(inst=inst2)
+    except Exception as e:
+        logger.error("Failed to initialize powermeters: %s", e)
+        sys.exit(1)
+
+    fieldnames = ['elapsed_sec', 'iso_timestamp', 'powermeter_1', 'powermeter_2', 'interval_sec']
+    start_time = time.perf_counter()
+    last_time = start_time
+
+    try:
+        with open(args.outfile, mode='w', newline='') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+            logger.info("Logging started, writing to %s", args.outfile)
+            status_template = (
+                "[{}] Elapsed: {:>9.3f}s | Interval: {:>8.5f}s | "
+                "PM1: {:>13.6e} | PM2: {:>13.6e}      "
+            )
+            while True:
+                try:
+                    p1 = pm1.read
+                    p2 = pm2.read
+                except Exception as e:
+                    logger.error("Error reading from device: %s", e)
+                    continue
+
+                now = datetime.now()
+                current_time = time.perf_counter()
+                elapsed = current_time - start_time
+                dt = current_time - last_time
+                last_time = current_time
+
+                row = {
+                    'elapsed_sec': f"{elapsed:.6f}",
+                    'iso_timestamp': now.isoformat(),
+                    'powermeter_1': f"{p1:.8e}",
+                    'powermeter_2': f"{p2:.8e}",
+                    'interval_sec': f"{dt:.6f}",
+                }
+                writer.writerow(row)
+                csvfile.flush()
+
+                status = status_template.format(
+                    now.strftime('%H:%M:%S'),
+                    elapsed,
+                    dt,
+                    p1,
+                    p2,
+                )
+                sys.stdout.write('\r' + status)
+                sys.stdout.flush()
+    except KeyboardInterrupt:
+        sys.stdout.write('\n')
+        logger.info("Stopping logging due to keyboard interrupt.")
+    except Exception as e:
+        sys.stdout.write('\n')
+        logger.error("Unexpected error: %s", e)
+    finally:
+        logger.info("Logging stopped, file closed.")
+
+if __name__ == "__main__":
+    main()
+

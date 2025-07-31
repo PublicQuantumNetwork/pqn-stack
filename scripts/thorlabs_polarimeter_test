@@ -4,7 +4,7 @@ from pqnstack.pqn.drivers.polarimeter  import PAX1000IR2Device
 device = PAX1000IR2Device(
     name="polar1",
     desc="Thorlabs PAX1000IR2",
-    address="/dev/usbtmc0",
+    address="/dev/usbtmc2",
     wavelength_nm=1550.0
 )
 device.start()

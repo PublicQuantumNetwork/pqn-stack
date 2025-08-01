@@ -2,7 +2,9 @@ import logging
 import shutil
 import subprocess
 import time
+from collections.abc import Generator
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -15,8 +17,8 @@ from pqnstack.pqn.drivers.dummies import DummyInstrument
 logger = logging.getLogger(__name__)
 
 
-@pytest.fixture
-def messaging_services():
+@pytest.fixture(scope="module", autouse=True)
+def messaging_services() -> Generator[None, Any, None]:
     """Start router and provider services for testing."""
     logger.debug("Starting messaging services...")
     # Get the path to the config file relative to this test file, not current working directory
@@ -83,7 +85,7 @@ def messaging_services():
         logger.debug("All services cleaned up")
 
 
-def test_client_ping(messaging_services):  # noqa: ARG001
+def test_client_ping() -> None:
     client = Client(host="localhost", port=5556, router_name="pqnstack-router", timeout=1000)
     response = client.ping("pqnstack-provider")
 
@@ -94,7 +96,7 @@ def test_client_ping(messaging_services):  # noqa: ARG001
     assert response.request == "PONG"
 
 
-def test_getting_all_instruments(messaging_services):  # noqa: ARG001
+def test_getting_all_instruments() -> None:
     client = Client(host="localhost", port=5556, router_name="pqnstack-router", timeout=1000)
 
     response = client.get_available_devices("pqnstack-provider")
@@ -107,7 +109,7 @@ def test_getting_all_instruments(messaging_services):  # noqa: ARG001
     assert isinstance(response["dummy2"], DummyInstrument.__class__)
 
 
-def test_proxy_instrument(messaging_services):  # noqa: ARG001
+def test_proxy_instrument() -> None:
     client = Client(host="localhost", port=5556, router_name="pqnstack-router", timeout=1000)
 
     proxy_instrument = client.get_device("pqnstack-provider", "dummy1")

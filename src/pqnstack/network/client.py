@@ -214,7 +214,7 @@ class ProxyInstrument(Instrument):
     timeout_ms: int = 15000
     router_name: str = "router1"
     client_name: str = ""
-    node_name: str = "node1"
+    provider_name: str = "provider1"
     instrument_name: str = "instrument1"
 
     # Boolean used to control when new attributes are being set.

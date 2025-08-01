@@ -14,10 +14,10 @@ beat_period = 2000
 name = "dummy1"
 import = "pqnstack.pqn.drivers.dummies.DummyInstrument"
 desc = "Dummy instrument1 for testing purposes"
-address = "1234"
+hw_address = "1234"
 
 [[provider.instruments]]
 name = "dummy2"
 import = "pqnstack.pqn.drivers.dummies.DummyInstrument"
 desc = "Dummy instrument2 for testing purposes"
-address = "1234"
+hw_address = "1234"

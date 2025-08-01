@@ -19,14 +19,14 @@ import pyqtgraph as pg
 from PyQt5 import QtCore
 from PyQt5 import QtWidgets
 
-from pqnstack.base.driver import DeviceDriver
+from pqnstack.base.driver import Instrument
 from pqnstack.network.client import Client
 
 
 class Worker(QtCore.QObject):
     data_ready = QtCore.pyqtSignal(list, int)
 
-    def __init__(self, device: DeviceDriver, parent: Any = None) -> None:
+    def __init__(self, device: Instrument, parent: Any = None) -> None:
         super().__init__(parent)
         self.device = device
         self.active_channels: list[int] = []
@@ -41,14 +41,14 @@ class Worker(QtCore.QObject):
                 singles[c - 1] = 0
         coincidence = 0
         if len(self.active_channels) == self._channels_for_coincidence:
-            coincidence = 100 * self.device.measure_coincidence(
+            coincidence = 100 * self.device.measure_correlation(
                 self.active_channels[0], self.active_channels[1], 500, 500_000_000_000
             )
         self.data_ready.emit(singles, coincidence)
 
 
 class DataViewerGUI(QtWidgets.QWidget):
-    def __init__(self, device: DeviceDriver, parent: Any = None):
+    def __init__(self, device: Instrument, parent: Any = None):
         super().__init__(parent)
         self.device = device
         self.main_layout = QtWidgets.QHBoxLayout(self)

@@ -58,7 +58,7 @@ def measure_expectation_value(
                 devices.signal_qwp.move_to(angle_signal[1])
             sleep(2)
             counts = devices.timetagger.measure_correlation(
-                config.channel1, config.channel2, int(config.binwidth), int(config.duration * 1e12)
+                config.channel1, config.channel2, int(config.integration_time_s), int(config.binwidth_ps)
             )
             coincidence_counts.append(counts)
 

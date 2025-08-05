@@ -74,7 +74,7 @@ def qkd_run(
         if qwp_key in motors:
             motors[qwp_key].move_to(qwp_angle)
 
-        sleep(config.duration)
+        sleep(config.integration_time_s)
 
         devices.qd.submit(player)
 

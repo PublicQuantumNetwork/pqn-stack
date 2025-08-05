@@ -52,13 +52,13 @@ async def count_coincidences(
         count = tagger.measure_coincidence(
             measurement_config.channel1,
             measurement_config.channel2,
-            measurement_config.binwidth,  # might have to cast to int
-            int(measurement_config.duration * 1e12),
+            measurement_config.binwidth_ps,
+            int(measurement_config.integration_time_s * 1e12),
         )
     else:
         assert http_client is not None
         r = await http_client.get(
-            f"http://{tagger_address}/timetagger/measure?duration={measurement_config.duration}&binwidth={measurement_config.binwidth}&channel1={measurement_config.channel1}&channel2={measurement_config.channel2}&dark_count={measurement_config.dark_count}"
+            f"http://{tagger_address}/timetagger/measure?duration={measurement_config.integration_time_s}&binwidth={measurement_config.binwidth_ps}&channel1={measurement_config.channel1}&channel2={measurement_config.channel2}&dark_count={measurement_config.dark_count}"
         )
         # TODO: Handle other status codes
         if r.status_code != status.HTTP_200_OK:

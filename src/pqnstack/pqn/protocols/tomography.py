@@ -52,8 +52,8 @@ def measure_tomography_raw(
         coincidence = devices.timetagger.measure_correlation(
             config.channel1,
             config.channel2,
-            config.binwidth,
-            int(config.duration * 1e12),
+            config.binwidth_ps,
+            int(config.integration_time_s * 1e12),
         )
         tomography_counts.append(int(coincidence))
 

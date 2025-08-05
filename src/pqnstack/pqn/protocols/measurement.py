@@ -3,10 +3,8 @@ from dataclasses import dataclass
 
 @dataclass
 class MeasurementConfig:
-    """Remember to update query arguments in the API if you change this."""
-
-    duration: int  # in seconds
-    binwidth: int = 500  # in picoseconds
+    integration_time_s: int
+    binwidth_ps: int = 500
     channel1: int = 1
     channel2: int = 2
     dark_count: int = 0

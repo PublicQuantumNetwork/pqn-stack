@@ -36,7 +36,7 @@ class TimeTaggerInstrument(Instrument, Protocol):
         self.operations["measure_correlation"] = self.measure_correlation
 
     def count_singles(self, channels: list[int], integration_time_s: float) -> list[int]: ...
-    def measure_correlation(self, start_ch: int, stop_ch: int, integration_time_s: float, binwidth_s: float) -> int: ...
+    def measure_correlation(self, start_ch: int, stop_ch: int, integration_time_s: float, binwidth_ps: int) -> int: ...
 
 
 @dataclass(slots=True)
@@ -108,12 +108,11 @@ class SwabianTimeTagger(TimeTaggerInstrument):
         start_ch: int,
         stop_ch: int,
         integration_time_s: float = 1.0,
-        binwidth_s: float = 1e-12,
+        binwidth_ps: int = 1,
         n_bins: int = int(1e5),
     ) -> int:
         # TODO: use these as kwargs
         count_time_ps = int(integration_time_s * 1e12)
-        binwidth_ps = int(binwidth_s * 1e12)
         corr = Correlation(self._tagger, start_ch, stop_ch, binwidth_ps, n_bins=n_bins)
         corr.startFor(count_time_ps)
         corr.waitUntilFinished()

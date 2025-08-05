@@ -22,7 +22,7 @@ async def timetagger_measure(duration: int, binwidth: int = 500, channel1: int =
             detail="No timetagger configured",
         )
 
-    mconf = MeasurementConfig(duration=duration, binwidth=binwidth, channel1=channel1, channel2=channel2)
+    mconf = MeasurementConfig(integration_time_s=duration, binwidth_ps=binwidth, channel1=channel1, channel2=channel2)
     client = Client(host=settings.router_address, port=settings.router_port, timeout=600_000)
     tagger = client.get_device(settings.timetagger[0], settings.timetagger[1])
     if tagger is None:
@@ -37,8 +37,8 @@ async def timetagger_measure(duration: int, binwidth: int = 500, channel1: int =
     count = tagger.measure_coincidence(
         mconf.channel1,
         mconf.channel2,
-        mconf.binwidth,
-        int(mconf.duration * 1e12),  # Convert seconds to picoseconds
+        mconf.binwidth_ps,
+        int(mconf.integration_time_s * 1e12),  # Convert seconds to picoseconds
     )
 
     logger.info("Measured %d coincidences", count)

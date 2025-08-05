@@ -54,7 +54,7 @@ def move_and_measure(
     time.sleep(2)
     return int(
         devices.tagger.measure_correlation(
-            config.channel1, config.channel2, config.binwidth, int(config.duration * 1e12)
+            config.channel1, config.channel2, config.binwidth_ps, int(config.integration_time_s * 1e12)
         )
     )
 

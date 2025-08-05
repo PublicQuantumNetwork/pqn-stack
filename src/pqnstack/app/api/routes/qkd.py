@@ -8,8 +8,8 @@ from fastapi import status
 from pqnstack.app.api.deps import ClientDep
 from pqnstack.app.core.config import settings
 from pqnstack.app.core.config import state
-from pqnstack.app.core.models import count_coincidences
 from pqnstack.app.core.models import get_timetagger
+from pqnstack.app.core.models import measure_correlation
 from pqnstack.constants import BasisBool
 from pqnstack.constants import QKDEncodingBasis
 from pqnstack.network.client import Client
@@ -57,7 +57,7 @@ async def _qkd(
         assert hasattr(hwp, "move_to")
         hwp.move_to(basis.angles[int_choice].value)
         logger.debug("Moving half waveplate to angle: %s", basis.angles[int_choice].value)
-        count = await count_coincidences(
+        count = await measure_correlation(
             settings.qkd_settings.measurement_config, tagger, timetagger_address, http_client
         )
         logger.debug("Counted %d coincidences", count)

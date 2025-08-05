@@ -116,9 +116,4 @@ class SwabianTimeTagger(TimeTaggerInstrument):
         corr = Correlation(self._tagger, start_ch, stop_ch, binwidth_ps, n_bins=n_bins)
         corr.startFor(count_time_ps)
         corr.waitUntilFinished()
-        counts = max(corr.getData())
-
-        if not isinstance(counts, int):
-            return -1
-
-        return counts
+        return int(max(corr.getData()))

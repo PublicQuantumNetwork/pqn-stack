@@ -19,7 +19,7 @@ import pyqtgraph as pg
 from PyQt5 import QtCore
 from PyQt5 import QtWidgets
 
-from pqnstack.base.driver import Instrument
+from pqnstack.base.instrument import Instrument
 from pqnstack.network.client import Client
 
 
@@ -35,14 +35,14 @@ class Worker(QtCore.QObject):
     @QtCore.pyqtSlot()
     def measure(self) -> None:
         channels = list(range(1, 11))
-        singles = self.device.measure_countrate(channels, 500_000_000_000)
+        singles = self.device.count_singles(channels, integration_time_s=5)
         for c in range(1, 11):
             if c not in self.active_channels:
                 singles[c - 1] = 0
         coincidence = 0
         if len(self.active_channels) == self._channels_for_coincidence:
             coincidence = 100 * self.device.measure_correlation(
-                self.active_channels[0], self.active_channels[1], 500, 500_000_000_000
+                self.active_channels[0], self.active_channels[1], integration_time_s=5, binwidth_ps=500
             )
         self.data_ready.emit(singles, coincidence)
 

@@ -300,6 +300,10 @@ class Client(ClientBase):
             msg = "Payload is not a dictionary."
             raise PacketError(msg)
 
+        if response.payload["name"] != device_name:
+            msg = f"No device named {device_name}"
+            raise ValueError(msg)
+
         return ProxyInstrument(
             name=response.payload["name"],
             desc=response.payload["desc"],

@@ -33,8 +33,8 @@ async def timetagger_measure(duration: int, binwidth: int = 500, channel1: int =
         )
 
     logger.debug("Time tagger device found: %s", tagger)
-    assert hasattr(tagger, "measure_coincidence")
-    count = tagger.measure_coincidence(
+    assert hasattr(tagger, "measure_correlation")
+    count = tagger.measure_correlation(
         mconf.channel1,
         mconf.channel2,
         mconf.binwidth_ps,

@@ -1,8 +1,13 @@
 import logging
-from dataclasses import dataclass
-from dataclasses import field
+import os
+import tomllib
+from pathlib import Path
 
-from pydantic import BaseModel
+
+from dotenv import load_dotenv
+from pydantic import BaseModel, Field
+
+load_dotenv()
 
 from pqnstack.constants import BellState
 from pqnstack.constants import QKDEncodingBasis
@@ -11,25 +16,22 @@ from pqnstack.pqn.protocols.measurement import MeasurementConfig
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class CHSHSettings:
+class CHSHSettings(BaseModel):
     # Specifies which half waveplate to use for the CHSH experiment. First value is the provider's name, second is the motor name.
     hwp: tuple[str, str] = ("", "")
     request_hwp: tuple[str, str] = ("", "")
-    measurement_config: MeasurementConfig = field(default_factory=lambda: MeasurementConfig(5))
+    measurement_config: MeasurementConfig = Field(default_factory=lambda: MeasurementConfig(duration=5))
 
 
-@dataclass
-class QKDSettings:
+class QKDSettings(BaseModel):
     hwp: tuple[str, str] = ("", "")
     request_hwp: tuple[str, str] = ("", "")
     bitstring_length: int = 4
-    discriminating_threshold = 10
-    measurement_config: MeasurementConfig = field(default_factory=lambda: MeasurementConfig(5))
+    discriminating_threshold: int = 10
+    measurement_config: MeasurementConfig = Field(default_factory=lambda: MeasurementConfig(duration=5))
 
 
-@dataclass
-class Settings:
+class Settings(BaseModel):
     router_name: str
     router_address: str
     router_port: int
@@ -39,11 +41,32 @@ class Settings:
     timetagger: tuple[str, str] | None = None  # Name of the timetagger to use for the CHSH experiment.
 
 
-static_typecheck_msg = "Please set the global 'settings' variable before use."
+def load_settings_from_toml(config_path: str | Path) -> Settings:
+    """Load settings from a TOML configuration file with Pydantic validation."""
+    config_path = Path(config_path)
+
+    with open(config_path, "rb") as f:
+        config_data = tomllib.load(f)
+
+    # Pydantic will handle all validation and type conversion automatically
+    return Settings(**config_data)
 
 
 def get_settings() -> Settings:
-    raise NotImplementedError(static_typecheck_msg)
+    """Load settings from the config file specified in API_CONFIG_PATH environment variable."""
+    config_path = os.getenv("API_CONFIG_PATH")
+
+    if config_path is None:
+        logger.warning("API_CONFIG_PATH environment variable not found, using default value './config.toml'")
+        config_path = "./config.toml"
+
+    config_file = Path(config_path)
+    if not config_file.exists():
+        raise FileNotFoundError(
+            f"Configuration file not found: {config_file.absolute()} or 'API_CONFIG_PATH' environment variable is not set"
+        )
+
+    return load_settings_from_toml(config_path)
 
 
 settings = get_settings()

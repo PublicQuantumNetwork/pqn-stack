@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 @dataclass
 class MeasurementConfig:
-    integration_time_s: int
+    integration_time_s: float
     binwidth_ps: int = 500
     channel1: int = 1
     channel2: int = 2

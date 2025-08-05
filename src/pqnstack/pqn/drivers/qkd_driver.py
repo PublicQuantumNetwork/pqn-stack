@@ -95,7 +95,7 @@ class QKDDevice(Instrument):
             if self._tagger is None:
                 msg = "TimeTagger is not set"
                 raise DeviceNotStartedError(msg)
-            self._value = self._tagger.measure_correlation(1, 2, 500, int(5e12))
+            self._value = self._tagger.measure_correlation(1, 2, integration_time_s=5, binwidth_ps=5)
 
     def _all_submitted(self) -> bool:
         return all(self._submissions.values())

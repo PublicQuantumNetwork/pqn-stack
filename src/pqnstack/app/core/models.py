@@ -6,14 +6,14 @@ from fastapi import HTTPException
 from fastapi import status
 
 from pqnstack.app.core.config import settings
-from pqnstack.base.driver import DeviceDriver
+from pqnstack.base.instrument import Instrument
 from pqnstack.network.client import Client
 from pqnstack.pqn.protocols.measurement import MeasurementConfig
 
 logger = logging.getLogger(__name__)
 
 
-def get_timetagger(client: Client) -> DeviceDriver:
+def get_timetagger(client: Client) -> Instrument:
     if settings.timetagger is None:
         logger.error("No timetagger configured")
         raise HTTPException(
@@ -21,20 +21,21 @@ def get_timetagger(client: Client) -> DeviceDriver:
             detail="No timetagger configured",
         )
 
-    tagger = client.get_device(settings.timetagger[0], settings.timetagger[1])
-    if tagger is None:
+    try:
+        tagger = client.get_device(settings.timetagger[0], settings.timetagger[1])
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Could not find time tagger device",
-        )
+            detail="Could not find time tagger device.",
+        ) from e
 
     logger.debug("Time tagger device found: %s", tagger)
     return tagger
 
 
-async def count_coincidences(
+async def measure_correlation(
     measurement_config: MeasurementConfig,
-    tagger: DeviceDriver | None = None,
+    tagger: Instrument | None = None,
     tagger_address: str | None = None,
     http_client: httpx.AsyncClient | None = None,
 ) -> int:
@@ -48,17 +49,17 @@ async def count_coincidences(
 
     if tagger_address is None:
         assert tagger is not None
-        assert hasattr(tagger, "measure_coincidence")
-        count = tagger.measure_coincidence(
+        assert hasattr(tagger, "measure_correlation")
+        count = tagger.measure_correlation(
             measurement_config.channel1,
             measurement_config.channel2,
+            int(measurement_config.integration_time_s),
             measurement_config.binwidth_ps,
-            int(measurement_config.integration_time_s * 1e12),
         )
     else:
         assert http_client is not None
         r = await http_client.get(
-            f"http://{tagger_address}/timetagger/measure?duration={measurement_config.integration_time_s}&binwidth={measurement_config.binwidth_ps}&channel1={measurement_config.channel1}&channel2={measurement_config.channel2}&dark_count={measurement_config.dark_count}"
+            f"http://{tagger_address}/timetagger/measure?integration_time_s={measurement_config.integration_time_s}&coincidence_window_ps={measurement_config.binwidth_ps}&channel1={measurement_config.channel1}&channel2={measurement_config.channel2}&dark_count={measurement_config.dark_count}"
         )
         # TODO: Handle other status codes
         if r.status_code != status.HTTP_200_OK:

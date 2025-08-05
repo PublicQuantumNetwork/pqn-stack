@@ -8,8 +8,8 @@ from pqnstack.app.api.deps import ClientDep
 from pqnstack.app.core.config import settings
 from pqnstack.app.core.config import state
 from pqnstack.app.core.models import calculate_chsh_expectation_error
-from pqnstack.app.core.models import count_coincidences
 from pqnstack.app.core.models import get_timetagger
+from pqnstack.app.core.models import measure_correlation
 from pqnstack.network.client import Client
 
 logger = logging.getLogger(__name__)
@@ -63,7 +63,7 @@ async def _chsh(  # Complexity is high due to the nature of the CHSH experiment.
                             detail="Failed to request follower",
                         )
 
-                    count = await count_coincidences(
+                    count = await measure_correlation(
                         settings.chsh_settings.measurement_config, tagger, timetagger_address, http_client
                     )
 

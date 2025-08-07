@@ -52,7 +52,7 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
         self.polarimeter = polarimeter
         super().__init__(*args, **kwargs)
 
-    def do_OPTIONS(self) -> None:  # noqa: N802
+    def do_OPTIONS(self) -> None:
         self.send_response(200)
         self.send_header("Access-Control-Allow-Origin", ALLOW_HEADER)
         self.send_header("Access-Control-Allow-Methods", "GET, POST, HEAD, OPTIONS")
@@ -62,7 +62,7 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
         )
         self.end_headers()
 
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         status: int = 200
         content_type: str = "text/plain"
         response_content: str
@@ -93,7 +93,7 @@ class PolarimeterRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(response_content.encode("utf-8"))
 
-    def do_POST(self) -> None:  # noqa: N802
+    def do_POST(self) -> None:
         status: int = 200
         content_type: str = "text/plain"
         response_content: str = ""

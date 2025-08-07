@@ -6,86 +6,54 @@
 import atexit
 import datetime
 import logging
-from abc import ABC
-from abc import abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass
-from enum import Enum
-from enum import StrEnum
-from enum import auto
+from dataclasses import field
 from functools import wraps
 from time import perf_counter
 from typing import Any
+from typing import Protocol
+from typing import runtime_checkable
 
 from pqnstack.base.errors import LogDecoratorOutsideOfClassError
 
 logger = logging.getLogger(__name__)
 
 
-class DeviceClass(Enum):
-    SENSOR = auto()
-    MOTOR = auto()
-    TEMPCTRL = auto()
-    TIMETAGR = auto()
-    PROXY = auto()
-    TESTING = auto()
-    MANAGER = auto()
+@dataclass(frozen=True, slots=True)
+class InstrumentInfo:
+    name: str = ""
+    desc: str = ""
+    hw_address: str = ""
+    hw_status: dict[str, Any] = field(default_factory=dict)
 
 
-class DeviceStatus(StrEnum):
-    OFF = auto()
-    READY = auto()
-    BUSY = auto()
-    FAIL = auto()
+@runtime_checkable
+@dataclass(slots=True)
+class Instrument(Protocol):
+    """Base class for all instruments in the PQN stack.
 
-
-@dataclass
-class DeviceInfo:
-    name: str
-    desc: str
-    address: str  # Whatever unique identifier is used to communicate with the device.
-    dtype: DeviceClass
-    status: DeviceStatus
-
-
-class DeviceDriver(ABC):
-    """
-    Base class for all drivers in the PQN stack.
-
-    Some rules for drivers:
+    Some rules for instruments:
 
       * You cannot use the character `:` in the names of instruments. This is used to separate parts of requests in
         proxy instruments.
 
-
     """
 
-    DEVICE_CLASS: DeviceClass = DeviceClass.TESTING
+    name: str
+    desc: str
+    hw_address: str
+    parameters: set[str] = field(default_factory=set)
+    operations: dict[str, Callable[..., Any]] = field(default_factory=dict)
 
-    def __init__(self, name: str, desc: str, address: str) -> None:
-        self.name = name
-        self.desc = desc
-        self.address = address
-
-        self.status = DeviceStatus.OFF
-
-        self.parameters: set[str] = set()
-        # FIXME: operations is overloaded with the big operations of the system. We should make it mean single thing.
-        self.operations: dict[str, Callable[[Any], Any]] = {}
-
+    def __post_init__(self) -> None:
         atexit.register(self.close)
 
-    @abstractmethod
-    def info(self) -> DeviceInfo: ...
-
-    @abstractmethod
     def start(self) -> None: ...
-
-    @abstractmethod
     def close(self) -> None: ...
 
-    def __setattr__(self, key: str, value: Any) -> None:
-        super().__setattr__(key, value)
+    @property
+    def info(self) -> InstrumentInfo: ...
 
 
 def log_operation[T](func: Callable[..., T]) -> Callable[..., T]:
@@ -96,8 +64,8 @@ def log_operation[T](func: Callable[..., T]) -> Callable[..., T]:
             raise LogDecoratorOutsideOfClassError(msg)
 
         ins = args[0]
-        if not isinstance(ins, DeviceDriver):
-            msg = "log_operation has been used to decorate something that is not a DeviceDriver method. This is not allowed."
+        if not isinstance(ins, Instrument):
+            msg = "log_operation has been used to decorate something that is not a Instrument method. This is not allowed."
             raise LogDecoratorOutsideOfClassError(msg)
 
         start_time = perf_counter()
@@ -141,9 +109,9 @@ def log_parameter[T](func: Callable[..., T]) -> Callable[..., T]:
             raise LogDecoratorOutsideOfClassError(msg)
 
         ins = args[0]
-        if not isinstance(ins, DeviceDriver):
+        if not isinstance(ins, Instrument):
             msg = (
-                "log_operation has been used to decorate something that is not a DeviceDriver method. "
+                "log_operation has been used to decorate something that is not a Instrument method. "
                 "This is not allowed."
             )
             raise LogDecoratorOutsideOfClassError(msg)

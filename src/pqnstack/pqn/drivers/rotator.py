@@ -3,115 +3,93 @@
 #
 # NCSA/Illinois Computes
 
-import atexit
 import logging
 import time
-from abc import abstractmethod
 from dataclasses import dataclass
 from dataclasses import field
-from typing import Any
+from typing import Protocol
+from typing import runtime_checkable
 
 import serial
 from thorlabs_apt_device import TDC001
 
-from pqnstack.base.driver import DeviceClass
-from pqnstack.base.driver import DeviceDriver
-from pqnstack.base.driver import DeviceInfo
-from pqnstack.base.driver import DeviceStatus
-from pqnstack.base.driver import log_operation
-from pqnstack.base.driver import log_parameter
 from pqnstack.base.errors import DeviceNotStartedError
+from pqnstack.base.instrument import Instrument
+from pqnstack.base.instrument import InstrumentInfo
+from pqnstack.base.instrument import log_parameter
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class RotatorInfo(DeviceInfo):
-    offset_degrees: float
-    degrees: float
-    encoder_units_per_degree: float | None = None
-    rotator_status: dict[str, Any] | None = None
+@dataclass(frozen=True, slots=True)
+class RotatorInfo(InstrumentInfo):
+    degrees: float = 0.0
+    offset_degrees: float = 0.0
 
 
-class RotatorDevice(DeviceDriver):
-    DEVICE_CLASS = DeviceClass.MOTOR
+@runtime_checkable
+@dataclass(slots=True)
+class RotatorInstrument(Instrument, Protocol):
+    offset_degrees: float = 0.0
 
-    def __init__(self, name: str, desc: str, address: str) -> None:
-        super().__init__(name, desc, address)
-
+    def __post_init__(self) -> None:
         self.operations["move_to"] = self.move_to
         self.operations["move_by"] = self.move_by
 
-    @log_operation
+        self.parameters.add("degrees")
+
+    @property
+    @log_parameter
+    def degrees(self) -> float: ...
+
+    @degrees.setter
+    @log_parameter
+    def degrees(self, degrees: float) -> None: ...
+
     def move_to(self, angle: float) -> None:
         """Move the rotator to the specified angle."""
         self.degrees = angle
 
-    @log_operation
     def move_by(self, angle: float) -> None:
         """Move the rotator by the specified angle."""
         self.degrees += angle
 
-    @abstractmethod
-    def info(self) -> DeviceInfo: ...
 
-    @abstractmethod
-    def close(self) -> None: ...
+@dataclass(slots=True)
+class APTRotator(RotatorInstrument):
+    _degrees: float = field(default=0.0, init=False)
+    _device: TDC001 = field(init=False, repr=False)
+    _encoder_units_per_degree: float = field(default=86384 / 45, init=False, repr=False)
 
-    @abstractmethod
-    def start(self) -> None: ...
+    def start(self) -> None:
+        # Additional setup for APT Rotator
+        self._device = TDC001(serial_number=self.hw_address)
+        offset_eu = round(self.offset_degrees * self._encoder_units_per_degree)
 
+        # NOTE: Velocity units seem to not match position units
+        # (Device does not actually move at 1000 deg/s...)
+        # 500 is noticeably slower, but more than 1000 doesn't seem faster
+        vel = round(1000 * self._encoder_units_per_degree)
 
-class APTRotatorDevice(RotatorDevice):
-    def __init__(
-        self, name: str, desc: str, address: str, offset_degrees: float = 0.0, *, block_while_moving: bool = True
-    ) -> None:
-        super().__init__(name, desc, address)
-
-        self.block_while_moving = block_while_moving
-
-        self.offset_degrees = offset_degrees
-        self.encoder_units_per_degree = 86384 / 45
-
-        # Instrument does not seem to keep track of its position.
-        self._degrees = 0.0
-        self._device: TDC001 | None = None
-
-        self.parameters.add("degrees")
+        self._device.set_home_params(velocity=vel, offset_distance=offset_eu)
+        self._device.set_velocity_params(vel, vel)
+        time.sleep(0.5)
+        self._wait_for_stop()
 
     def close(self) -> None:
         if self._device is not None:
             logger.info("Closing APT Rotator")
             self._device.close()
-        self.status = DeviceStatus.OFF
 
-    def start(self) -> None:
-        # Additional setup for APT Rotator
-        self._device = TDC001(serial_number=self.address)
-        offset_eu = round(self.offset_degrees * self.encoder_units_per_degree)
-
-        # NOTE: Velocity units seem to not match position units
-        # (Device does not actually move at 1000 deg/s...)
-        # 500 is noticeably slower, but more than 1000 doesn't seem faster
-        vel = round(1000 * self.encoder_units_per_degree)
-        self._device.set_home_params(velocity=vel, offset_distance=offset_eu)
-        self._device.set_velocity_params(vel, vel)
-        if self.block_while_moving:
-            time.sleep(0.5)
-            self._wait_for_stop()
-        self.status = DeviceStatus.READY
-
+    @property
     def info(self) -> RotatorInfo:
         return RotatorInfo(
             name=self.name,
             desc=self.desc,
-            dtype=self.DEVICE_CLASS,
-            status=self.status,
-            address=self.address,
-            offset_degrees=self.offset_degrees,
-            encoder_units_per_degree=self.encoder_units_per_degree,
+            hw_address=self.hw_address,
+            hw_status=self._device.status,
             degrees=self.degrees,
-            rotator_status=self._device.status if self._device is not None else None,
+            offset_degrees=self.offset_degrees,
         )
 
     def _wait_for_stop(self) -> None:
@@ -127,51 +105,52 @@ class APTRotatorDevice(RotatorDevice):
                 or self._device.status["jogging_forward"]
                 or self._device.status["jogging_reverse"]
             ):
-                continue
+                time.sleep(0.1)
         except KeyboardInterrupt:
             self._device.stop(immediate=True)
 
     @property
-    @log_parameter
     def degrees(self) -> float:
         return self._degrees
 
     @degrees.setter
-    @log_parameter
     def degrees(self, degrees: float) -> None:
-        if self._device is None:
-            msg = "Start the device before setting parameters"
-            raise DeviceNotStartedError(msg)
+        self._set_degrees_unsafe(degrees)
+        self._wait_for_stop()
 
+    def _set_degrees_unsafe(self, degrees: float) -> None:
         self._degrees = degrees
-        self.status = DeviceStatus.BUSY
-        self._device.move_absolute(int(degrees * self.encoder_units_per_degree))
-        if self.block_while_moving:
-            self._wait_for_stop()
-        self.status = DeviceStatus.READY
+        self._device.move_absolute(int(degrees * self._encoder_units_per_degree))
 
 
 @dataclass(slots=True)
-class SerialRotator:
-    label: str
-    address: str
-    offset_degrees: float = 0.0
+class SerialRotator(RotatorInstrument):
     _degrees: float = 0.0  # The hardware doesn't support position tracking
-    _controller: serial.Serial = field(init=False, repr=False)
+    _conn: serial.Serial = field(init=False, repr=False)
 
-    def __post_init__(self) -> None:
-        self._controller = serial.Serial(self.address, baudrate=115200, timeout=1)
-        self._controller.write(b"open_channel")
-        self._controller.read(100)
-        self._controller.write(b"motor_ready")
-        self._controller.read(100)
+    def start(self) -> None:
+        self._conn = serial.Serial(self.hw_address, baudrate=115200, timeout=1)
+        self._conn.write(b"open_channel")
+        self._conn.read(100)
+        self._conn.write(b"motor_ready")
+        self._conn.read(100)
 
         self.degrees = self.offset_degrees
-        atexit.register(self.cleanup)
 
-    def cleanup(self) -> None:
+    def close(self) -> None:
         self.degrees = 0
-        self._controller.close()
+        self._conn.close()
+
+    @property
+    def info(self) -> RotatorInfo:
+        return RotatorInfo(
+            name=self.name,
+            desc=self.desc,
+            hw_address=self.hw_address,
+            # hw_status=,
+            degrees=self.degrees,
+            offset_degrees=self.offset_degrees,
+        )
 
     @property
     def degrees(self) -> float:
@@ -179,34 +158,6 @@ class SerialRotator:
 
     @degrees.setter
     def degrees(self, degrees: float) -> None:
-        self._controller.write(f"SRA {degrees}".encode())
+        self._conn.write(f"SRA {degrees}".encode())
         self._degrees = degrees
-        _ = self._controller.readline().decode()
-
-
-class SerialRotatorDevice(RotatorDevice):
-    def __init__(self, name: str, desc: str, address: str, hb_rotator: SerialRotator):
-        super().__init__(name, desc, address)
-        self.hb_rotator = hb_rotator
-
-    def info(self) -> DeviceInfo:
-        return DeviceInfo(
-            name=self.name, desc=self.desc, dtype=self.DEVICE_CLASS, status=self.status, address=self.address
-        )
-
-    def start(self) -> None:
-        self.status = DeviceStatus.READY
-
-    def close(self) -> None:
-        self.status = DeviceStatus.OFF
-        return self.hb_rotator.cleanup()
-
-    @property
-    @log_parameter
-    def degrees(self) -> float:
-        return self.hb_rotator.degrees
-
-    @degrees.setter
-    @log_parameter
-    def degrees(self, degrees: float) -> None:
-        self.hb_rotator.degrees = degrees
+        _ = self._conn.readline().decode()

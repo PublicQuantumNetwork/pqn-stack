@@ -12,7 +12,7 @@ from pqnstack.pqn.protocols.measurement import MeasurementConfig
 from pqnstack.pqn.protocols.visibility import calculate_visibility
 
 if TYPE_CHECKING:
-    from pqnstack.pqn.drivers.rotator import RotatorDevice
+    from pqnstack.pqn.drivers.rotator import RotatorInstrument
 
 
 @dataclass
@@ -51,8 +51,8 @@ def qkd_run(
     key_filter = "signal" if player == "player1" else "idler"
 
     player_motors = devices.qd.get_motors(player)
-    motors: dict[str, RotatorDevice] = {
-        motor_name: cast("RotatorDevice", devices.client.get_device(info["location"], info["name"]))
+    motors: dict[str, RotatorInstrument] = {
+        motor_name: cast("RotatorInstrument", devices.client.get_device(info["location"], info["name"]))
         for motor_name, info in player_motors.items()
     }
     coincidence_counts: dict[tuple[str, str], int] = {}
@@ -74,7 +74,7 @@ def qkd_run(
         if qwp_key in motors:
             motors[qwp_key].move_to(qwp_angle)
 
-        sleep(config.duration)
+        sleep(config.integration_time_s)
 
         devices.qd.submit(player)
 

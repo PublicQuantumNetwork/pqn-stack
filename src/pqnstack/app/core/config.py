@@ -20,7 +20,7 @@ class CHSHSettings(BaseModel):
     # Specifies which half waveplate to use for the CHSH experiment. First value is the provider's name, second is the motor name.
     hwp: tuple[str, str] = ("", "")
     request_hwp: tuple[str, str] = ("", "")
-    measurement_config: MeasurementConfig = Field(default_factory=lambda: MeasurementConfig(duration=5))
+    measurement_config: MeasurementConfig = Field(default_factory=lambda: MeasurementConfig(integration_time_s=5))
 
 
 class QKDSettings(BaseModel):
@@ -28,7 +28,7 @@ class QKDSettings(BaseModel):
     request_hwp: tuple[str, str] = ("", "")
     bitstring_length: int = 4
     discriminating_threshold: int = 10
-    measurement_config: MeasurementConfig = Field(default_factory=lambda: MeasurementConfig(duration=5))
+    measurement_config: MeasurementConfig = Field(default_factory=lambda: MeasurementConfig(integration_time_s=5))
 
 
 class Settings(BaseModel):

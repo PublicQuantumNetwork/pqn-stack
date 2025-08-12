@@ -14,7 +14,7 @@ from pqnstack.base.errors import PacketError
 
 class NetworkElementClass(Enum):
     ROUTER = auto()
-    NODE = auto()
+    PROVIDER = auto()
     CLIENT = auto()
     TELEMETRY = auto()
 

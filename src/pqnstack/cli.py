@@ -7,7 +7,7 @@ from typing import Annotated
 import typer
 
 from pqnstack.base.errors import InvalidNetworkConfigurationError
-from pqnstack.network.node import Node
+from pqnstack.network.instrument_provider import InstrumentProvider
 from pqnstack.network.router import Router
 
 # TODO: check if this way of handling logging from a command line script is ok.
@@ -40,51 +40,49 @@ def _verify_instruments_config(instruments: list[dict[str, str]]) -> dict[str, d
     return ins
 
 
-def _load_and_parse_node_config(
+def _load_and_parse_provider_config(
     config_path: Path | str, kwargs: dict[str, str | int], instruments: dict[str, dict[str, str]]
 ) -> tuple[dict[str, str | int], dict[str, dict[str, str]]]:
     path = Path(config_path)
     with path.open("rb") as f:
         config = tomllib.load(f)
 
-    if "node" not in config:
-        msg = (
-            f"Config file {config_path} does not contain a node section. Add node configuration under '[node]' section."
-        )
+    if "provider" not in config:
+        msg = f"Config file {config_path} does not contain a provider section. Add provider configuration under '[provider]' section."
         raise InvalidNetworkConfigurationError(msg)
 
-    node = config["node"]
-    if "name" in node:
-        kwargs["name"] = str(node["name"])
-    if "router_name" in node:
-        kwargs["router_name"] = str(node["router_name"])
-    if "host" in node:
-        kwargs["host"] = str(node["host"])
-    if "port" in node:
-        kwargs["port"] = int(node["port"])
-    if "beat_period" in node:
-        kwargs["beat_period"] = int(node["beat_period"])
+    provider = config["provider"]
+    if "name" in provider:
+        kwargs["name"] = str(provider["name"])
+    if "router_name" in provider:
+        kwargs["router_name"] = str(provider["router_name"])
+    if "host" in provider:
+        kwargs["host"] = str(provider["host"])
+    if "port" in provider:
+        kwargs["port"] = int(provider["port"])
+    if "beat_period" in provider:
+        kwargs["beat_period"] = int(provider["beat_period"])
 
-    if "instruments" in node:
-        instruments = _verify_instruments_config(node["instruments"])
+    if "instruments" in provider:
+        instruments = _verify_instruments_config(provider["instruments"])
 
     return kwargs, instruments
 
 
 @app.command()
-def start_node(  # noqa: PLR0913
-    name: Annotated[str | None, typer.Option(help="Name of the Node.")] = None,
+def start_provider(  # noqa: PLR0913
+    name: Annotated[str | None, typer.Option(help="Name of the InstrumentProvider.")] = None,
     router_name: Annotated[
-        str | None, typer.Option(help="Name of the router this node will talk to (default: 'router1').")
+        str | None, typer.Option(help="Name of the router this provider will talk to (default: 'router1').")
     ] = None,
     host: Annotated[
         str | None,
         typer.Option(
-            help="Host address (IP) of the node (default: 'localhost'). Usually the IP address of the Router this node will talk to."
+            help="Host address (IP) of the provider (default: 'localhost'). Usually the IP address of the Router this provider will talk to."
         ),
     ] = None,
     port: Annotated[
-        int | None, typer.Option(help="Port of the node (default: 5555). Has to be the same port as the Router.")
+        int | None, typer.Option(help="Port of the provider (default: 5555). Has to be the same port as the Router.")
     ] = None,
     beat_period: Annotated[int | None, typer.Option(help="Heartbeat period in milliseconds (default: 1000)")] = None,
     instruments: Annotated[
@@ -98,7 +96,7 @@ def start_node(  # noqa: PLR0913
     ] = None,
 ) -> None:
     """
-    Start a PQN Node.
+    Start a PQN InstrumentProvider.
 
     Can be configured by passing arguments directly into the command line but it is recommended to use a config file if instruments will be added.
     """
@@ -106,7 +104,7 @@ def start_node(  # noqa: PLR0913
     ins: dict[str, dict[str, str]] = {}
 
     if config:
-        kwargs, ins = _load_and_parse_node_config(config, kwargs, ins)
+        kwargs, ins = _load_and_parse_provider_config(config, kwargs, ins)
 
     if name:
         kwargs["name"] = name
@@ -123,11 +121,11 @@ def start_node(  # noqa: PLR0913
         ins = {**ins, **json.loads(instruments)}
 
     if "name" not in kwargs:
-        msg = "Node name is required"
+        msg = "InstrumentProvider name is required"
         raise InvalidNetworkConfigurationError(msg)
 
-    node = Node(**kwargs, **ins)  # type: ignore[arg-type]
-    node.start()
+    provider = InstrumentProvider(**kwargs, **ins)  # type: ignore[arg-type]
+    provider.start()
 
 
 def _load_and_parse_router_config(config_path: Path | str, kwargs: dict[str, str | int]) -> dict[str, str | int]:

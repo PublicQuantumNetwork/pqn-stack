@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from pydantic import BaseModel
 
 
-@dataclass
 class MeasurementConfig(BaseModel):
     integration_time_s: float
     binwidth_ps: int = 500

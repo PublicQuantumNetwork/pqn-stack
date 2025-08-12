@@ -3,15 +3,16 @@ import os
 import tomllib
 from pathlib import Path
 
-
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field
-
-load_dotenv()
+from pydantic import BaseModel
+from pydantic import Field
 
 from pqnstack.constants import BellState
 from pqnstack.constants import QKDEncodingBasis
 from pqnstack.pqn.protocols.measurement import MeasurementConfig
+
+load_dotenv()
+
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,7 @@ def load_settings_from_toml(config_path: str | Path) -> Settings:
     """Load settings from a TOML configuration file with Pydantic validation."""
     config_path = Path(config_path)
 
-    with open(config_path, "rb") as f:
+    with Path.open(config_path, "rb") as f:
         config_data = tomllib.load(f)
 
     # Pydantic will handle all validation and type conversion automatically
@@ -62,9 +63,8 @@ def get_settings() -> Settings:
 
     config_file = Path(config_path)
     if not config_file.exists():
-        raise FileNotFoundError(
-            f"Configuration file not found: {config_file.absolute()} or 'API_CONFIG_PATH' environment variable is not set"
-        )
+        msg = f"Configuration file not found: {config_file.absolute()} or 'API_CONFIG_PATH' environment variable is not set"
+        raise FileNotFoundError(msg)
 
     return load_settings_from_toml(config_path)
 

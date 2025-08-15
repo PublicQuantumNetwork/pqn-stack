@@ -1,11 +1,12 @@
 import logging
-import os
-import tomllib
-from pathlib import Path
 
 from dotenv import load_dotenv
 from pydantic import BaseModel
 from pydantic import Field
+from pydantic_settings import BaseSettings
+from pydantic_settings import PydanticBaseSettingsSource
+from pydantic_settings import SettingsConfigDict
+from pydantic_settings import TomlConfigSettingsSource
 
 from pqnstack.constants import BellState
 from pqnstack.constants import QKDEncodingBasis
@@ -32,41 +33,37 @@ class QKDSettings(BaseModel):
     measurement_config: MeasurementConfig = Field(default_factory=lambda: MeasurementConfig(integration_time_s=5))
 
 
-class Settings(BaseModel):
-    router_name: str
-    router_address: str
-    router_port: int
-    chsh_settings: CHSHSettings
-    qkd_settings: QKDSettings
+class Settings(BaseSettings):
+    router_name: str = "router1"
+    router_address: str = "localhost"
+    router_port: int = 5555
+    chsh_settings: CHSHSettings = CHSHSettings()
+    qkd_settings: QKDSettings = QKDSettings()
     bell_state: BellState = BellState.Phi_plus
     timetagger: tuple[str, str] | None = None  # Name of the timetagger to use for the CHSH experiment.
 
+    model_config = SettingsConfigDict(toml_file="./config.toml", env_file=".env", env_file_encoding="utf-8")
 
-def load_settings_from_toml(config_path: str | Path) -> Settings:
-    """Load settings from a TOML configuration file with Pydantic validation."""
-    config_path = Path(config_path)
-
-    with Path.open(config_path, "rb") as f:
-        config_data = tomllib.load(f)
-
-    # Pydantic will handle all validation and type conversion automatically
-    return Settings(**config_data)
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        return (
+            TomlConfigSettingsSource(settings_cls),
+            env_settings,
+            dotenv_settings,
+            file_secret_settings,
+            init_settings,
+        )
 
 
 def get_settings() -> Settings:
-    """Load settings from the config file specified in API_CONFIG_PATH environment variable."""
-    config_path = os.getenv("API_CONFIG_PATH")
-
-    if config_path is None:
-        logger.warning("API_CONFIG_PATH environment variable not found, using default value './config.toml'")
-        config_path = "./config.toml"
-
-    config_file = Path(config_path)
-    if not config_file.exists():
-        msg = f"Configuration file not found: {config_file.absolute()} or 'API_CONFIG_PATH' environment variable is not set"
-        raise FileNotFoundError(msg)
-
-    return load_settings_from_toml(config_path)
+    return Settings()
 
 
 settings = get_settings()

@@ -1,8 +1,9 @@
 from dataclasses import dataclass
 
+from pydantic import BaseModel
 
-@dataclass
-class MeasurementConfig:
+
+class MeasurementConfig(BaseModel):
     integration_time_s: float
     binwidth_ps: int = 500
     channel1: int = 1

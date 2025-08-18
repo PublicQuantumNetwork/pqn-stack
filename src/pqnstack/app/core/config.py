@@ -1,4 +1,5 @@
 import logging
+from functools import lru_cache
 
 from pydantic import BaseModel
 from pydantic import Field
@@ -29,6 +30,7 @@ class QKDSettings(BaseModel):
     measurement_config: MeasurementConfig = Field(default_factory=lambda: MeasurementConfig(integration_time_s=5))
 
 
+@lru_cache
 class Settings(BaseSettings):
     router_name: str = "router1"
     router_address: str = "localhost"

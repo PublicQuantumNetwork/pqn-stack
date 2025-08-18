@@ -436,7 +436,6 @@ dependencies = [
 webapp = [
     { name = "fastapi", extra = ["standard"] },
     { name = "httpx" },
-    { name = "pydantic" },
     { name = "pydantic-settings" },
 ]
 
@@ -452,8 +451,7 @@ requires-dist = [
     { name = "fastapi", extras = ["standard"], marker = "extra == 'webapp'", specifier = ">=0.115.14" },
     { name = "httpx", marker = "extra == 'webapp'", specifier = ">=0.28.1" },
     { name = "numpy", specifier = "<2.0" },
-    { name = "pydantic", marker = "extra == 'webapp'", specifier = ">=2.11.7" },
-    { name = "pydantic-settings", marker = "extra == 'webapp'", specifier = ">=2.6.0" },
+    { name = "pydantic-settings", marker = "extra == 'webapp'", specifier = ">=2.10.1" },
     { name = "pyfirmata2", specifier = ">=2.5.0" },
     { name = "pyzmq", specifier = ">=26.2.0" },
     { name = "thorlabs-apt-device", specifier = ">=0.3.8" },

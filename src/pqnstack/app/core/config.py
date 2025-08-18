@@ -30,7 +30,6 @@ class QKDSettings(BaseModel):
     measurement_config: MeasurementConfig = Field(default_factory=lambda: MeasurementConfig(integration_time_s=5))
 
 
-@lru_cache
 class Settings(BaseSettings):
     router_name: str = "router1"
     router_address: str = "localhost"
@@ -60,6 +59,7 @@ class Settings(BaseSettings):
         )
 
 
+@lru_cache
 def get_settings() -> Settings:
     return Settings()
 

@@ -1,6 +1,5 @@
 import logging
 
-from dotenv import load_dotenv
 from pydantic import BaseModel
 from pydantic import Field
 from pydantic_settings import BaseSettings
@@ -11,9 +10,6 @@ from pydantic_settings import TomlConfigSettingsSource
 from pqnstack.constants import BellState
 from pqnstack.constants import QKDEncodingBasis
 from pqnstack.pqn.protocols.measurement import MeasurementConfig
-
-load_dotenv()
-
 
 logger = logging.getLogger(__name__)
 

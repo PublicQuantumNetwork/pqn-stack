@@ -1,3 +1,5 @@
+# MAKE SURE TO RENAME THIS FILE TO config.toml AND PLACE IT IN THE ROOT OF THE PROJECT
+
 # Router configuration
 router_name = "router1"
 router_address = "xx.xx.xx.xx"  # Replace with actual IP address

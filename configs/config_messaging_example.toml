@@ -1,0 +1,23 @@
+[router]
+name = "pqnstack-router"
+host = "localhost"
+port = 5556
+
+[provider]
+name = "pqnstack-provider"
+router_name = "pqnstack-router"
+host = "localhost"
+port = 5556
+beat_period = 2000
+
+[[provider.instruments]]
+name = "dummy1"
+import = "pqnstack.pqn.drivers.dummies.DummyInstrument"
+desc = "Dummy instrument1 for testing purposes"
+hw_address = "1234"
+
+[[provider.instruments]]
+name = "dummy2"
+import = "pqnstack.pqn.drivers.dummies.DummyInstrument"
+desc = "Dummy instrument2 for testing purposes"
+hw_address = "1234"

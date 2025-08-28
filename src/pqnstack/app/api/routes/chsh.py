@@ -1,4 +1,5 @@
 import logging
+from typing import cast
 
 from fastapi import APIRouter
 from fastapi import HTTPException
@@ -8,8 +9,6 @@ from pqnstack.app.api.deps import ClientDep
 from pqnstack.app.core.config import settings
 from pqnstack.app.core.config import state
 from pqnstack.app.core.models import calculate_chsh_expectation_error
-from pqnstack.app.core.models import get_timetagger
-from pqnstack.app.core.models import measure_correlation
 from pqnstack.network.client import Client
 
 logger = logging.getLogger(__name__)
@@ -21,16 +20,12 @@ async def _chsh(  # Complexity is high due to the nature of the CHSH experiment.
     basis: tuple[float, float],
     follower_node_address: str,
     http_client: ClientDep,
-    timetagger_address: str | None = None,
+    timetagger_address: str,
 ) -> tuple[float, float]:
     logger.debug("Starting CHSH")
 
     logger.debug("Instantiating client")
     client = Client(host=settings.router_address, port=settings.router_port, timeout=600_000)
-
-    tagger = None
-    if timetagger_address is None:
-        tagger = get_timetagger(client)
 
     # TODO: Check if settings.chsh_settings.hwp is set before even trying to get the device.
     hwp = client.get_device(settings.chsh_settings.hwp[0], settings.chsh_settings.hwp[1])
@@ -63,10 +58,16 @@ async def _chsh(  # Complexity is high due to the nature of the CHSH experiment.
                             detail="Failed to request follower",
                         )
 
-                    count = await measure_correlation(
-                        settings.chsh_settings.measurement_config, tagger, timetagger_address, http_client
+                    count_ret = await http_client.get(
+                        f"http://{timetagger_address}/timetagger/measure_correlation?integration_time_s={settings.chsh_settings.measurement_config.integration_time_s}&coincidence_window_ps={settings.chsh_settings.measurement_config.binwidth_ps}&channel1={settings.chsh_settings.measurement_config.channel1}&channel2={settings.chsh_settings.measurement_config.channel2}&dark_count={settings.chsh_settings.measurement_config.dark_count}"
                     )
-
+                    if count_ret.status_code != status.HTTP_200_OK:
+                        logger.error("Failed to get correlation from timetagger: %s", count_ret.text)
+                        raise HTTPException(
+                            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="Failed to get correlation from timetagger",
+                        )
+                    count = cast("int", count_ret.json())
                     counts.append(count)
 
             # Calculating expectation value
@@ -112,7 +113,7 @@ async def chsh(
     basis: tuple[float, float],
     follower_node_address: str,
     http_client: ClientDep,
-    timetagger_address: str | None = None,
+    timetagger_address: str,
 ) -> dict[str, float]:
     logger.info("Starting CHSH experiment with basis: %s", basis)
 

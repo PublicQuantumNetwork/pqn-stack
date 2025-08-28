@@ -1,5 +1,6 @@
 import logging
 import random
+from typing import cast
 
 from fastapi import APIRouter
 from fastapi import HTTPException
@@ -8,8 +9,6 @@ from fastapi import status
 from pqnstack.app.api.deps import ClientDep
 from pqnstack.app.core.config import settings
 from pqnstack.app.core.config import state
-from pqnstack.app.core.models import get_timetagger
-from pqnstack.app.core.models import measure_correlation
 from pqnstack.constants import BasisBool
 from pqnstack.constants import QKDEncodingBasis
 from pqnstack.network.client import Client
@@ -35,10 +34,6 @@ async def _qkd(
             detail="Could not find half waveplate device",
         )
 
-    tagger = None
-    if timetagger_address is None:
-        tagger = get_timetagger(client)
-
     counts = []
     for basis in state.qkd_basis_list:
         r = await http_client.post(f"http://{follower_node_address}/qkd/single_bit")
@@ -57,11 +52,20 @@ async def _qkd(
         assert hasattr(hwp, "move_to")
         hwp.move_to(basis.angles[int_choice].value)
         logger.debug("Moving half waveplate to angle: %s", basis.angles[int_choice].value)
-        count = await measure_correlation(
-            settings.qkd_settings.measurement_config, tagger, timetagger_address, http_client
+
+        count_ret = await http_client.get(
+            f"http://{timetagger_address}/timetagger/measure_correlation?integration_time_s={settings.chsh_settings.measurement_config.integration_time_s}&coincidence_window_ps={settings.chsh_settings.measurement_config.binwidth_ps}&channel1={settings.chsh_settings.measurement_config.channel1}&channel2={settings.chsh_settings.measurement_config.channel2}&dark_count={settings.chsh_settings.measurement_config.dark_count}"
         )
-        logger.debug("Counted %d coincidences", count)
-        counts.append(count)
+        if count_ret.status_code != status.HTTP_200_OK:
+            logger.error("Failed to get correlation from timetagger: %s", count_ret.text)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to get correlation from timetagger",
+            )
+
+        c = cast("int", count_ret.json())
+        counts.append(c)
+        logger.debug("Counted %d coincidences", c)
 
     def get_outcome(state: int, basis: int, choice: int, counts: int) -> int:
         above = counts > settings.qkd_settings.discriminating_threshold

@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/timetagger", tags=["timetagger"])
 
 
-@router.get("/measure")
-async def timetagger_measure(
+@router.get("/measure_correlation")
+async def measure_correlation(
     integration_time_s: float,
     coincidence_window_ps: int = 500,
     channel1: int = 1,

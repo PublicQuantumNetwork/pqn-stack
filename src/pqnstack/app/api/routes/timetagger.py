@@ -51,6 +51,7 @@ async def measure_correlation(
     logger.info("Measured %d coincidences", count)
     return int(count)
 
+
 @router.get("/count_singles")
 async def count_singles(
     integration_time_s: float,

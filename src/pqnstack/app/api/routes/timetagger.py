@@ -50,3 +50,31 @@ async def measure_correlation(
 
     logger.info("Measured %d coincidences", count)
     return int(count)
+
+@router.get("/count_singles")
+async def count_singles(
+    integration_time_s: float,
+    channels: list[int],
+) -> list[int]:
+    if settings.timetagger is None:
+        logger.error("No timetagger configured")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="No timetagger configured",
+        )
+
+    client = Client(host=settings.router_address, port=settings.router_port, timeout=600_000)
+    tagger = client.get_device(settings.timetagger[0], settings.timetagger[1])
+    if tagger is None:
+        logger.error("Could not find time tagger device")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Could not find time tagger device",
+        )
+
+    logger.debug("Time tagger device found: %s", tagger)
+    assert hasattr(tagger, "count_singles")
+    counts = tagger.count_singles(channels, integration_time_s=integration_time_s)
+
+    logger.info("Measured singles counts: %s", counts)
+    return [int(c) for c in counts]

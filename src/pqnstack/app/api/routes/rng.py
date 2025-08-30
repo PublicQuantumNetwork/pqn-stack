@@ -1,10 +1,10 @@
 import logging
 from typing import Any
 
+import httpx
 from fastapi import APIRouter
 from fastapi import HTTPException
 from fastapi import status
-import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -16,12 +16,10 @@ async def singles_parity(
     timetagger_address: str,
     integration_time_s: float,
     channels: list[int],
-) -> dict[str, list[int]]:
+) -> list[int]:
     """Fetch singles counts from a timetagger and return their per-channel parity (mod 2)."""
-    url = (
-        f"http://{timetagger_address}/timetagger/count_singles"
-        f"?integration_time_s={integration_time_s}"
-        + "".join(f"&channels={ch}" for ch in channels)
+    url = f"http://{timetagger_address}/timetagger/count_singles?integration_time_s={integration_time_s}" + "".join(
+        f"&channels={ch}" for ch in channels
     )
 
     async with httpx.AsyncClient(timeout=600.0) as client:
@@ -42,8 +40,7 @@ async def singles_parity(
             detail="Unexpected response format from timetagger",
         )
 
-    parities = [count % 2 for count in data]
+    parities = [int(count % 2) for count in data]
 
     logger.info("Singles counts %s, parities %s", data, parities)
     return parities
-

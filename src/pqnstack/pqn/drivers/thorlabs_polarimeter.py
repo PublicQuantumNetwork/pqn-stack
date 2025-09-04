@@ -4,23 +4,18 @@
 # NCSA/Illinois Computes
 
 import logging
-import time
 from dataclasses import dataclass
-from dataclasses import field
 from typing import Protocol
 from typing import runtime_checkable
 
-import sys
-import time
-import warnings
 import pyvisa
 
-from pqnstack.base.errors import DeviceNotStartedError
 from pqnstack.base.instrument import Instrument
 from pqnstack.base.instrument import InstrumentInfo
 from pqnstack.base.instrument import log_parameter
 
 logger = logging.getLogger(__name__)
+
 
 @dataclass(frozen=True, slots=True)
 class ThorlabsPolarimeterInfo(InstrumentInfo):
@@ -37,99 +32,76 @@ class ThorlabsPolarimeterInstrument(Instrument, Protocol):
     def __post_init__(self) -> None:
         self.operations["read"] = self.read
         self.operations["set_wavelength"] = self.set_wavelength
-    
+
     @property
     @log_parameter
     def read(self) -> ThorlabsPolarimeterInfo: ...
 
-
     @property
     @log_parameter
-    def set_wavelength(self, wavelength: float) -> None: ...
+    def wavelength(self) -> float: ...
+
+    @wavelength.setter
+    @log_parameter
+    def wavelength(self, wavelength: float) -> None: ...
 
 
 @dataclass(slots=True)
 class PAX1000IR2(ThorlabsPolarimeterInstrument):
-    self._calc_on = "SENS:CALC 1"
-    self._rot_on = "INP:ROT:STAT 1"
-    self._calc_off = "SENS:CALC 0"
-    self._rot_off = "INP:ROT:STAT 0"
-    self._q_calc = "SENS:CALC?"
-    self._q_rot = "INP:ROT:STAT?"
-    self._q_latest = "SENS:DATA:LAT?"
-    
-    self._q_wav = "SENS:CORR:WAV?"
-
     def start(self) -> None:
-        self._rm = pyvisa.ResourceManager('@py')
-        self._device = rm.list_resources(hw_address)
-        if not self._device:
-            logger.info("No USB VISA instrument found")
+        # try to set calc + rot on, then check if they're on
+        # if they are, return, if not, turn everything off + log crash
 
+        _rm = pyvisa.ResourceManager("@py")
+        self._device = _rm.list_resources(self.hw_address)
+        if not self._device:
+            # deal w it
+            return
+
+        self._write("SENS:CALC 1")
+        self._write("INP:ROT:STAT 1")
 
     def read_data(self) -> ThorlabsPolarimeterInfo:
-        str_data_values = self._write_query(self._device, self._q_latest)
-        list_data_values = self._parse_data(str_data_values)
+        str_data_values = self._query("SENS:DATA:LAT?")
+        values = self._parse_data(str_data_values)
 
-        # for each value in list, set the appropriate InstrumentInfo value to the value in list
-        theta_val = values[9]
-        eta_val = values[10]
-        dop_val = values[11]
-        power_val = values[12]
-        
-        info_data_values = ThorlabsPolarimeterInfo(theta = theta_val, eta = eta_val, dop = dop_val, power = power_val)
-        return info_data_values
+        return ThorlabsPolarimeterInfo(theta=values[9], eta=values[10], dop=values[11], power=values[12])
 
+    @property
+    def wavelength(self) -> float:
+        return self._query("SENS:CORR:WAV?")
 
-    def read_wavelength(self) -> float:
-        
-
-    def set_wavelength(self, wavelength: float): None:
-
+    @wavelength.setter
+    def wavelength(self, wavelength: float) -> None:
+        self._write(f"SENS:CORR:WAV {wavelength}")
 
     def close(self) -> None:
-        if self._device is not None:
-            logger.info("Closing Thorlabs Polarimeter")
-            self._device._calc_off()
-            self._device._rot_off()
-            if self._q_calc:
-                logger.info("Calc function failed to close")
-            if self._q_rot:
-                logger.info("Rot function failed to close")
+        # deal w it
+        self._write("SENS:CALC 0")
+        self._write("INP:ROT:STAT 0")
 
+    # internal functions below
 
-     # internal functions below
-     def _write_command(instrument: any, command: str) -> None:
-        instrument.write(f"{command}\n")
+    def _query(self, command: str) -> str:
+        self._device.write(f"{command}\n")
+        return self._device.read().strip()
 
-     def _write_query(instrument: any, command: str) -> str:
-        instrument.write(f"{command}\n")
-        return instrument.read().strip()
+    def _write(self, command: str) -> None:
+        command_name, value = command.split(" ")
 
-     def _write_and_confirm(
-        instrument: Any,
-        set_command: str,
-        query_command: str,
-        expected_prefix: Union[str, int, float],
-        sleep_seconds: float = 0.05,
-     ) -> Tuple[bool, str]:
-        write_command(instrument, set_command)
+        self._device.write(command)
+        confirm = self._query(command_name + "?")
 
-        last_value: str = ""
-        expected_str = str(expected_prefix)
+        # if confirm != value:
+        # deal w it
 
-        last_value = query_string(instrument, query_command).strip()
-        if last_value.startswith(expected_str):
-            return True, last_value
-        time.sleep(sleep_seconds)
-        return False, last_value
-
-     def parse_data(data: str) -> List[Union[float, str]]:
+    def parse_data(self, data: str) -> list[float | str]:
+        # double check w/ raw data format
         str_values = [p for p in data.replace(";", ",").split(",") if p != ""]
-        values: List[Union[float, str]] = []
+        values: list[float | str] = []
         for value in str_values:
             try:
-                values.append(float(token))
-            except Exception:
-                values.append(token)
+                values.append(float(value))
+            except ValueError:
+                values.append(value)
         return values

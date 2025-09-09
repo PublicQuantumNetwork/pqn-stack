@@ -31,9 +31,8 @@ class ThorlabsPolarimeterInfo(InstrumentInfo):
 class ThorlabsPolarimeterInstrument(Instrument, Protocol):
     def __post_init__(self) -> None:
         self.operations["read"] = self.read
-        self.operations["set_wavelength"] = self.set_wavelength
+        self.operations.add("wavelength")
 
-    @property
     @log_parameter
     def read(self) -> ThorlabsPolarimeterInfo: ...
 

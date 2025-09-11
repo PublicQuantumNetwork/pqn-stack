@@ -1,10 +1,11 @@
 import logging
 from typing import Any
 
-import httpx
 from fastapi import APIRouter
 from fastapi import HTTPException
 from fastapi import status
+
+from pqnstack.app.api.deps import ClientDep
 
 logger = logging.getLogger(__name__)
 
@@ -13,17 +14,14 @@ router = APIRouter(prefix="/rng", tags=["rng"])
 
 @router.post("/singles_parity")
 async def singles_parity(
-    timetagger_address: str,
-    integration_time_s: float,
-    channels: list[int],
+    timetagger_address: str, integration_time_s: float, channels: list[int], http_client: ClientDep
 ) -> list[int]:
     """Fetch singles counts from a timetagger and return their per-channel parity (mod 2)."""
     url = f"http://{timetagger_address}/timetagger/count_singles?integration_time_s={integration_time_s}" + "".join(
         f"&channels={ch}" for ch in channels
     )
 
-    async with httpx.AsyncClient(timeout=600.0) as client:
-        response = await client.get(url)
+    response = await http_client.get(url)
 
     if response.status_code != status.HTTP_200_OK:
         logger.error("Failed to get singles counts: %s", response.text)

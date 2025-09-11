@@ -18,6 +18,7 @@ authors = [
 dependencies = [
     "numpy<2.0",
     "pyfirmata2>=2.5.0",
+    "pyvisa-py[hislip-discovery,usb]>=0.8.1",
     "pyzmq>=26.2.0",
     "thorlabs-apt-device>=0.3.8",
     "typer>=0.15.1",

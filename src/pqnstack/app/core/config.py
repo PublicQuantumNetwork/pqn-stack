@@ -73,13 +73,13 @@ def get_settings() -> Settings:
 settings = get_settings()
 
 
-class NodeState(BaseModel):
+class CoordinationState(BaseModel):
     # FIXME: Make sure we are checking for the client_listening_for_follower_requests state everywhere.
     client_listening_for_follower_requests: bool = False
 
     # Leader's state
     leading: bool = False
-    followers_address: str | None = None
+    followers_address: str = ""
 
     # Follower's state
     following: bool = False
@@ -88,9 +88,12 @@ class NodeState(BaseModel):
     # User's response to the follow request. None if no response yet, True if accepted, False if rejected.
     following_requested_user_response: bool | None = None
     # The address of the leader this node is following. None if not following anyone.
-    leaders_address: str | None = None
-    leaders_name: str | None = None
+    leaders_address: str = ""
+    leaders_name: str = ""
 
+
+class NodeState(BaseModel):
+    coordination_state: CoordinationState = CoordinationState()
     chsh_request_basis: list[float] = [22.5, 67.5]
     # FIXME: Use enums for this
     qkd_basis_list: list[QKDEncodingBasis] = [

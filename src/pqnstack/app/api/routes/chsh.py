@@ -97,7 +97,7 @@ async def _chsh(  # Complexity is high due to the nature of the CHSH experiment.
 
     if negative_count in impossible_counts:
         msg = f"Impossible negative expectation values found: {negative_indices}, expectation_values = {expectation_values}, expectation_errors = {expectation_errors}"
-        raise ValueError(msg)
+        raise HTTPException(status_code=504, detail=msg)
 
     if len(negative_indices) > 1 or negative_indices[0] != 0:
         logger.warning("Expectation values have unexpected negative indices: %s", negative_indices)

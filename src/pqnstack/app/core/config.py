@@ -88,5 +88,7 @@ class NodeState(BaseModel):
     qkd_request_basis_list: list[QKDEncodingBasis] = []  # Basis angles for QKD
     qkd_request_bit_list: list[int] = []
 
+    polarimeter_theta: float = 0.0  # Angle of the polarimeter's half waveplate
+
 
 state = NodeState()

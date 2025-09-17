@@ -29,14 +29,15 @@ logger = logging.getLogger(__name__)
 @dataclass(frozen=True, slots=True)                     
 class PowermeterInfo(InstrumentInfo):
     power_W: float = 0.0
-    wavelength_um: float = 1.55
+    wavelength_nm: float = 1550.0
 
 @runtime_checkable
 @dataclass(slots=True)
 class PowermeterInstrument(Instrument, Protocol):
     def __post_init__(self) -> None:
         self.operations["read"] = self.read
-        self.parameters.add("wavelength")
+        self.parameters.add("wavelength_nm")
+        self.parameters.add("power_W")
 
     @property
     @log_parameter
@@ -44,11 +45,15 @@ class PowermeterInstrument(Instrument, Protocol):
 
     @property
     @log_parameter
-    def wavelength_um(self) -> float: ...
+    def power_W(self) -> float: ...
+
+    @property
+    @log_parameter
+    def wavelength_nm(self) -> float: ...
 
     @wavelength_um.setter
     @log_parameter
-    def wavelength_um(self, value: float) -> None: ...
+    def wavelength_nm(self, value: float) -> None: ...
 
 @dataclass(slots=True)
 class PM100D(PowermeterInstrument):
@@ -67,13 +72,18 @@ class PM100D(PowermeterInstrument):
             self._device.close()
 
     def read(self) -> PowermeterInfo:
-        power_W = float(self._device.read)
-        return power_W
+        power = float(self._device.read)
+        wavelength = float(self._device.sense.correction.wavelength)
+        return PowermeterInfo(power_W = power, wavelength_nm = wavelength * (1e9))
 
     @property
-    def wavelength_um(self) -> float:
+    def power_W(self) -> float:
+        return float(self._device.read)
+
+    @property
+    def wavelength_nm(self) -> float:
         return float(self._device.sense.correction.wavelength)
 
-    @wavelength_um.setter
-    def wavelength_um(self, value: float) -> None:
+    @wavelength_nm.setter
+    def wavelength_nm(self, value: float) -> None:
         self._device.sense.correction.wavelength = value

@@ -73,7 +73,9 @@ def get_settings() -> Settings:
 settings = get_settings()
 
 
-class CoordinationState(BaseModel):
+
+class NodeState(BaseModel):
+    # Coordination state
     # FIXME: Make sure we are checking for the client_listening_for_follower_requests state everywhere.
     client_listening_for_follower_requests: bool = False
 
@@ -91,10 +93,10 @@ class CoordinationState(BaseModel):
     leaders_address: str = ""
     leaders_name: str = ""
 
-
-class NodeState(BaseModel):
-    coordination_state: CoordinationState = CoordinationState()
+    # CHSH state
     chsh_request_basis: list[float] = [22.5, 67.5]
+
+    # QKD state
     # FIXME: Use enums for this
     qkd_basis_list: list[QKDEncodingBasis] = [
         QKDEncodingBasis.DA,
@@ -118,3 +120,7 @@ class NodeState(BaseModel):
 state = NodeState()
 ask_user_for_follow_event = asyncio.Event()
 user_replied_event = asyncio.Event()
+
+
+def get_state() -> NodeState:
+    return state

@@ -10,7 +10,7 @@ from fastapi import status
 from pydantic import BaseModel
 
 from pqnstack.app.api.deps import ClientDep
-from pqnstack.app.api.deps import CoordinationStateDep
+from pqnstack.app.api.deps import StateDep
 from pqnstack.app.core.config import ask_user_for_follow_event
 from pqnstack.app.core.config import settings
 from pqnstack.app.core.config import user_replied_event
@@ -35,20 +35,20 @@ router = APIRouter(prefix="/coordination", tags=["coordination"])
 
 # TODO: Send a disconnection message if I was following someone.
 @router.post("/reset_coordination_state", response_model=ResetCoordinationStateResponse)
-async def reset_coordination_state(coord: CoordinationStateDep) -> ResetCoordinationStateResponse:
+async def reset_coordination_state(state: StateDep) -> ResetCoordinationStateResponse:
     """Reset the coordination state of the node."""
-    coord.leading = False
-    coord.followers_address = ""
-    coord.following = False
-    coord.following_requested = False
-    coord.following_requested_user_response = None
-    coord.leaders_address = ""
-    coord.leaders_name = ""
+    state.leading = False
+    state.followers_address = ""
+    state.following = False
+    state.following_requested = False
+    state.following_requested_user_response = None
+    state.leaders_address = ""
+    state.leaders_name = ""
     return ResetCoordinationStateResponse()
 
 
 @router.post("/collect_follower", response_model=CollectFollowerResponse)
-async def collect_follower(address: str, coord: CoordinationStateDep, http_client: ClientDep) -> CollectFollowerResponse:
+async def collect_follower(address: str, state: StateDep, http_client: ClientDep) -> CollectFollowerResponse:
     """
     Endpoint called by a leader node (this one) to request a follower node (other node) to follow it.
 
@@ -64,8 +64,8 @@ async def collect_follower(address: str, coord: CoordinationStateDep, http_clien
 
     response_data = ret.json()
     if response_data.get("accepted") is True:
-        coord.leading = True
-        coord.followers_address = address
+        state.leading = True
+        state.followers_address = address
         logger.info("Successfully collected follower")
         return CollectFollowerResponse(success=True)
     if response_data.get("accepted") is False:
@@ -78,7 +78,7 @@ async def collect_follower(address: str, coord: CoordinationStateDep, http_clien
 
 
 @router.post("/follow_requested", response_model=FollowRequestResponse)
-async def follow_requested(request: Request, leaders_name: str, coord: CoordinationStateDep) -> FollowRequestResponse:
+async def follow_requested(request: Request, leaders_name: str, state: StateDep) -> FollowRequestResponse:
     """
     Endpoint is called by a leader node (other node) to request this node to follow it.
 
@@ -93,57 +93,57 @@ async def follow_requested(request: Request, leaders_name: str, coord: Coordinat
     leaders_address = request.client.host
 
     # Check if the client is ready to accept a follower request and that node is not already following someone.
-    if not coord.client_listening_for_follower_requests or coord.following:
+    if not state.client_listening_for_follower_requests or state.following:
         logger.info(
             "Request rejected because %s",
             (
                 "client is not listening for requests"
-                if not coord.client_listening_for_follower_requests
+                if not state.client_listening_for_follower_requests
                 else "this node is already following someone"
             ),
         )
         return FollowRequestResponse(accepted=False)
 
-    coord.following_requested = True
-    coord.leaders_name = leaders_name
-    coord.leaders_address = leaders_address
+    state.following_requested = True
+    state.leaders_name = leaders_name
+    state.leaders_address = leaders_address
     # Trigger the state change to get the websocket to send question to user
     ask_user_for_follow_event.set()
 
     logger.debug("Asking user to accept follow request from %s (%s)", leaders_name, leaders_address)
     await user_replied_event.wait()  # Wait for a state change event to see if user accepted
     user_replied_event.clear()  # Reset the event for the next change
-    if coord.following_requested_user_response:
+    if state.following_requested_user_response:
         logger.debug("Follow request from %s accepted.", leaders_address)
-        coord.following = True
-        coord.leaders_name = leaders_name
-        coord.leaders_address = leaders_address
+        state.following = True
+        state.leaders_name = leaders_name
+        state.leaders_address = leaders_address
         ask_user_for_follow_event.set()
         return FollowRequestResponse(accepted=True)
 
     logger.debug("Follow request from %s rejected.", leaders_address)
     # Clean up the state if user rejected
-    coord.leaders_address = ""
-    coord.leaders_name = ""
-    coord.following_requested = False
+    state.leaders_address = ""
+    state.leaders_name = ""
+    state.following_requested = False
     return FollowRequestResponse(accepted=False)
 
 
 @router.websocket("/follow_requested_alerts")
-async def follow_requested_alert(websocket: WebSocket, coord: CoordinationStateDep) -> None:
+async def follow_requested_alert(websocket: WebSocket, state: StateDep) -> None:
     """Websocket endpoint is used to alert the client when a follow request is received. It also handles the response from the client."""
     await websocket.accept()
     logger.info("Client connected to websocket for multiplayer coordination.")
-    coord.client_listening_for_follower_requests = True
+    state.client_listening_for_follower_requests = True
 
     async def ask_user_for_follow_handler() -> None:
         """Task that waits for the ask_user_for_follow_event event and sends a message to the client if a follow request is detected."""
         while True:
             await ask_user_for_follow_event.wait()  # Wait for a state change event
-            if coord.following_requested:
+            if state.following_requested:
                 logger.debug("Websocket detected a follow request, asking user for response.")
                 await websocket.send_text(
-                    f"Do you want to accept a connection from {coord.leaders_name} ({coord.leaders_address})?"
+                    f"Do you want to accept a connection from {state.leaders_name} ({state.leaders_address})?"
                 )
             ask_user_for_follow_event.clear()  # Reset the event for the next change
 
@@ -152,13 +152,13 @@ async def follow_requested_alert(websocket: WebSocket, coord: CoordinationStateD
         try:
             while True:
                 response = await websocket.receive_text()
-                coord.following_requested_user_response = response.lower() in ["true", "yes", "y"]
-                coord.following_requested = False
-                logger.debug("Websocket received a response from user: %s", coord.following_requested_user_response)
+                state.following_requested_user_response = response.lower() in ["true", "yes", "y"]
+                state.following_requested = False
+                logger.debug("Websocket received a response from user: %s", state.following_requested_user_response)
                 user_replied_event.set()
         except WebSocketDisconnect:
             logger.info("Client disconnected from websocket for multiplayer coordination.")
-            coord.client_listening_for_follower_requests = False
+            state.client_listening_for_follower_requests = False
 
     state_change_task = asyncio.create_task(ask_user_for_follow_handler())
     client_message_task = asyncio.create_task(client_message_handler())

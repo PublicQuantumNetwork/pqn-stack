@@ -73,7 +73,6 @@ def get_settings() -> Settings:
 settings = get_settings()
 
 
-
 class NodeState(BaseModel):
     # Coordination state
     # FIXME: Make sure we are checking for the client_listening_for_follower_requests state everywhere.

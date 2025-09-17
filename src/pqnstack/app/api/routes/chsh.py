@@ -6,8 +6,8 @@ from fastapi import HTTPException
 from fastapi import status
 
 from pqnstack.app.api.deps import ClientDep
+from pqnstack.app.api.deps import StateDep
 from pqnstack.app.core.config import settings
-from pqnstack.app.core.config import state
 from pqnstack.app.core.models import calculate_chsh_expectation_error
 from pqnstack.network.client import Client
 
@@ -126,7 +126,7 @@ async def chsh(
 
 
 @router.post("/request-angle-by-basis")
-async def request_angle_by_basis(index: int, *, perp: bool = False) -> bool:
+async def request_angle_by_basis(index: int, state: StateDep, *, perp: bool = False) -> bool:
     client = Client(host=settings.router_address, port=settings.router_port, timeout=600_000)
     hwp = client.get_device(settings.chsh_settings.request_hwp[0], settings.chsh_settings.request_hwp[1])
     if hwp is None:

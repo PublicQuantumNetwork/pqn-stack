@@ -7,8 +7,8 @@ from fastapi import HTTPException
 from fastapi import status
 
 from pqnstack.app.api.deps import ClientDep
+from pqnstack.app.api.deps import StateDep
 from pqnstack.app.core.config import settings
-from pqnstack.app.core.config import state
 from pqnstack.constants import BasisBool
 from pqnstack.constants import QKDEncodingBasis
 from pqnstack.network.client import Client
@@ -21,6 +21,7 @@ router = APIRouter(prefix="/qkd", tags=["qkd"])
 async def _qkd(
     follower_node_address: str,
     http_client: ClientDep,
+    state: StateDep,
     timetagger_address: str | None = None,
 ) -> list[int]:
     logger.debug("Starting QKD")
@@ -106,6 +107,7 @@ async def _qkd(
 async def qkd(
     follower_node_address: str,
     http_client: ClientDep,
+    state: StateDep,
     timetagger_address: str | None = None,
 ) -> list[int]:
     """Perform a QKD protocol with the given follower node."""
@@ -120,7 +122,7 @@ async def qkd(
 
 
 @router.post("/single_bit")
-async def request_qkd_single_pass() -> bool:
+async def request_qkd_single_pass(state: StateDep) -> bool:
     client = Client(host=settings.router_address, port=settings.router_port, timeout=600_000)
     hwp = client.get_device(settings.qkd_settings.request_hwp[0], settings.qkd_settings.request_hwp[1])
 
@@ -149,7 +151,7 @@ async def request_qkd_single_pass() -> bool:
 
 
 @router.post("/request_basis_list")
-def request_qkd_basis_list(leader_basis_list: list[str]) -> list[str]:
+def request_qkd_basis_list(leader_basis_list: list[str], state: StateDep) -> list[str]:
     """Return the list of basis angles for QKD."""
     # Check that lengths match
     if len(leader_basis_list) != len(state.qkd_request_basis_list):

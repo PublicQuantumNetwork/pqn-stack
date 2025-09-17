@@ -1,12 +1,9 @@
-# University of Illinois Urbana-Champaign
-# Public Quantum Network
-#
-# NCSA/Illinois Computes
-
+import contextlib
 import logging
 from dataclasses import dataclass
 from dataclasses import field
-from typing import Protocol, cast
+from typing import Protocol
+from typing import cast
 from typing import runtime_checkable
 
 from pyvisa import ResourceManager
@@ -15,7 +12,7 @@ from usb.core import USBError
 
 from pqnstack.base.instrument import Instrument
 from pqnstack.base.instrument import InstrumentInfo
-from pqnstack.base.instrument import log_parameter
+from pqnstack.base.instrument import log_operation
 
 logger = logging.getLogger(__name__)
 
@@ -34,18 +31,13 @@ class ThorlabsPolarimeterInfo(InstrumentInfo):
 class ThorlabsPolarimeterInstrument(Instrument, Protocol):
     def __post_init__(self) -> None:
         self.operations["read"] = self.read
-        self.parameters.add("wavelength")
+        self.operations["set_wavelength"] = self.set_wavelength
 
-    @log_parameter
+    @log_operation
     def read(self) -> ThorlabsPolarimeterInfo: ...
 
-    @property
-    @log_parameter
-    def wavelength(self) -> float: ...
-
-    @wavelength.setter
-    @log_parameter
-    def wavelength(self, value: float) -> None: ...
+    @log_operation
+    def set_wavelength(self, value: float) -> None: ...
 
 
 @dataclass(slots=True)
@@ -75,13 +67,10 @@ class PAX1000IR2(ThorlabsPolarimeterInstrument):
 
     def close(self) -> None:
         # deal w it
-        try:
+        with contextlib.suppress(AttributeError):
             self._device.write("SENS:CALC 0")
             self._device.write("INP:ROT:STAT 0")
             self._device.close()
-        except AttributeError:
-            # Nothing to do if `start` hasn't been called yet
-            pass
 
     def read(self) -> ThorlabsPolarimeterInfo:
         # See https://www.thorlabs.com/_sd.cfm?fileName=MTN007790-D04.pdf&partumber=PAX1000IR2
@@ -105,6 +94,7 @@ class PAX1000IR2(ThorlabsPolarimeterInstrument):
         hw_status: dict[str, str] = dict(zip(data_keys, data, strict=True))
         theta, eta, dop, power = (float(val) for val in data[9:13])
 
+        wavelength = float(self._device.query("SENS:CORR:WAV?"))
         return ThorlabsPolarimeterInfo(
             name=self.name,
             desc=self.desc,
@@ -114,13 +104,8 @@ class PAX1000IR2(ThorlabsPolarimeterInstrument):
             eta=eta,
             dop=dop,
             power=power,
-            wavelength=self.wavelength,
+            wavelength=wavelength,
         )
 
-    @property
-    def wavelength(self) -> float:
-        return float(self._device.query("SENS:CORR:WAV?"))
-
-    @wavelength.setter
-    def wavelength(self, value: float) -> None:
+    def set_wavelength(self, value: float) -> None:
         self._device.write(f"SENS:CORR:WAV {value}")

@@ -36,6 +36,7 @@ class PowermeterInfo(InstrumentInfo):
 class PowermeterInstrument(Instrument, Protocol):
     def __post_init__(self) -> None:
         self.operations["read"] = self.read
+        self.parameters.add("wavelength")
 
     @property
     @log_parameter
@@ -60,22 +61,18 @@ class PM100D(PowermeterInstrument):
 
     def close (self) -> None:
         # turn off powermeter
-# send commands (from thorlabs manual) to turn off powermeter
+        """Close the connection to the power meter."""
+        if self._device is not None:
+            self._device.close()
 
     def read(self) -> PowermeterInfo:
-        # return power as a PowermeterInfo object
-        # get how to read data from Thorlabs manual (scpi? other commands?)
+        power = float(self._device.read)
+        return PowermeterInfo(power_mW = power)
 
     @property
     def wavelength_um(self) -> float:
-        # read wavelength data from Thorlabs manual
-# helper func for this command + read(self)?
+        return float(self._device.sense.correction.wavelength)
 
     @wavelength.setter
     def wavelength_um(self, value: float) -> None:
-        # find setting command from Thorlabs manual
-
-    """internal functions below
-        
-        rn i'm just thinking a "write query" type function to get power/wavelength, or a "set command" type function for a similar purpose
-    """
+        self._device.sense.correction.wavelength = value

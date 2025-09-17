@@ -34,7 +34,7 @@ router = APIRouter(prefix="/coordination", tags=["coordination"])
 
 
 # TODO: Send a disconnection message if I was following someone.
-@router.post("/reset_coordination_state", response_model=ResetCoordinationStateResponse)
+@router.post("/reset_coordination_state")
 async def reset_coordination_state(state: StateDep) -> ResetCoordinationStateResponse:
     """Reset the coordination state of the node."""
     state.leading = False
@@ -47,7 +47,7 @@ async def reset_coordination_state(state: StateDep) -> ResetCoordinationStateRes
     return ResetCoordinationStateResponse()
 
 
-@router.post("/collect_follower", response_model=CollectFollowerResponse)
+@router.post("/collect_follower")
 async def collect_follower(address: str, state: StateDep, http_client: ClientDep) -> CollectFollowerResponse:
     """
     Endpoint called by a leader node (this one) to request a follower node (other node) to follow it.
@@ -77,7 +77,7 @@ async def collect_follower(address: str, state: StateDep, http_client: ClientDep
     )
 
 
-@router.post("/follow_requested", response_model=FollowRequestResponse)
+@router.post("/follow_requested")
 async def follow_requested(request: Request, leaders_name: str, state: StateDep) -> FollowRequestResponse:
     """
     Endpoint is called by a leader node (other node) to request this node to follow it.

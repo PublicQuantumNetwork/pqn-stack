@@ -118,7 +118,7 @@ async def qkd(
             detail="QKD basis list is empty",
         )
 
-    return await _qkd(follower_node_address, http_client, timetagger_address)
+    return await _qkd(follower_node_address, http_client, state, timetagger_address)
 
 
 @router.post("/single_bit")

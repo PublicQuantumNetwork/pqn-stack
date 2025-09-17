@@ -1,89 +1,62 @@
-# University of Illinois Urbana-Champaign
-# Public Quantum Network
-#
-# NCSA/Illinois Computes
-
-"""Probably want to write a 2 power meter code?
-
-functions: read each powermeter and output in the same way? Return two PowermeterInfo classes??
-
-"""
-
-# review all imports at the end
+import contextlib
 import logging
-import time # may not be necessary
 from dataclasses import dataclass
-from dataclasses import field # may not be necessary
+from dataclasses import field
 from typing import Protocol
 from typing import runtime_checkable
 
-from ThorlabsPM100 import ThorlabsPM100, USBTMC
+from ThorlabsPM100 import USBTMC
+from ThorlabsPM100 import ThorlabsPM100
 
-from pqnstack.base.errors import DeviceNotStartedError
 from pqnstack.base.instrument import Instrument
 from pqnstack.base.instrument import InstrumentInfo
-from pqnstack.base.instrument import log_parameter
+from pqnstack.base.instrument import log_operation
 
 logger = logging.getLogger(__name__)
 
-@dataclass(frozen=True, slots=True)                     
+
+@dataclass(frozen=True, slots=True)
 class PowermeterInfo(InstrumentInfo):
-    power_W: float = 0.0
-    wavelength_nm: float = 1550.0
+    power: float = 0.0
+    wavelength: float = 0.0
+
 
 @runtime_checkable
 @dataclass(slots=True)
 class PowermeterInstrument(Instrument, Protocol):
     def __post_init__(self) -> None:
         self.operations["read"] = self.read
-        self.parameters.add("wavelength_nm")
-        self.parameters.add("power_W")
+        self.operations["set_wavelength"] = self.set_wavelength
 
-    @property
-    @log_parameter
+    @log_operation
     def read(self) -> PowermeterInfo: ...
 
-    @property
-    @log_parameter
-    def power_W(self) -> float: ...
+    @log_operation
+    def set_wavelength(self, value: float) -> None: ...
 
-    @property
-    @log_parameter
-    def wavelength_nm(self) -> float: ...
-
-    @wavelength_um.setter
-    @log_parameter
-    def wavelength_nm(self, value: float) -> None: ...
 
 @dataclass(slots=True)
 class PM100D(PowermeterInstrument):
-    _device: ThorlabsPM100 = field(init=False)
-    def start(self) -> None:
-        # connect to device
-        """Connect to the PM100D via USBTMC or VISA and prepare for readings."""
-        inst = USBTMC(device=self.hw_address)
-        self._device = ThorlabsPM100(inst=inst)
-        logger.info("PM100D connected at %s", self.hw_address) # deal w it
+    _device: ThorlabsPM100 = field(init=False, repr=False)
 
-    def close (self) -> None:
-        # turn off powermeter
-        """Close the connection to the power meter."""
-        if self._device is not None:
+    def start(self) -> None:
+        self._device = ThorlabsPM100(USBTMC(device=self.hw_address))
+        logger.info("PM100D connected at %s", self.hw_address)  # deal w it
+
+    def close(self) -> None:
+        with contextlib.suppress(AttributeError):
             self._device.close()
 
     def read(self) -> PowermeterInfo:
         power = float(self._device.read)
         wavelength = float(self._device.sense.correction.wavelength)
-        return PowermeterInfo(power_W = power, wavelength_nm = wavelength * (1e9))
+        return PowermeterInfo(power=power, wavelength=wavelength)
 
-    @property
-    def power_W(self) -> float:
-        return float(self._device.read)
+    def set_wavelength(self, value: float) -> None:
+        """Set the active correction wavelength in meters.
 
-    @property
-    def wavelength_nm(self) -> float:
-        return float(self._device.sense.correction.wavelength)
-
-    @wavelength_nm.setter
-    def wavelength_nm(self, value: float) -> None:
+        Example:
+            d = PM100D("/dev/usbtmc0")
+            d.set_wavelength(1.55-e6)
+        """
         self._device.sense.correction.wavelength = value

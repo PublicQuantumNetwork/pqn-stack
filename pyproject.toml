@@ -20,6 +20,7 @@ dependencies = [
     "pyfirmata2>=2.5.0",
     "pyzmq>=26.2.0",
     "thorlabs-apt-device>=0.3.8",
+    "thorlabspm100>=1.2.2",
     "typer>=0.15.1",
 ]
 

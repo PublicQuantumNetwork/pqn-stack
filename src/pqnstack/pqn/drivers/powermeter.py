@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True, slots=True)                     
 class PowermeterInfo(InstrumentInfo):
-    power_mW: float = 0.0
+    power_W: float = 0.0
     wavelength_um: float = 1.55
 
 @runtime_checkable
@@ -46,12 +46,13 @@ class PowermeterInstrument(Instrument, Protocol):
     @log_parameter
     def wavelength_um(self) -> float: ...
 
-    @wavelength.setter
+    @wavelength_um.setter
     @log_parameter
     def wavelength_um(self, value: float) -> None: ...
 
 @dataclass(slots=True)
 class PM100D(PowermeterInstrument):
+    _device: ThorlabsPM100 = field(init=False)
     def start(self) -> None:
         # connect to device
         """Connect to the PM100D via USBTMC or VISA and prepare for readings."""
@@ -66,13 +67,13 @@ class PM100D(PowermeterInstrument):
             self._device.close()
 
     def read(self) -> PowermeterInfo:
-        power = float(self._device.read)
-        return PowermeterInfo(power_mW = power)
+        power_W = float(self._device.read)
+        return power_W
 
     @property
     def wavelength_um(self) -> float:
         return float(self._device.sense.correction.wavelength)
 
-    @wavelength.setter
+    @wavelength_um.setter
     def wavelength_um(self, value: float) -> None:
         self._device.sense.correction.wavelength = value

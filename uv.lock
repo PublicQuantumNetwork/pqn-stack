@@ -429,6 +429,7 @@ dependencies = [
     { name = "pyfirmata2" },
     { name = "pyzmq" },
     { name = "thorlabs-apt-device" },
+    { name = "thorlabspm100" },
     { name = "typer" },
 ]
 
@@ -455,6 +456,7 @@ requires-dist = [
     { name = "pyfirmata2", specifier = ">=2.5.0" },
     { name = "pyzmq", specifier = ">=26.2.0" },
     { name = "thorlabs-apt-device", specifier = ">=0.3.8" },
+    { name = "thorlabspm100", specifier = ">=1.2.2" },
     { name = "typer", specifier = ">=0.15.1" },
 ]
 
@@ -782,6 +784,12 @@ sdist = { url = "https://files.pythonhosted.org/packages/04/72/e046337437e882d23
 wheels = [
     { url = "https://files.pythonhosted.org/packages/cc/38/60afff0deb2379c5feae251a5da9e9773c6ac8e2f09fbdac8d2980e28aa2/thorlabs_apt_device-0.3.8-py3-none-any.whl", hash = "sha256:84897581dc99e6f1ab774f07f9466d9137c94ac3dfa0fa59cdd305a4c9682872", size = 64631 },
 ]
+
+[[package]]
+name = "thorlabspm100"
+version = "1.2.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/0a/5e/ef1769d291e959d19bd8a5a488e899897ff1f657eca39fe8db872fa691dd/ThorlabsPM100-1.2.2.tar.gz", hash = "sha256:881cec8149b17c77d4af0097ee3fdb40eaeb618c876d49f1bc42c87611737967", size = 11344, upload-time = "2020-09-01T11:55:45.334Z" }
 
 [[package]]
 name = "typer"

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from functools import lru_cache
 
@@ -31,6 +32,7 @@ class QKDSettings(BaseModel):
 
 
 class Settings(BaseSettings):
+    node_name: str = "node1"
     router_name: str = "router1"
     router_address: str = "localhost"
     router_port: int = 5555
@@ -68,7 +70,28 @@ settings = get_settings()
 
 
 class NodeState(BaseModel):
+    # Coordination state
+    # FIXME: Make sure we are checking for the client_listening_for_follower_requests state everywhere.
+    client_listening_for_follower_requests: bool = False
+
+    # Leader's state
+    leading: bool = False
+    followers_address: str = ""
+
+    # Follower's state
+    following: bool = False
+    # Other node requested this node to follow it.
+    following_requested: bool = False
+    # User's response to the follow request. None if no response yet, True if accepted, False if rejected.
+    following_requested_user_response: bool | None = None
+    # The address of the leader this node is following. None if not following anyone.
+    leaders_address: str = ""
+    leaders_name: str = ""
+
+    # CHSH state
     chsh_request_basis: list[float] = [22.5, 67.5]
+
+    # QKD state
     # FIXME: Use enums for this
     qkd_basis_list: list[QKDEncodingBasis] = [
         QKDEncodingBasis.DA,
@@ -90,3 +113,9 @@ class NodeState(BaseModel):
 
 
 state = NodeState()
+ask_user_for_follow_event = asyncio.Event()
+user_replied_event = asyncio.Event()
+
+
+def get_state() -> NodeState:
+    return state

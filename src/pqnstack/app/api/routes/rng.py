@@ -1,8 +1,10 @@
 import logging
+from typing import Annotated
 from typing import Any
 
 from fastapi import APIRouter
 from fastapi import HTTPException
+from fastapi import Query
 from fastapi import status
 
 from pqnstack.app.api.deps import ClientDep
@@ -12,11 +14,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/rng", tags=["rng"])
 
 
-@router.post("/singles_parity")
+@router.get("/singles_parity")
 async def singles_parity(
     timetagger_address: str,
     integration_time_s: float,
-    channels: list[int],
+    channels: Annotated[list[int], Query()],
     http_client: ClientDep,
 ) -> list[int]:
     """Fetch singles counts from a timetagger and return their per-channel parity (mod 2)."""
@@ -49,13 +51,13 @@ async def singles_parity(
     return parities
 
 
-@router.post("/fortune")
+@router.get("/fortune")
 async def fortune(
     timetagger_address: str,
     integration_time_s: float,
-    channels: list[int],
     fortune_size: int,
     http_client: ClientDep,
+    channels: Annotated[list[int], Query()],
 ) -> list[int]:
     """Run singles parity `fortune_size` times and, per channel, interpret the result in bitstring as a decimal number."""
     if fortune_size <= 0:

@@ -1,9 +1,10 @@
 import logging
+from typing import Annotated
 
 from fastapi import APIRouter
 from fastapi import HTTPException
+from fastapi import Query
 from fastapi import status
-from fastapi import Query 
 
 from pqnstack.app.core.config import settings
 from pqnstack.network.client import Client
@@ -52,10 +53,11 @@ async def measure_correlation(
     logger.info("Measured %d coincidences", count)
     return int(count)
 
+
 @router.get("/count_singles")
 async def count_singles(
     integration_time_s: float,
-    channels: list[int] = Query(),
+    channels: Annotated[list[int], Query()],
 ) -> list[int]:
     if settings.timetagger is None:
         logger.error("No timetagger configured")

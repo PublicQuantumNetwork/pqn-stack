@@ -1,7 +1,9 @@
 import logging
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter
+from fastapi import HTTPException
+from fastapi import status
 
 from pqnstack.app.api.deps import ClientDep
 
@@ -18,8 +20,10 @@ async def singles_parity(
     http_client: ClientDep,
 ) -> list[int]:
     """Fetch singles counts from a timetagger and return their per-channel parity (mod 2)."""
-
-    params = [("integration_time_s", str(integration_time_s))] + [("channels", str(ch)) for ch in channels]
+    params: list[tuple[str, str | int | float | bool | None]] = [
+        ("integration_time_s", integration_time_s),
+        *[("channels", ch) for ch in channels],
+    ]
 
     url = f"http://{timetagger_address}/timetagger/count_singles"
     response = await http_client.get(url, params=params)
@@ -44,6 +48,7 @@ async def singles_parity(
     logger.info("Singles counts %s, parities %s", data, parities)
     return parities
 
+
 @router.post("/fortune")
 async def fortune(
     timetagger_address: str,
@@ -52,10 +57,7 @@ async def fortune(
     fortune_size: int,
     http_client: ClientDep,
 ) -> list[int]:
-    """
-    Run singles parity `fortune_size` times and, per channel, interpret the resulting
-    bitstring as a big-endian binary number (first sample = MSB).
-    """
+    """Run singles parity `fortune_size` times and, per channel, interpret the result in bitstring as a decimal number."""
     if fortune_size <= 0:
         raise HTTPException(status_code=400, detail="fortune_size must be a positive integer")
 
@@ -70,7 +72,7 @@ async def fortune(
         trials.append(parities)
 
     results: list[int] = []
-    for bits_for_channel in zip(*trials):
+    for bits_for_channel in zip(*trials, strict=False):
         value = 0
         for bit in bits_for_channel:
             value = (value << 1) | bit
@@ -83,4 +85,3 @@ async def fortune(
         results,
     )
     return results
-

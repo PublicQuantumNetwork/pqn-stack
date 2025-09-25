@@ -65,16 +65,18 @@ async def fortune(
 
     trials: list[list[int]] = []
     for _ in range(fortune_size):
-        parities = await singles_parity(
-            timetagger_address=timetagger_address,
-            integration_time_s=integration_time_s,
-            channels=channels,
-            http_client=http_client,
-        )
-        trials.append(parities)
+        params: list[tuple[str, str | int | float | bool | None]] = [
+            ("timetagger_address", timetagger_address),
+            ("integration_time_s", integration_time_s),
+            *[("channels", ch) for ch in channels],
+        ]
+
+        url = f"http://{timetagger_address}/rng/singles_parity"
+        parities = await http_client.get(url, params=params)
+        trials.append(parities.json())
 
     results: list[int] = []
-    for bits_for_channel in zip(*trials, strict=False):
+    for bits_for_channel in zip(*trials, strict=True):
         value = 0
         for bit in bits_for_channel:
             value = (value << 1) | bit

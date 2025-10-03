@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     timetagger: tuple[str, str] | None = None  # Name of the timetagger to use for the CHSH experiment.
     rotary_encoder_address: str = "/dev/ttyACM0"
 
+    rotary_encoder: SerialRotaryEncoder | None = None
+
     model_config = SettingsConfigDict(toml_file="./config.toml", env_file=".env", env_file_encoding="utf-8")
 
     @classmethod

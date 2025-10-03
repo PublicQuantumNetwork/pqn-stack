@@ -12,17 +12,14 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/serial", tags=["measure"])
 
 
-_rotary_encoder: SerialRotaryEncoder | None = None
-
 def get_rotary_encoder() -> SerialRotaryEncoder:
-    global _rotary_encoder
-    if _rotary_encoder is None:
+    if settings.rotary_encoder is None:
         rotary_encoder = SerialRotaryEncoder(
             label="rotary_encoder", address=settings.rotary_encoder_address, offset_degrees=0.0
         )
-        _rotary_encoder = rotary_encoder
+        settings.rotary_encoder = rotary_encoder
 
-    return _rotary_encoder
+    return settings.rotary_encoder
 
 
 SERDep = Annotated[SerialRotaryEncoder, Depends(get_rotary_encoder)]

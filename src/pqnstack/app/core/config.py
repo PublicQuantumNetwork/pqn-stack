@@ -39,10 +39,7 @@ class Settings(BaseSettings):
     qkd_settings: QKDSettings = QKDSettings()
     bell_state: BellState = BellState.Phi_plus
     timetagger: tuple[str, str] | None = None  # Name of the timetagger to use for the CHSH experiment.
-
-    rotary_encoder: SerialRotaryEncoder = SerialRotaryEncoder(
-        label="rotary_encoder", address="/dev/ttyACM0", offset_degrees=0.0
-    )
+    rotary_encoder_address: str = "/dev/ttyACM0"
 
     model_config = SettingsConfigDict(toml_file="./config.toml", env_file=".env", env_file_encoding="utf-8")
 

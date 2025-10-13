@@ -1,103 +1,135 @@
-# Public Quantum Network
+# PQN Stack
 
-Software for Public Quantum Network nodes.
+**Software stack for Public Quantum Network (PQN) nodes**
 
-## Development Instructions
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 
-1. Install [uv](https://docs.astral.sh/uv/), which will handle project management
+A distributed node based approach to quantum networks. This repository hosts all the code necessary to make nodes of the PQN function (except for the frontend located [here](https://github.com/PublicQuantumNetwork/pqn-gui)).
 
-1. Clone and navigate into this repository
 
-1. Install the dependencies and set up the virtual environment 🏗️
+<p align="center">
+  <img src="docs/images/frontend_screenshot.png" alt="PQN Web Interface" width="800"/>
+  <br>
+  <em>PQN web interface for public interaction with a quantum network</em>
+</p>
 
-   ```sh
+
+## Node Architecture
+
+<p align="center">
+  <img src="docs/images/network_architecture.png" alt="PQN Node Architecture" width="800"/>
+  <br>
+  <em>PQN web interface for monitoring and controlling quantum network nodes</em>
+</p>
+
+Our Node is composed of multiple components. All components inside a node are part of an in internal intranet with no external world access except for quantum links to other hardware or the _Node API_.
+
+* **Node API**: FastAPI based, handles communications with web-ui as well as Node to Node communication. Only component in a Node than can talk to other components and the outside world. Resides in [src/pqnstack/app/main.py](https://github.com/PublicQuantumNetwork/pqn-stack/blob/master/src/pqnstack/app/main.py).
+* **Lightweight Web UI**: Designed for the general public to be able to interact with quantum networks. Resides in its own repository [here](https://github.com/PublicQuantumNetwork/pqn-gui).
+* **Router**: Routes messages between _Hardware Providers_, PQN developers and _Node APIs_. Uses ZMQ sockets to communicate between machines. Resides in [src/pqnstack/network/router.py](https://github.com/PublicQuantumNetwork/pqn-stack/blob/master/src/pqnstack/network/router.py).
+* **Hardware Provider**: Hosts hardware resources that are provided to whoever needs them inside a Node through the use of ProxyInstruments. Resides in [src/pqnstack/network/instrument_provider.py](https://github.com/PublicQuantumNetwork/pqn-stack/blob/master/src/pqnstack/network/instrument_provider.py).
+
+## Quick Start
+
+> [!WARNING]
+> **Hardware Requirements**: To do anything interesting with this software currently requires real quantum hardware components (TimeTagger, rotators, etc.). We are actively working on fully simulated hardware components to enable single-machine demos without physical devices, but this capability is not yet available.
+
+### Prerequisites
+
+- Python 3.12 or higher
+- [uv](https://docs.astral.sh/uv/) package manager
+- Quantum hardware components (TimeTagger, compatible instruments)
+
+### Installation
+
+1. **Clone the repository**
+
+   ```bash
+   git clone https://github.com/PublicQuantumNetwork/pqn-stack.git
+   cd pqn-stack
+   ```
+
+2. **Install dependencies**
+
+   ```bash
    uv sync
+   
+   # Or sync with the --extra flag to run the full node
+   uv sync --extra webapp
    ```
 
-1. Run the code 🚀
+### Starting a Node
 
-   ```sh
-   uv run pqn
+To fully start a PQN Node, you need to initialize 4 different processes:
+
+* **Node API**
+* **Router**
+* **Hardware provider** (optional)
+* **Web GUI** (optional)
+
+### Node API
+
+#### Config file
+
+Before starting a Node API, you need to set up a configuration file:
+
+1. **Copy the example configuration:**
+   ```bash
+   cp configs/config_app_example.toml config.toml
    ```
 
-### Project Management
-
-A few of the most useful uv commands are shown below.
-See the [uv project guide](https://docs.astral.sh/uv/guides/projects) for more information about working on projects with uv.
-
-- `uv add` -- Add dependencies to the project
-- `uv remove` -- Remove dependencies from the project
-- `uv sync` -- Update the project's environment
-- `uv run` -- Run a command or script
+2. **Edit the configuration:**
+   Open `config.toml` in your editor and replace the placeholder values with your actual settings (router addresses, instrument names, etc.).
 
 > [!IMPORTANT]
-> Instead of `pip install <package>`, use `uv add <package>`.
+> The configuration file **must** be named `config.toml` and placed at the root of the repository. If you use a different name or location, the API will not be able to find it.
 
-### Scripts
+#### Run the FastAPI instance
+For a quick run you can simply run to get started:
 
-To run your code, or a command that is aware of your project environment, use the following command:
+```bash
+   uv run fastapi run src/pqnstack/app/main.py
+```
 
-- `uv run` -- Run a command or script
+Please take a look at the [FastAPI docs](https://fastapi.tiangolo.com/deployment/) for more options on how to run the API
 
-See the [script documentation](https://docs.astral.sh/uv/guides/scripts/) for more information.
+### Router and Hardware Provider
 
-### Linting and Formatting
+Both the Router and Hardware Provider can be configured in two ways:
 
-Use [Ruff](https://docs.astral.sh/ruff/) to lint and format your code.
-It is already specified as a development dependency in this template's `pyproject.toml`, and is automatically installed when you run `uv sync`.
+1. **Using CLI flags** - Pass configuration directly as command-line arguments
+2. **Using a config file** - Use the `--config` flag with a path to a TOML configuration file (see example in [configs/config_messaging_example.toml](https://github.com/PublicQuantumNetwork/pqn-stack/blob/master/configs/config_messaging_example.toml))
 
-You can run the linter with `uv run ruff check` (use the `--fix` flag to apply fixes), and the formatter with `uv run ruff format`.
-There are many options available to customize which linting rules are applied.
-All rules are enabled by default, and I have disabled a few redundant ones as a starting point in the `pyproject.toml`.
-Feel free to modify the list as needed for your project.
-See the [documentation](https://docs.astral.sh/ruff/tutorial/) or command help output for additional information.
+The config file can contain settings for both router and provider:
+- Router settings go under `[router]`
+- Provider settings go under `[provider]` with instruments defined as `[[provider.instruments]]`
 
-### Type Checking
+Command-line arguments override config file settings.
 
-Use [mypy](https://www.mypy-lang.org/) for type checking: `uv run mypy`.
+#### Starting the Router
 
-### Testing
+```bash
+# Using CLI flags
+uv run pqn start-router --name router1 --host localhost --port 5555
 
-Use [pytest](https://docs.pytest.org/en/stable/) to run tests:
+# Using a config file
+uv run pqn start-router --config configs/config_messaging_example.toml
+```
 
-- `uv run pytest`
-- Use `uv run pytest --cov` to check code coverage.
+#### Starting an Instrument Provider
 
-### Alternate Manual Setup
+```bash
+# Using a config file (recommended for defining instruments)
+uv run pqn start-provider --config configs/config_messaging_example.toml
 
-If it is not possible to use uv for installation, there is a workaround using `virtualenv` and `pip`.
+# Using CLI flags with inline JSON for instruments
+uv run pqn start-provider \
+  --name provider1 \
+  --router-name router1 \
+  --instruments '{"dummy1": {"import": "pqnstack.pqn.drivers.dummies.DummyInstrument", "desc": "Test Instrument", "hw_address": "123456"}}'
+```
 
-> [!IMPORTANT]
-> This method is intended as a workaround **only** for situations where uv is not available, and **only for local installations** rather than for active project development.
+### Web GUI
 
-From the root directory of the repository:
-
-1. Create the virtual environment
-
-   ```sh
-   virtualenv .venv
-   ```
-
-1. Activate the virtual environment
-
-   ```sh
-   source .venv/bin/activate
-   ```
-
-1. Install the project dependencies
-
-   ```sh
-   pip install -e .
-   ```
-
-1. Run the code
-
-   ```sh
-   pqn
-   ```
-
-### Possible Problems
-
-What to try if things don't seem to be working:
-
-- Remove the `.venv/` directory and try again ♻️
+For instructions on how install and start the web GUI please see the repo where it lives at [https://github.com/PublicQuantumNetwork/pqn-gui](https://github.com/PublicQuantumNetwork/pqn-gui)

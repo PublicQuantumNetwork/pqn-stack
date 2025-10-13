@@ -5,6 +5,9 @@ router_name = "router1"
 router_address = "xx.xx.xx.xx"  # Replace with actual IP address
 router_port = 5555
 
+# Rotary encoder serial adress
+rotary_encoder_address = "/dev/tty.usbmodem1101"
+
 # Timetagger configuration (provider_name, instrument_name)
 timetagger = ["provider", "tagger"] # Replace with actual provider and instrument names
 

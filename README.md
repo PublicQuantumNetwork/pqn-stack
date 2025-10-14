@@ -14,6 +14,8 @@ A distributed node based approach to quantum networks. This repository hosts all
   <em>PQN web interface for public interaction with a quantum network</em>
 </p>
 
+> [!WARNING]
+> **Early Development**: This package is in early stages of development. APIs, installation procedures, and distribution methods are subject to change. Use in production environments is not recommended at this time.
 
 ## Node Architecture
 
@@ -32,7 +34,7 @@ Our Node is composed of multiple components. All components inside a node are pa
 
 ## Quick Start
 
-> [!WARNING]
+> [!NOTE]
 > **Hardware Requirements**: To do anything interesting with this software currently requires real quantum hardware components (TimeTagger, rotators, etc.). We are actively working on fully simulated hardware components to enable single-machine demos without physical devices, but this capability is not yet available.
 
 ### Prerequisites

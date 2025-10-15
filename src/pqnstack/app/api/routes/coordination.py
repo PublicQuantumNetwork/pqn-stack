@@ -152,8 +152,8 @@ async def follow_requested_alert(websocket: WebSocket, state: StateDep) -> None:
                             break
                         raise
                 ask_user_for_follow_event.clear()  # Reset the event for the next change
-            except Exception as e:
-                logger.error("Error in ask_user_for_follow_handler: %s", e)
+            except Exception:
+                logger.exception("Error in ask_user_for_follow_handler")
                 break
 
     async def client_message_handler() -> None:

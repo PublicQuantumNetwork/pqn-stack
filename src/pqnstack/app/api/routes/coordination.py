@@ -93,7 +93,7 @@ async def follow_requested(request: Request, leaders_name: str, state: StateDep)
     leaders_address = request.client.host
 
     # Check if the client is ready to accept a follower request and that node is not already following someone.
-    if not state.client_listening_for_follower_requests and state.following:
+    if not state.client_listening_for_follower_requests or state.following:
         logger.info(
             "Request rejected because %s",
             (
@@ -142,15 +142,13 @@ async def follow_requested_alert(websocket: WebSocket, state: StateDep) -> None:
                 await ask_user_for_follow_event.wait()  # Wait for a state change event
                 if state.following_requested:
                     logger.debug("Websocket detected a follow request, asking user for response.")
-                    try:
+                    if websocket.client_state.name == "CONNECTED":
                         await websocket.send_text(
                             f"Do you want to accept a connection from {state.leaders_name} ({state.leaders_address})?"
                         )
-                    except RuntimeError as e:
-                        if "websocket.close" in str(e) or "response already completed" in str(e):
-                            logger.debug("WebSocket already closed, cannot send message")
-                            break
-                        raise
+                    else:
+                        logger.debug("WebSocket not connected, cannot send message")
+                        break
                 ask_user_for_follow_event.clear()  # Reset the event for the next change
             except Exception:
                 logger.exception("Error in ask_user_for_follow_handler")

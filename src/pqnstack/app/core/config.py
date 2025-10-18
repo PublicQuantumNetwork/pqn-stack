@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     bell_state: BellState = BellState.Phi_plus
     timetagger: tuple[str, str] | None = None  # Name of the timetagger to use for the CHSH experiment.
     rotary_encoder_address: str = "/dev/ttyACM0"
+    virtual_rotator: bool = False  # If True, use terminal input instead of hardware rotary encoder
 
     rotary_encoder: SerialRotaryEncoder | None = None
 

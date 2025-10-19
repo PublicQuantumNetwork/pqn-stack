@@ -23,7 +23,7 @@ class FollowRequestResponse(BaseModel):
 
 
 class CollectFollowerResponse(BaseModel):
-    success: bool
+    accepted: bool
 
 
 class ResetCoordinationStateResponse(BaseModel):
@@ -67,10 +67,10 @@ async def collect_follower(address: str, state: StateDep, http_client: ClientDep
         state.leading = True
         state.followers_address = address
         logger.info("Successfully collected follower")
-        return CollectFollowerResponse(success=True)
+        return CollectFollowerResponse(accepted=True)
     if response_data.get("accepted") is False:
         logger.info("Follower rejected follow request")
-        return CollectFollowerResponse(success=False)
+        return CollectFollowerResponse(accepted=False)
 
     raise HTTPException(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Could not collect follower for unknown reasons"
@@ -125,6 +125,7 @@ async def follow_requested(request: Request, leaders_name: str, state: StateDep)
     state.leaders_address = ""
     state.leaders_name = ""
     state.following_requested = False
+    state.following_requested_user_response = None
     return FollowRequestResponse(accepted=False)
 
 
@@ -150,9 +151,12 @@ async def follow_requested_alert(websocket: WebSocket, state: StateDep) -> None:
                         logger.debug("WebSocket not connected, cannot send message")
                         break
                 ask_user_for_follow_event.clear()  # Reset the event for the next change
-            except Exception:
-                logger.exception("Error in ask_user_for_follow_handler")
+            except WebSocketDisconnect:
+                logger.info("WebSocket disconnected in ask_user_for_follow_handler")
                 break
+            except Exception:
+                logger.exception("Error in ask_user_for_follow_handler, continuing to listen")
+                ask_user_for_follow_event.clear()  # Reset the event to continue
 
     async def client_message_handler() -> None:
         """Task that waits for a message from the client and handles the response. It also handles the case where the client disconnects."""

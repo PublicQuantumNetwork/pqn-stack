@@ -46,6 +46,8 @@ async def reset_coordination_state(state: StateDep) -> ResetCoordinationStateRes
     state.leaders_address = ""
     state.leaders_name = ""
     state.qkd_question_order = []
+    state.qkd_leader_basis_list = []
+    state.qkd_follower_basis_list = []
     return ResetCoordinationStateResponse()
 
 

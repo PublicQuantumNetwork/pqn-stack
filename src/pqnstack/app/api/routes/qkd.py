@@ -2,13 +2,14 @@ import logging
 import random
 from typing import cast
 
+import httpx
 from fastapi import APIRouter
 from fastapi import HTTPException
 from fastapi import status
 
 from pqnstack.app.api.deps import ClientDep
 from pqnstack.app.api.deps import StateDep
-from pqnstack.app.core.config import settings
+from pqnstack.app.core.config import settings, NodeState
 from pqnstack.constants import BasisBool
 from pqnstack.constants import QKDEncodingBasis
 from pqnstack.network.client import Client
@@ -224,3 +225,58 @@ async def request_qkd_question_order(state: StateDep, http_client: ClientDep,) -
                 detail="Follower node has no leader address set",
             )
     return state.qkd_question_order
+
+
+def _submit_qkd_basis_list_leader(state: NodeState, http_client: httpx.Client, basis_list: list[QKDEncodingBasis]):
+    state.qkd_leader_basis_list = basis_list
+
+
+
+def _submit_qkd_basis_list_follower(state: NodeState, http_client: httpx.Client, basis_list: list[QKDEncodingBasis]):
+    state.qkd_follower_basis_list = basis_list
+
+
+@router.post("/submit_selection_and_start_qkd")
+def submit_qkd_selection_and_start_qkd(state: StateDep, http_client: ClientDep, basis_list: list[str]):
+    """GUI calls this function to submit the QKD basis selection and start the QKD protocol.
+    This call is called by both leader and follower, depending on the node role, different actions are taken."""
+
+    if state.leading and state.following:
+        logger.error("Node cannot be both leader and follower")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Node cannot be both leader and follower",
+        )
+
+    if not state.leading and not state.following:
+        logger.error("Node must be either leader or follower to start QKD")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Node must be either leader or follower to start QKD",
+        )
+
+    # Convert 'a' or 'b' strings to QKDEncodingBasis enum values
+    qkd_basis_list = []
+    for basis_str in basis_list:
+        if basis_str.lower() == 'a':
+            qkd_basis_list.append(QKDEncodingBasis.HV)
+        elif basis_str.lower() == 'b':
+            qkd_basis_list.append(QKDEncodingBasis.DA)
+        else:
+            logger.error(f"Invalid basis string: {basis_str}. Expected 'a' or 'b'")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid basis string: {basis_str}. Expected 'a' or 'b'",
+            )
+
+    if state.leading:
+        ret = _submit_qkd_basis_list_leader(state, http_client, qkd_basis_list)
+        return ret
+
+    if state.following:
+        ret = _submit_qkd_basis_list_follower(state, http_client, qkd_basis_list)
+        return ret
+
+
+
+

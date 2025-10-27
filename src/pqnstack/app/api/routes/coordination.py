@@ -33,7 +33,8 @@ class ResetCoordinationStateResponse(BaseModel):
 router = APIRouter(prefix="/coordination", tags=["coordination"])
 
 
-# TODO: Send a disconnection message if I was following someone.
+# TODO: Send a disconnection message if I was following/leading someone.
+# FIXME: This is techincally resetting more than just coordination state. including qkd.
 @router.post("/reset_coordination_state")
 async def reset_coordination_state(state: StateDep) -> ResetCoordinationStateResponse:
     """Reset the coordination state of the node."""
@@ -44,11 +45,12 @@ async def reset_coordination_state(state: StateDep) -> ResetCoordinationStateRes
     state.following_requested_user_response = None
     state.leaders_address = ""
     state.leaders_name = ""
+    state.qkd_question_order = []
     return ResetCoordinationStateResponse()
 
 
 @router.post("/collect_follower")
-async def collect_follower(address: str, state: StateDep, http_client: ClientDep) -> CollectFollowerResponse:
+async def collect_follower(request: Request, address: str, state: StateDep, http_client: ClientDep) -> CollectFollowerResponse:
     """
     Endpoint called by a leader node (this one) to request a follower node (other node) to follow it.
 
@@ -58,7 +60,10 @@ async def collect_follower(address: str, state: StateDep, http_client: ClientDep
     """
     logger.info("Requesting client at %s to follow", address)
 
-    ret = await http_client.post(f"http://{address}/coordination/follow_requested?leaders_name={settings.node_name}")
+    # Get the port this server is listening on
+    server_port = request.scope["server"][1]
+
+    ret = await http_client.post(f"http://{address}/coordination/follow_requested?leaders_name={settings.node_name}&leaders_port={server_port}")
     if ret.status_code != status.HTTP_200_OK:
         raise HTTPException(status_code=ret.status_code, detail=ret.text)
 
@@ -78,7 +83,7 @@ async def collect_follower(address: str, state: StateDep, http_client: ClientDep
 
 
 @router.post("/follow_requested")
-async def follow_requested(request: Request, leaders_name: str, state: StateDep) -> FollowRequestResponse:
+async def follow_requested(request: Request, leaders_name: str, leaders_port: int, state: StateDep) -> FollowRequestResponse:
     """
     Endpoint is called by a leader node (other node) to request this node to follow it.
 
@@ -90,7 +95,7 @@ async def follow_requested(request: Request, leaders_name: str, state: StateDep)
 
     if request.client is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Request lacks the clients host")
-    leaders_address = request.client.host
+    leaders_address = f"{request.client.host}:{leaders_port}"
 
     # Check if the client is ready to accept a follower request and that node is not already following someone.
     if not state.client_listening_for_follower_requests or state.following:

@@ -170,3 +170,57 @@ def request_qkd_basis_list(leader_basis_list: list[str], state: StateDep) -> lis
     state.qkd_request_bit_list.clear()
 
     return ret
+
+
+@router.get("/question_order")
+async def request_qkd_question_order(state: StateDep, http_client: ClientDep,) -> list[int]:
+    """
+    Return the question order for QKD.
+
+    If this node is a leader, it generates a random question order and stores it in the state.
+    If this node is a follower, it requests the question order from the leader node.
+    Returns the question order as a list of integers.
+    """
+
+    if state.leading and state.following:
+        logger.error("Node cannot be both leader and follower")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Node cannot be both leader and follower",
+        )
+
+    if len(state.qkd_question_order) == 0:
+        if state.leading and state.followers_address != "":
+            question_range = range(settings.qkd_settings.minimum_question_index, settings.qkd_settings.maximum_question_index + 1)
+            question_order = random.sample(list(question_range), settings.qkd_settings.bitstring_length)
+            state.qkd_question_order = question_order
+        elif state.leading and state.followers_address == "":
+            logger.error("Leader node has no follower address set")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Leader node has no follower address set",
+            )
+
+        elif state.following and state.leaders_address != "":
+            try:
+                r = await http_client.get(f"http://{state.leaders_address}/qkd/question_order")
+                if r.status_code != status.HTTP_200_OK:
+                    logger.error("Failed to get question order from leader: %s", r.text)
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="Failed to get question order from leader",
+                    )
+                state.qkd_question_order = r.json()
+            except Exception as e:
+                logger.error("Error requesting question order from leader: %s", e)
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Error requesting question order from leader: {e}",
+                ) from e
+        elif state.following and state.leaders_address == "":
+            logger.error("Follower node has no leader address set")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Follower node has no leader address set",
+            )
+    return state.qkd_question_order

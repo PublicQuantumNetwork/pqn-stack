@@ -28,6 +28,8 @@ class QKDSettings(BaseModel):
     hwp: tuple[str, str] = ("", "")
     request_hwp: tuple[str, str] = ("", "")
     bitstring_length: int = 4
+    minimum_question_index: int = 1
+    maximum_question_index: int = 20
     discriminating_threshold: int = 10
     measurement_config: MeasurementConfig = Field(default_factory=lambda: MeasurementConfig(integration_time_s=5))
 
@@ -97,8 +99,9 @@ class NodeState(BaseModel):
     chsh_request_basis: list[float] = [22.5, 67.5]
 
     # QKD state
-    # FIXME: Use enums for this
-    qkd_basis_list: list[QKDEncodingBasis] = [
+    # FIXME: At the moment the reset_coordination_state resets this, probably want to refactor that function out.
+    qkd_question_order: list[int] = []  # Order of questions for QKD
+    qkd_leader_basis_list: list[QKDEncodingBasis] = [
         QKDEncodingBasis.DA,
         QKDEncodingBasis.DA,
         QKDEncodingBasis.DA,
@@ -111,6 +114,7 @@ class NodeState(BaseModel):
         QKDEncodingBasis.HV,
         QKDEncodingBasis.HV,
     ]
+    qkd_follower_basis_list: list[QKDEncodingBasis] = []
     qkd_bit_list: list[int] = []
     qkd_resulting_bit_list: list[int] = []  # Resulting bits after QKD
     qkd_request_basis_list: list[QKDEncodingBasis] = []  # Basis angles for QKD

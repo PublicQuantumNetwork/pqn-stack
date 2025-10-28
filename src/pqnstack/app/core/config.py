@@ -115,6 +115,7 @@ class NodeState(BaseModel):
         QKDEncodingBasis.HV,
     ]
     qkd_follower_basis_list: list[QKDEncodingBasis] = []
+    qkd_single_bit_current_index: int = 0  # Current index in follower basis list for single_bit endpoint
     qkd_bit_list: list[int] = []
     qkd_resulting_bit_list: list[int] = []  # Resulting bits after QKD
     qkd_request_basis_list: list[QKDEncodingBasis] = []  # Basis angles for QKD

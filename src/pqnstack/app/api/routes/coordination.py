@@ -52,7 +52,9 @@ async def reset_coordination_state(state: StateDep) -> ResetCoordinationStateRes
 
 
 @router.post("/collect_follower")
-async def collect_follower(request: Request, address: str, state: StateDep, http_client: ClientDep) -> CollectFollowerResponse:
+async def collect_follower(
+    request: Request, address: str, state: StateDep, http_client: ClientDep
+) -> CollectFollowerResponse:
     """
     Endpoint called by a leader node (this one) to request a follower node (other node) to follow it.
 
@@ -65,7 +67,9 @@ async def collect_follower(request: Request, address: str, state: StateDep, http
     # Get the port this server is listening on
     server_port = request.scope["server"][1]
 
-    ret = await http_client.post(f"http://{address}/coordination/follow_requested?leaders_name={settings.node_name}&leaders_port={server_port}")
+    ret = await http_client.post(
+        f"http://{address}/coordination/follow_requested?leaders_name={settings.node_name}&leaders_port={server_port}"
+    )
     if ret.status_code != status.HTTP_200_OK:
         raise HTTPException(status_code=ret.status_code, detail=ret.text)
 
@@ -85,7 +89,9 @@ async def collect_follower(request: Request, address: str, state: StateDep, http
 
 
 @router.post("/follow_requested")
-async def follow_requested(request: Request, leaders_name: str, leaders_port: int, state: StateDep) -> FollowRequestResponse:
+async def follow_requested(
+    request: Request, leaders_name: str, leaders_port: int, state: StateDep
+) -> FollowRequestResponse:
     """
     Endpoint is called by a leader node (other node) to request this node to follow it.
 

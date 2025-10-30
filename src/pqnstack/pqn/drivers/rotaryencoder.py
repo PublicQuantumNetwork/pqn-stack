@@ -27,4 +27,4 @@ class SerialRotaryEncoder:
     def read(self) -> float:
         self._conn.write(b"ANGLE?\n")
         angle = self._conn.readline().decode().strip()
-        return float(angle) + self.offset_degrees
+        return 2 * (float(angle) + self.offset_degrees)

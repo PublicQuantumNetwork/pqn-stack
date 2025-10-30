@@ -11,6 +11,7 @@ from pydantic_settings import TomlConfigSettingsSource
 
 from pqnstack.constants import BellState
 from pqnstack.constants import QKDEncodingBasis
+from pqnstack.pqn.drivers.rotaryencoder import MockRotaryEncoder
 from pqnstack.pqn.drivers.rotaryencoder import SerialRotaryEncoder
 from pqnstack.pqn.protocols.measurement import MeasurementConfig
 
@@ -46,7 +47,7 @@ class Settings(BaseSettings):
     rotary_encoder_address: str = "/dev/ttyACM0"
     virtual_rotator: bool = False  # If True, use terminal input instead of hardware rotary encoder
 
-    rotary_encoder: SerialRotaryEncoder | None = None
+    rotary_encoder: SerialRotaryEncoder | MockRotaryEncoder | None = None
 
     model_config = SettingsConfigDict(toml_file="./config.toml", env_file=".env", env_file_encoding="utf-8")
 
@@ -101,7 +102,7 @@ class NodeState(BaseModel):
     # QKD state
     # FIXME: At the moment the reset_coordination_state resets this, probably want to refactor that function out.
     qkd_question_order: list[int] = []  # Order of questions for QKD
-    qkd_emoji_pick: str = "" # Emoji chosen for QKD
+    qkd_emoji_pick: str = ""  # Emoji chosen for QKD
     qkd_leader_basis_list: list[QKDEncodingBasis] = [
         QKDEncodingBasis.DA,
         QKDEncodingBasis.DA,
@@ -127,6 +128,7 @@ class NodeState(BaseModel):
 state = NodeState()
 ask_user_for_follow_event = asyncio.Event()
 user_replied_event = asyncio.Event()
+qkd_result_received_event = asyncio.Event()
 
 
 def get_state() -> NodeState:

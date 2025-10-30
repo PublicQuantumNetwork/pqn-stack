@@ -11,7 +11,9 @@ from pydantic import BaseModel
 
 from pqnstack.app.api.deps import ClientDep
 from pqnstack.app.api.deps import StateDep
-from pqnstack.app.core.config import settings, NodeState
+from pqnstack.app.core.config import NodeState
+from pqnstack.app.core.config import qkd_result_received_event
+from pqnstack.app.core.config import settings
 from pqnstack.constants import BasisBool
 from pqnstack.constants import QKDEncodingBasis
 from pqnstack.network.client import Client
@@ -195,10 +197,9 @@ def request_qkd_basis_list(leader_basis_list: list[str], state: StateDep) -> lis
 
 
 @router.post("/set_qkd_emoji")
-def set_qkd_emoji(emoji: str, state: StateDep):
+def set_qkd_emoji(emoji: str, state: StateDep) -> None:
     """Set the emoji pick for QKD."""
     state.qkd_emoji_pick = emoji
-    return {"message": "Emoji set successfully"}
 
 
 @router.get("/question_order")
@@ -213,7 +214,6 @@ async def request_qkd_question_order(
     If this node is a follower, it requests the question order from the leader node.
     Returns the question order as a list of integers.
     """
-
     if state.leading and state.following:
         logger.error("Node cannot be both leader and follower")
         raise HTTPException(
@@ -245,8 +245,8 @@ async def request_qkd_question_order(
                         detail="Failed to get question order from leader",
                     )
                 state.qkd_question_order = r.json()
-            except Exception as e:
-                logger.error("Error requesting question order from leader: %s", e)
+            except (httpx.HTTPError, httpx.RequestError, httpx.TimeoutException) as e:
+                logger.exception("Error requesting question order from leader: %s")
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=f"Error requesting question order from leader: {e}",
@@ -257,12 +257,15 @@ async def request_qkd_question_order(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Follower node has no leader address set",
             )
+
     return state.qkd_question_order
 
 
 @router.get("/is_follower_ready")
 async def is_follower_ready(state: StateDep) -> bool:
-    """Check if the follower node is ready for QKD.
+    """
+    Check if the follower node is ready for QKD.
+
     Follower is ready when the state has the basis list with as many choices as the bitstring length.
     """
     if not state.following:
@@ -277,15 +280,14 @@ async def is_follower_ready(state: StateDep) -> bool:
 
 @router.post("/submit_qkd_result")
 async def submit_qkd_result(result: QKDResult, state: StateDep) -> None:
-    """
-    QKD leader calls this endpoint of the follower to submit the QKD result as well as the emoji chosen.
-    """
+    """QKD leader calls this endpoint of the follower to submit the QKD result as well as the emoji chosen."""
     state.qkd_emoji_pick = result.emoji
     state.qkd_n_matching_bits = result.n_matching_bits
+    qkd_result_received_event.set()  # Signal that the result has been received
     logger.info("Received QKD result from follower: %s", result)
 
 
-async def _wait_for_follower_ready(state: NodeState, http_client: httpx.AsyncClient):
+async def _wait_for_follower_ready(state: NodeState, http_client: httpx.AsyncClient) -> None:
     """Poll the follower until it's ready, checking every 0.5 seconds."""
     while True:
         try:
@@ -293,13 +295,12 @@ async def _wait_for_follower_ready(state: NodeState, http_client: httpx.AsyncCli
             if r.status_code == status.HTTP_200_OK:
                 is_ready = r.json()
                 if is_ready:
-                    logger.info("YAY FOLLOWER READY")
+                    logger.info("Follower has all basis choices. Ready to start QKD")
                     break
-                else:
-                    logger.info("Tried checking if follower is ready, but it wasn't ready")
+                logger.info("Tried checking if follower is ready, but it wasn't ready")
             else:
                 logger.info("Tried checking if follower is ready, but received non-200 status code")
-        except Exception as e:
+        except (httpx.HTTPError, httpx.RequestError, httpx.TimeoutException) as e:
             logger.info("Tried checking if follower is ready, but encountered error: %s", e)
 
         await asyncio.sleep(0.5)
@@ -307,12 +308,11 @@ async def _wait_for_follower_ready(state: NodeState, http_client: httpx.AsyncCli
 
 async def _submit_qkd_result_to_follower(
     state: NodeState, http_client: httpx.AsyncClient, qkd_result: QKDResult
-):
+) -> None:
     """Submit the QKD result to the follower node."""
     try:
         r = await http_client.post(
-            f"http://{state.followers_address}/qkd/submit_qkd_result",
-            json=qkd_result.model_dump()
+            f"http://{state.followers_address}/qkd/submit_qkd_result", json=qkd_result.model_dump()
         )
         if r.status_code != status.HTTP_200_OK:
             logger.error("Failed to submit QKD result to follower: %s", r.text)
@@ -321,8 +321,8 @@ async def _submit_qkd_result_to_follower(
                 detail="Failed to submit QKD result to follower",
             )
         logger.info("Successfully submitted QKD result to follower")
-    except Exception as e:
-        logger.error("Error submitting QKD result to follower: %s", e)
+    except (httpx.HTTPError, httpx.RequestError, httpx.TimeoutException) as e:
+        logger.exception("Error submitting QKD result to follower")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error submitting QKD result to follower: {e}",
@@ -343,7 +343,7 @@ async def _submit_qkd_basis_list_leader(
         n_matching_bits=len(ret),
         n_total_bits=settings.qkd_settings.bitstring_length,
         emoji=state.qkd_emoji_pick,
-        role="leader"
+        role="leader",
     )
 
     # Submit result to follower
@@ -351,22 +351,24 @@ async def _submit_qkd_basis_list_leader(
     return qkd_result
 
 
-async def _submit_qkd_basis_list_follower(
-    state: NodeState, http_client: httpx.Client, basis_list: list[QKDEncodingBasis]
-) -> QKDResult:
+async def _submit_qkd_basis_list_follower(state: NodeState, basis_list: list[QKDEncodingBasis]) -> QKDResult:
     state.qkd_follower_basis_list = basis_list
 
-    # Wait until the leader submits the QKD result (state.qkd_n_matching_bits != -1)
-    while state.qkd_n_matching_bits == -1:
-        await asyncio.sleep(0.5)
+    # don't wait for the event if the result is already set. This avoids deadlocks in case the result was set before this function is called.
+    if state.qkd_n_matching_bits == -1:
+        # Wait until the leader submits the QKD result
+        await qkd_result_received_event.wait()
 
     # Reassemble the QKDResult object from the state
     qkd_result = QKDResult(
         n_matching_bits=state.qkd_n_matching_bits,
         n_total_bits=settings.qkd_settings.bitstring_length,
         emoji=state.qkd_emoji_pick,
-        role="follower"
+        role="follower",
     )
+
+    # Clear the event for the next QKD run
+    qkd_result_received_event.clear()
 
     logger.info("Follower received QKD result: %s", state.qkd_n_matching_bits)
     return qkd_result
@@ -375,10 +377,12 @@ async def _submit_qkd_basis_list_follower(
 @router.post("/submit_selection_and_start_qkd")
 async def submit_qkd_selection_and_start_qkd(
     state: StateDep, http_client: ClientDep, basis_list: list[str], timetagger_address: str = ""
-):
-    """GUI calls this function to submit the QKD basis selection and start the QKD protocol.
-    This call is called by both leader and follower, depending on the node role, different actions are taken."""
+) -> QKDResult:
+    """
+    GUI calls this function to submit the QKD basis selection and start the QKD protocol.
 
+    This call is called by both leader and follower, depending on the node role, different actions are taken.
+    """
     if state.leading and state.following:
         logger.error("Node cannot be both leader and follower")
         raise HTTPException(
@@ -401,7 +405,7 @@ async def submit_qkd_selection_and_start_qkd(
         elif basis_str.lower() == "b":
             qkd_basis_list.append(QKDEncodingBasis.DA)
         else:
-            logger.error(f"Invalid basis string: {basis_str}. Expected 'a' or 'b'")
+            logger.exception("Invalid basis string: %s. Expected 'a' or 'b'", basis_str)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid basis string: {basis_str}. Expected 'a' or 'b'",
@@ -414,9 +418,7 @@ async def submit_qkd_selection_and_start_qkd(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Leader must provide timetagger address to start QKD",
             )
-        ret = await _submit_qkd_basis_list_leader(state, http_client, qkd_basis_list, timetagger_address)
-        return ret
+        return await _submit_qkd_basis_list_leader(state, http_client, qkd_basis_list, timetagger_address)
 
-    if state.following:
-        ret = await _submit_qkd_basis_list_follower(state, http_client, qkd_basis_list)
-        return ret
+    # If the node is not leading, it is assumed it is a follower due to previous check
+    return await _submit_qkd_basis_list_follower(state, qkd_basis_list)

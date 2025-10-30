@@ -7,20 +7,11 @@ from fastapi import Depends
 from pydantic import BaseModel
 
 from pqnstack.app.core.config import settings
+from pqnstack.pqn.drivers.rotaryencoder import MockRotaryEncoder
 from pqnstack.pqn.drivers.rotaryencoder import SerialRotaryEncoder
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/serial", tags=["measure"])
-
-
-class MockRotaryEncoder:
-    """Mock rotary encoder for terminal input when hardware is not available."""
-
-    def __init__(self) -> None:
-        self.theta = 0.0
-
-    def read(self) -> float:
-        return self.theta
 
 
 def update_theta_terminal(mock_encoder: MockRotaryEncoder) -> None:

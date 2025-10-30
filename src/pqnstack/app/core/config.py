@@ -27,7 +27,7 @@ class CHSHSettings(BaseModel):
 class QKDSettings(BaseModel):
     hwp: tuple[str, str] = ("", "")
     request_hwp: tuple[str, str] = ("", "")
-    bitstring_length: int = 4
+    bitstring_length: int = 6
     minimum_question_index: int = 1
     maximum_question_index: int = 20
     discriminating_threshold: int = 10
@@ -101,6 +101,7 @@ class NodeState(BaseModel):
     # QKD state
     # FIXME: At the moment the reset_coordination_state resets this, probably want to refactor that function out.
     qkd_question_order: list[int] = []  # Order of questions for QKD
+    qkd_emoji_pick: str = "" # Emoji chosen for QKD
     qkd_leader_basis_list: list[QKDEncodingBasis] = [
         QKDEncodingBasis.DA,
         QKDEncodingBasis.DA,
@@ -120,6 +121,7 @@ class NodeState(BaseModel):
     qkd_resulting_bit_list: list[int] = []  # Resulting bits after QKD
     qkd_request_basis_list: list[QKDEncodingBasis] = []  # Basis angles for QKD
     qkd_request_bit_list: list[int] = []
+    qkd_n_matching_bits: int = -1  # Leaders populate this value after qkd is done. Same with the emoji
 
 
 state = NodeState()

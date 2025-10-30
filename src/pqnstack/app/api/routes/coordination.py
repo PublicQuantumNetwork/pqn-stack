@@ -45,9 +45,12 @@ async def reset_coordination_state(state: StateDep) -> ResetCoordinationStateRes
     state.following_requested_user_response = None
     state.leaders_address = ""
     state.leaders_name = ""
+    state.qkd_emoji_pick = ""
     state.qkd_question_order = []
     state.qkd_leader_basis_list = []
     state.qkd_follower_basis_list = []
+    state.qkd_single_bit_current_index = 0
+    state.qkd_n_matching_bits = -1
     return ResetCoordinationStateResponse()
 
 

@@ -193,7 +193,6 @@ class ELL14KRotator(RotatorInstrument):
 
     _degrees: float = 0.0
     _conn: serial.Serial = field(init=False, repr=False)
-    _pulses_per_degree: float = field(init=False, default=0.0, repr=False)
     _ENCODER_UNITS_PER_DEGREE: float = field(init=False, default=0.0, repr=False)
     _travel_deg: int = field(init=False, default=360, repr=False)
     _raw_ident_reply: str = field(init=False, default="", repr=False)
@@ -349,17 +348,16 @@ class ELL14KRotator(RotatorInstrument):
         ppu_hex = parsed.get("pulses_per_unit_hex", "00000000")
         pulses_val = int(ppu_hex, 16) if ppu_hex else 0
         if self._travel_deg > 0 and pulses_val > 0:
-            self._pulses_per_degree = float(pulses_val) / float(self._travel_deg)
+            self._ENCODER_UNITS_PER_DEGREE = float(pulses_val) / float(self._travel_deg)
         else:
-            self._pulses_per_degree = 262144.0 / 360.0
-        self._ENCODER_UNITS_PER_DEGREE = self._pulses_per_degree
+            self._ENCODER_UNITS_PER_DEGREE = 262144.0 / 360.0
         logger.info(
-            "ell14k.scale addr=%s travel_deg=%d pulses_hex=%s pulses_val=%d pulses_per_degree=%.9f raw_ident_response=%r",
+            "ell14k.scale addr=%s travel_deg=%d pulses_hex=%s pulses_val=%d ENCODER_UNITS_PER_DEGREE=%.9f raw_ident_response=%r",
             self.addr_hex,
             self._travel_deg,
             ppu_hex,
             pulses_val,
-            self._pulses_per_degree,
+            self._ENCODER_UNITS_PER_DEGREE,
             self._raw_ident_reply,
         )
 

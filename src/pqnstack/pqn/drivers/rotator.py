@@ -729,4 +729,3 @@ class ELL14KRotator(RotatorInstrument):
         if eu is None or self._ppd <= 0:
             return 0.0
         return ((eu % int(self._ppd * 360.0)) / float(self._ppd)) % 360.0
-

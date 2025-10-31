@@ -178,9 +178,6 @@ class ELL14KRotator(RotatorInstrument):
       handshake_retries: Maximum discovery passes across candidate addresses.
       home_on_start: If True, homes after successful handshake.
       home_dir_cw: If True, home clockwise; otherwise counterclockwise.
-
-    Outputs:
-      None. Use .info or .degrees to read current state.
     """
 
     name: str
@@ -206,15 +203,7 @@ class ELL14KRotator(RotatorInstrument):
     _DRAIN_SLEEP_S: float = field(init=False, default=0.005, repr=False)
 
     def start(self) -> None:
-        """
-        Open, identify, scale, and synchronize.
-
-        Inputs:
-          None.
-
-        Outputs:
-          None. Raises RuntimeError on identification failure.
-        """
+        """Open, identify, scale, and synchronize."""
         self._open_port()
         parsed, addr = self._identify()
         self.addr_hex = addr
@@ -223,15 +212,7 @@ class ELL14KRotator(RotatorInstrument):
         self._sync_angle()
 
     def close(self) -> None:
-        """
-        Return to zero and close the port.
-
-        Inputs:
-          None.
-
-        Outputs:
-          None. Logs warnings on failure and continues.
-        """
+        """Return to zero and close the port."""
         try:
             self.degrees = 0.0
         except (OSError, RuntimeError) as exc:
@@ -245,9 +226,6 @@ class ELL14KRotator(RotatorInstrument):
     def info(self) -> RotatorInfo:
         """
         Return a snapshot of metadata and current angle.
-
-        Inputs:
-          None.
 
         Outputs:
           RotatorInfo with name, description, port, degrees, and offset.
@@ -265,9 +243,6 @@ class ELL14KRotator(RotatorInstrument):
         """
         Get the cached current angle in degrees referenced to the configured offset.
 
-        Inputs:
-          None.
-
         Outputs:
           Float in [0, 360).
         """
@@ -280,9 +255,6 @@ class ELL14KRotator(RotatorInstrument):
 
         Inputs:
           degrees: Target angle referenced to user offset. Wrapped into [0, 360).
-
-        Outputs:
-          None. Blocks until motion completes when block_while_moving is True. Updates cached angle using device readback.
         """
         target = (degrees + self.offset_degrees) % 360.0
         eu = self._deg_to_eu(target)
@@ -314,74 +286,8 @@ class ELL14KRotator(RotatorInstrument):
             gs1,
         )
 
-    def move_to(self, angle: float) -> None:
-        """
-        Set the absolute angle in degrees.
-
-        Inputs:
-          angle: Target angle referenced to user offset. Wrapped into [0, 360).
-
-        Outputs:
-          None.
-        """
-        self.degrees = angle
-
-    def move_by(self, angle: float) -> None:
-        """
-        Move by a signed delta in degrees relative to the current position.
-
-        Inputs:
-          angle: Signed delta in degrees. Positive is CW. Negative is CCW.
-
-        Outputs:
-          None. Blocks until motion completes when block_while_moving is True. Updates cached angle using device readback.
-        """
-        delta_eu = self._deg_to_eu(angle)
-        dlabel = delta_eu if angle >= 0 else (1 << 32) + (-delta_eu)
-        cmd = f"{self.addr_hex}mr{int(dlabel):08X}"
-        gs0 = self._get_status()
-        t0 = time.time()
-        self._send(cmd)
-        logger.info(
-            "ell14k.move_by tx=%s delta_deg=%.9f delta_eu=%08X status_before=%r",
-            cmd,
-            angle,
-            int(dlabel) & 0xFFFFFFFF,
-            gs0,
-        )
-        if self.block_while_moving:
-            self._wait_for_completion()
-        pos = self._get_position_eu()
-        gs1 = self._get_status()
-        if pos is None:
-            self._degrees = (self._degrees + angle) % 360.0
-            logger.warning(
-                "ell14k.move_by.readback_none fallback_deg=%.9f elapsed=%.3fs status_after=%r",
-                self._degrees,
-                time.time() - t0,
-                gs1,
-            )
-            return
-        rb = (self._eu_to_deg(pos) - self.offset_degrees) % 360.0
-        self._degrees = rb
-        logger.info(
-            "ell14k.move_by.readback po_eu=%08X rb_deg=%.9f elapsed=%.3fs status_after=%r",
-            pos,
-            rb,
-            time.time() - t0,
-            gs1,
-        )
-
     def _open_port(self) -> None:
-        """
-        Open and prime the serial link.
-
-        Inputs:
-          None.
-
-        Outputs:
-          None.
-        """
+        """Open and prime the serial link."""
         logger.info("ell14k.start port=%s req_addr=%s timeout=%.2f", self.hw_address, self.addr_hex, self.timeout_s)
         self._conn = serial.Serial(
             self.hw_address,
@@ -403,9 +309,6 @@ class ELL14KRotator(RotatorInstrument):
     def _identify(self) -> tuple[dict[str, str], str]:
         """
         Identify the device and resolve the active address.
-
-        Inputs:
-          None.
 
         Outputs:
           Tuple of (parsed IN fields, confirmed address).
@@ -454,9 +357,6 @@ class ELL14KRotator(RotatorInstrument):
 
         Inputs:
           parsed: Result of _parse_in.
-
-        Outputs:
-          None.
         """
         self._travel_deg = int(parsed.get("travel_hex", "168"), 16) if parsed.get("travel_hex") else 360
         ppu_hex = parsed.get("pulses_per_unit_hex", "00000000")
@@ -476,15 +376,6 @@ class ELL14KRotator(RotatorInstrument):
         )
 
     def _maybe_home(self) -> None:
-        """
-        Perform an optional home cycle.
-
-        Inputs:
-          None.
-
-        Outputs:
-          None.
-        """
         if not self.home_on_start:
             return
         dir_code = "0" if self.home_dir_cw else "1"
@@ -495,15 +386,7 @@ class ELL14KRotator(RotatorInstrument):
         logger.info("ell14k.home.done elapsed=%.3fs", time.time() - t0)
 
     def _sync_angle(self) -> None:
-        """
-        Read back position and update cached degrees.
-
-        Inputs:
-          None.
-
-        Outputs:
-          None.
-        """
+        """Read back position and update cached degrees."""
         pos_eu = self._get_position_eu()
         if pos_eu is not None:
             self._degrees = (self._eu_to_deg(pos_eu) - self.offset_degrees) % 360.0
@@ -518,9 +401,6 @@ class ELL14KRotator(RotatorInstrument):
 
         Inputs:
           payload: ASCII command excluding terminator. May be empty to send CR only.
-
-        Outputs:
-          None.
         """
         tx = (payload + "\r").encode("ascii")
         n = self._conn.write(tx)
@@ -529,9 +409,6 @@ class ELL14KRotator(RotatorInstrument):
     def _readline_ascii(self) -> str | None:
         """
         Read one CRLF-terminated line as ASCII and strip line endings.
-
-        Inputs:
-          None.
 
         Outputs:
           Decoded string or None on timeout.
@@ -572,9 +449,6 @@ class ELL14KRotator(RotatorInstrument):
 
         Inputs:
           duration_s: Seconds to spend draining.
-
-        Outputs:
-          None.
         """
         t0 = time.time()
         total = 0
@@ -630,9 +504,6 @@ class ELL14KRotator(RotatorInstrument):
         """
         Query the device for the current encoder units position.
 
-        Inputs:
-          None.
-
         Outputs:
           Unsigned 32-bit integer parsed from PO field, or None on failure.
         """
@@ -658,9 +529,6 @@ class ELL14KRotator(RotatorInstrument):
         """
         Fetch the raw GS status line.
 
-        Inputs:
-          None.
-
         Outputs:
           Dict with key 'raw' holding the first reply line, or None on timeout.
         """
@@ -670,15 +538,7 @@ class ELL14KRotator(RotatorInstrument):
         return {"raw": reps[0]}
 
     def _wait_for_completion(self) -> None:
-        """
-        Poll until motion stops or the watchdog expires.
-
-        Inputs:
-          None.
-
-        Outputs:
-          None. Returns when two successive PO reads are equal or on timeout.
-        """
+        """Poll until motion stops or the watchdog expires."""
         t0 = time.time()
         last_po: int | None = None
         last_gs: str | None = None

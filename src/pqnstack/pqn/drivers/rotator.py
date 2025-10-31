@@ -193,17 +193,17 @@ class ELL14KRotator(RotatorInstrument):
 
     _degrees: float = 0.0
     _conn: serial.Serial = field(init=False, repr=False)
-    _ppd: float = field(init=False, default=0.0, repr=False)
+    _pulses_per_degree: float = field(init=False, default=0.0, repr=False)
+    _ENCODER_UNITS_PER_DEGREE: float = field(init=False, default=0.0, repr=False)
     _travel_deg: int = field(init=False, default=360, repr=False)
-    _raw_in: str = field(init=False, default="", repr=False)
+    _raw_ident_reply: str = field(init=False, default="", repr=False)
 
-    _IN_MIN_PARTS: int = field(init=False, default=9, repr=False)
+    _IN_MIN_CSV_PARTS: int = field(init=False, default=9, repr=False)
     _IN_FIXED_MIN_LEN: int = field(init=False, default=30, repr=False)
     _WAIT_TIMEOUT_S: float = field(init=False, default=30.0, repr=False)
     _DRAIN_SLEEP_S: float = field(init=False, default=0.005, repr=False)
 
     def start(self) -> None:
-        """Open, identify, scale, and synchronize."""
         self._open_port()
         parsed, addr = self._identify()
         self.addr_hex = addr
@@ -212,7 +212,6 @@ class ELL14KRotator(RotatorInstrument):
         self._sync_angle()
 
     def close(self) -> None:
-        """Return to zero and close the port."""
         try:
             self.degrees = 0.0
         except (OSError, RuntimeError) as exc:
@@ -224,12 +223,6 @@ class ELL14KRotator(RotatorInstrument):
 
     @property
     def info(self) -> RotatorInfo:
-        """
-        Return a snapshot of metadata and current angle.
-
-        Outputs:
-          RotatorInfo with name, description, port, degrees, and offset.
-        """
         return RotatorInfo(
             name=self.name,
             desc=self.desc,
@@ -240,24 +233,16 @@ class ELL14KRotator(RotatorInstrument):
 
     @property
     def degrees(self) -> float:
-        """
-        Get the cached current angle in degrees referenced to the configured offset.
-
-        Outputs:
-          Float in [0, 360).
-        """
         return self._degrees
 
     @degrees.setter
     def degrees(self, degrees: float) -> None:
-        """
-        Move to an absolute mechanical angle in degrees.
-
-        Inputs:
-          degrees: Target angle referenced to user offset. Wrapped into [0, 360).
-        """
         target = (degrees + self.offset_degrees) % 360.0
-        eu = self._deg_to_eu(target)
+        eu = (
+            round((target % 360.0) * self._ENCODER_UNITS_PER_DEGREE) % int(self._ENCODER_UNITS_PER_DEGREE * 360.0)
+            if self._ENCODER_UNITS_PER_DEGREE > 0
+            else 0
+        )
         cmd = f"{self.addr_hex}ma{eu:08X}"
         gs0 = self._get_status()
         t0 = time.time()
@@ -276,7 +261,10 @@ class ELL14KRotator(RotatorInstrument):
                 gs1,
             )
             return
-        rb = (self._eu_to_deg(pos) - self.offset_degrees) % 360.0
+        rb = (
+            (((pos % int(self._ENCODER_UNITS_PER_DEGREE * 360.0)) / float(self._ENCODER_UNITS_PER_DEGREE)) % 360.0)
+            - self.offset_degrees
+        ) % 360.0
         self._degrees = rb
         logger.info(
             "ell14k.move_to.readback po_eu=%08X rb_deg=%.9f elapsed=%.3fs status_after=%r",
@@ -287,7 +275,6 @@ class ELL14KRotator(RotatorInstrument):
         )
 
     def _open_port(self) -> None:
-        """Open and prime the serial link."""
         logger.info("ell14k.start port=%s req_addr=%s timeout=%.2f", self.hw_address, self.addr_hex, self.timeout_s)
         self._conn = serial.Serial(
             self.hw_address,
@@ -333,7 +320,7 @@ class ELL14KRotator(RotatorInstrument):
                 )
                 if not line or not line.startswith(f"{a}IN"):
                     continue
-                self._raw_in = line
+                self._raw_ident_reply = line
                 try:
                     parsed = self._parse_in(line)
                 except ValueError:
@@ -362,17 +349,18 @@ class ELL14KRotator(RotatorInstrument):
         ppu_hex = parsed.get("pulses_per_unit_hex", "00000000")
         pulses_val = int(ppu_hex, 16) if ppu_hex else 0
         if self._travel_deg > 0 and pulses_val > 0:
-            self._ppd = float(pulses_val) / float(self._travel_deg)
+            self._pulses_per_degree = float(pulses_val) / float(self._travel_deg)
         else:
-            self._ppd = 262144.0 / 360.0
+            self._pulses_per_degree = 262144.0 / 360.0
+        self._ENCODER_UNITS_PER_DEGREE = self._pulses_per_degree
         logger.info(
-            "ell14k.scale addr=%s travel_deg=%d pulses_hex=%s pulses_val=%d ppd=%.9f raw_in=%r",
+            "ell14k.scale addr=%s travel_deg=%d pulses_hex=%s pulses_val=%d pulses_per_degree=%.9f raw_ident_response=%r",
             self.addr_hex,
             self._travel_deg,
             ppu_hex,
             pulses_val,
-            self._ppd,
-            self._raw_in,
+            self._pulses_per_degree,
+            self._raw_ident_reply,
         )
 
     def _maybe_home(self) -> None:
@@ -389,7 +377,13 @@ class ELL14KRotator(RotatorInstrument):
         """Read back position and update cached degrees."""
         pos_eu = self._get_position_eu()
         if pos_eu is not None:
-            self._degrees = (self._eu_to_deg(pos_eu) - self.offset_degrees) % 360.0
+            self._degrees = (
+                (
+                    ((pos_eu % int(self._ENCODER_UNITS_PER_DEGREE * 360.0)) / float(self._ENCODER_UNITS_PER_DEGREE))
+                    % 360.0
+                )
+                - self.offset_degrees
+            ) % 360.0
         else:
             self._degrees = 0.0
         gs_after = self._get_status()
@@ -474,7 +468,7 @@ class ELL14KRotator(RotatorInstrument):
         """
         if "," in line:
             parts = line.split(",")
-            if len(parts) < self._IN_MIN_PARTS:
+            if len(parts) < self._IN_MIN_CSV_PARTS:
                 msg = f"bad IN csv: {line!r}"
                 raise ValueError(msg)
             return {
@@ -563,29 +557,3 @@ class ELL14KRotator(RotatorInstrument):
                 logger.debug("ell14k.wait status=%r", last_gs)
             time.sleep(0.05)
         logger.warning("ell14k.wait timeout")
-
-    def _deg_to_eu(self, deg: float) -> int:
-        """
-        Encode degrees into encoder units using the discovered scale.
-
-        Inputs:
-          deg: Angle in degrees. Wrapped into [0, 360).
-
-        Outputs:
-          Unsigned 32-bit integer within one revolution.
-        """
-        return round((deg % 360.0) * self._ppd) % int(self._ppd * 360.0) if self._ppd > 0 else 0
-
-    def _eu_to_deg(self, eu: int | None) -> float:
-        """
-        Decode encoder units back to degrees using the discovered scale.
-
-        Inputs:
-          eu: Unsigned 32-bit integer position or None.
-
-        Outputs:
-          Angle in degrees in [0, 360). Returns 0.0 if scale unknown or input None.
-        """
-        if eu is None or self._ppd <= 0:
-            return 0.0
-        return ((eu % int(self._ppd * 360.0)) / float(self._ppd)) % 360.0

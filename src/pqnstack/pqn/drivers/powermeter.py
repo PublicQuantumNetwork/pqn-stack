@@ -1,18 +1,38 @@
 from __future__ import annotations
-import atexit, datetime as _dt, logging, os, threading, time
-from dataclasses import dataclass, field
-from typing import Any, Callable
-import numpy as np, pandas as pd
+
+import atexit
+import contextlib
+import datetime as _dt
+import logging
+import os
+import threading
+import time
+from dataclasses import dataclass
+from dataclasses import field
+from typing import TYPE_CHECKING
+from typing import Any
+
+import numpy as np
+import pandas as pd
+
 from pqnstack.base.errors import DeviceNotStartedError
-from pqnstack.base.instrument import Instrument, InstrumentInfo, log_operation, log_parameter
+from pqnstack.base.instrument import Instrument
+from pqnstack.base.instrument import InstrumentInfo
+from pqnstack.base.instrument import log_operation
+from pqnstack.base.instrument import log_parameter
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
+
 
 @dataclass(frozen=True, slots=True)
 class PM100DInfo(InstrumentInfo):
     wavelength_nm: float = np.nan
     last_power_w: float = np.nan
     logging_rows: int = 0
+
 
 @dataclass(slots=True)
 class PM100D(Instrument):
@@ -30,7 +50,15 @@ class PM100D(Instrument):
 
     data_log_dataframe: pd.DataFrame = field(
         default_factory=lambda: pd.DataFrame(
-            {"elapsed_sec": [], "iso_timestamp": [], "pm1_w": [], "pm1_ref_w": [], "pm1_total_w": [], "interval_sec": [], "pax_wavelength_nm": []}
+            {
+                "elapsed_sec": [],
+                "iso_timestamp": [],
+                "pm1_w": [],
+                "pm1_ref_w": [],
+                "pm1_total_w": [],
+                "interval_sec": [],
+                "pax_wavelength_nm": [],
+            }
         ),
         init=False,
         repr=False,
@@ -41,7 +69,8 @@ class PM100D(Instrument):
 
     def _fd_required(self) -> int:
         if self.file_descriptor is None:
-            raise DeviceNotStartedError("Start the device first.")
+            msg = "Start the device first."
+            raise DeviceNotStartedError(msg)
         return self.file_descriptor
 
     def _query(self, cmd: str, *, max_bytes: int = 4096, read: bool = True) -> str:
@@ -51,7 +80,8 @@ class PM100D(Instrument):
         while total < len(data):
             n = os.write(fd, data[total:])
             if n <= 0:
-                raise TimeoutError("usbtmc write failed")
+                msg = "usbtmc write failed"
+                raise TimeoutError(msg)
             total += n
         if not read:
             return ""
@@ -59,7 +89,8 @@ class PM100D(Instrument):
         chunks: list[bytes] = []
         while True:
             if time.monotonic() > deadline:
-                raise TimeoutError("usbtmc read timeout")
+                msg = "usbtmc read timeout"
+                raise TimeoutError(msg)
             chunk = os.read(fd, max_bytes)
             if chunk:
                 chunks.append(chunk)
@@ -77,23 +108,31 @@ class PM100D(Instrument):
 
     def start(self) -> None:
         if not os.path.exists(self.hw_address):
-            raise FileNotFoundError(f"USBTMC node not found: {self.hw_address}")
+            msg = f"USBTMC node not found: {self.hw_address}"
+            raise FileNotFoundError(msg)
         if not os.access(self.hw_address, os.R_OK | os.W_OK):
-            raise PermissionError(f"No rw access to {self.hw_address}")
+            msg = f"No rw access to {self.hw_address}"
+            raise PermissionError(msg)
         if self.file_descriptor is None:
             self.file_descriptor = os.open(self.hw_address, os.O_RDWR)
-        try:
+        with contextlib.suppress(Exception):
             self._query("*CLS", read=False)
-        except Exception:
-            pass
         if np.isfinite(self._wavelength_nm_cache):
             try:
                 self._query(f"SENSE:CORR:WAV {self._wavelength_nm_cache}NM", read=False)
             except Exception as exc:
                 logger.warning("failed to set wavelength to %s nm: %s", self._wavelength_nm_cache, exc)
         wav_read = self._read_float("SENSE:CORR:WAV?")
-        self._wavelength_nm_cache = (wav_read * 1e9 if np.isfinite(wav_read) and wav_read < 10.0 else wav_read)
-        self.operations.update({"start_logging": self.start_logging, "stop_logging": self.stop_logging, "clear_log": self.clear_log, "save_csv": self.save_csv, "snapshot": self.snapshot})
+        self._wavelength_nm_cache = wav_read * 1e9 if np.isfinite(wav_read) and wav_read < 10.0 else wav_read
+        self.operations.update(
+            {
+                "start_logging": self.start_logging,
+                "stop_logging": self.stop_logging,
+                "clear_log": self.clear_log,
+                "save_csv": self.save_csv,
+                "snapshot": self.snapshot,
+            }
+        )
         atexit.register(self.close)
 
     def close(self) -> None:
@@ -113,7 +152,7 @@ class PM100D(Instrument):
             hw_status={"connected": self.file_descriptor is not None},
             wavelength_nm=self._wavelength_nm_cache,
             last_power_w=self._last_power_w,
-            logging_rows=int(len(self.data_log_dataframe)),
+            logging_rows=len(self.data_log_dataframe),
         )
 
     @property
@@ -136,7 +175,8 @@ class PM100D(Instrument):
     def power_w(self) -> float:
         raw = self._read_float("MEAS:POW?")
         if not np.isfinite(raw):
-            raise ValueError("unexpected PM100D power response")
+            msg = "unexpected PM100D power response"
+            raise ValueError(msg)
         self._last_power_w = raw
         return raw
 
@@ -159,7 +199,8 @@ class PM100D(Instrument):
     @log_operation
     def start_logging(self, interval_sec: float = 0.2) -> None:
         if self.file_descriptor is None:
-            raise DeviceNotStartedError("Start the device before logging.")
+            msg = "Start the device before logging."
+            raise DeviceNotStartedError(msg)
         if self.logging_thread and self.logging_thread.is_alive():
             return
         self.stop_logging_event.clear()
@@ -175,7 +216,9 @@ class PM100D(Instrument):
                         pd.DataFrame(
                             [
                                 {
-                                    "elapsed_sec": 0.0 if self.log_start_time_perf_counter is None else now - self.log_start_time_perf_counter,
+                                    "elapsed_sec": 0.0
+                                    if self.log_start_time_perf_counter is None
+                                    else now - self.log_start_time_perf_counter,
                                     "iso_timestamp": _dt.datetime.now(tz=_dt.UTC).isoformat(),
                                     "pm1_w": row["pm1_w"],
                                     "pm1_ref_w": row["pm1_ref_w"],
@@ -206,4 +249,3 @@ class PM100D(Instrument):
     @log_operation
     def save_csv(self, path: str) -> None:
         self.data_log_dataframe.to_csv(path, index=False)
-

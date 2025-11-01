@@ -9,6 +9,7 @@ import threading
 import time
 from dataclasses import dataclass
 from dataclasses import field
+from pathlib import Path
 from typing import TYPE_CHECKING
 from typing import Any
 
@@ -25,6 +26,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
+
+WAV_UNIT_METERS_THRESHOLD = 10.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,11 +106,11 @@ class PM100D(Instrument):
     def _read_float(self, cmd: str) -> float:
         try:
             return float(self._query(cmd).split()[0])
-        except Exception:
+        except (ValueError, IndexError, TimeoutError, OSError, DeviceNotStartedError):
             return float("nan")
 
     def start(self) -> None:
-        if not os.path.exists(self.hw_address):
+        if not Path(self.hw_address).exists():
             msg = f"USBTMC node not found: {self.hw_address}"
             raise FileNotFoundError(msg)
         if not os.access(self.hw_address, os.R_OK | os.W_OK):
@@ -120,10 +123,9 @@ class PM100D(Instrument):
         if np.isfinite(self._wavelength_nm_cache):
             try:
                 self._query(f"SENSE:CORR:WAV {self._wavelength_nm_cache}NM", read=False)
-            except Exception as exc:
+            except (TimeoutError, OSError, DeviceNotStartedError) as exc:
                 logger.warning("failed to set wavelength to %s nm: %s", self._wavelength_nm_cache, exc)
-        wav_read = self._read_float("SENSE:CORR:WAV?")
-        self._wavelength_nm_cache = wav_read * 1e9 if np.isfinite(wav_read) and wav_read < 10.0 else wav_read
+        self._wavelength_nm_cache = self._read_float("SENSE:CORR:WAV?")
         self.operations.update(
             {
                 "start_logging": self.start_logging,
@@ -167,7 +169,7 @@ class PM100D(Instrument):
         if self.file_descriptor is not None:
             try:
                 self._query(f"SENSE:CORR:WAV {self._wavelength_nm_cache}NM", read=False)
-            except Exception as exc:
+            except (TimeoutError, OSError, DeviceNotStartedError) as exc:
                 logger.warning("failed to set wavelength to %s nm: %s", self._wavelength_nm_cache, exc)
 
     @property

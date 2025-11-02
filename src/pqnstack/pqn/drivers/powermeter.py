@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import atexit
 import contextlib
-import datetime as _dt
 import logging
 import os
 import threading
@@ -14,7 +13,6 @@ from typing import TYPE_CHECKING
 from typing import Any
 
 import numpy as np
-import pandas as pd
 
 from pqnstack.base.errors import DeviceNotStartedError
 from pqnstack.base.instrument import Instrument
@@ -49,21 +47,6 @@ class PM100D(Instrument):
     _last_power_w: float = field(default=np.nan, init=False)
     _last_ref_w: float = field(default=np.nan, init=False)
 
-    data_log_dataframe: pd.DataFrame = field(
-        default_factory=lambda: pd.DataFrame(
-            {
-                "elapsed_sec": [],
-                "iso_timestamp": [],
-                "pm1_w": [],
-                "pm1_ref_w": [],
-                "pm1_total_w": [],
-                "interval_sec": [],
-                "pax_wavelength_nm": [],
-            }
-        ),
-        init=False,
-        repr=False,
-    )
     log_start_time_perf_counter: float | None = field(default=None, init=False, repr=False)
     logging_thread: threading.Thread | None = field(default=None, init=False, repr=False)
     stop_logging_event: threading.Event = field(default_factory=threading.Event, init=False, repr=False)
@@ -195,57 +178,3 @@ class PM100D(Instrument):
         ref = self.ref_w()
         total = raw - ref if np.isfinite(ref) else raw
         return {"pm1_w": raw, "pm1_ref_w": ref, "pm1_total_w": total, "pax_wavelength_nm": self._wavelength_nm_cache}
-
-    @log_operation
-    def start_logging(self, interval_sec: float = 0.2) -> None:
-        if self.file_descriptor is None:
-            msg = "Start the device before logging."
-            raise DeviceNotStartedError(msg)
-        if self.logging_thread and self.logging_thread.is_alive():
-            return
-        self.stop_logging_event.clear()
-        self.log_start_time_perf_counter = time.perf_counter()
-
-        def loop() -> None:
-            while not self.stop_logging_event.is_set():
-                now = time.perf_counter()
-                row = self.read()
-                self.data_log_dataframe = pd.concat(
-                    [
-                        self.data_log_dataframe,
-                        pd.DataFrame(
-                            [
-                                {
-                                    "elapsed_sec": 0.0
-                                    if self.log_start_time_perf_counter is None
-                                    else now - self.log_start_time_perf_counter,
-                                    "iso_timestamp": _dt.datetime.now(tz=_dt.UTC).isoformat(),
-                                    "pm1_w": row["pm1_w"],
-                                    "pm1_ref_w": row["pm1_ref_w"],
-                                    "pm1_total_w": row["pm1_total_w"],
-                                    "pax_wavelength_nm": row["pax_wavelength_nm"],
-                                    "interval_sec": interval_sec,
-                                }
-                            ]
-                        ),
-                    ],
-                    ignore_index=True,
-                )
-                time.sleep(interval_sec)
-
-        self.logging_thread = threading.Thread(target=loop, name=f"{self.name}-poll", daemon=True)
-        self.logging_thread.start()
-
-    @log_operation
-    def stop_logging(self) -> None:
-        if self.logging_thread and self.logging_thread.is_alive():
-            self.stop_logging_event.set()
-            self.logging_thread.join(timeout=2.0)
-
-    @log_operation
-    def clear_log(self) -> None:
-        self.data_log_dataframe = self.data_log_dataframe.iloc[0:0]
-
-    @log_operation
-    def save_csv(self, path: str) -> None:
-        self.data_log_dataframe.to_csv(path, index=False)

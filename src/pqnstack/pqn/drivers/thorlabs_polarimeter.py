@@ -1,20 +1,25 @@
 from __future__ import annotations
 
 import atexit
-import contextlib as contextlib
+import contextlib
 import datetime as _dt
 import logging
 import threading
 import time
-from dataclasses import dataclass, field
-from typing import Any, Optional, Tuple
+from dataclasses import dataclass
+from dataclasses import field
+from typing import Any
 
 import numpy as np
 import pandas as pd
 import pyvisa
+from pyvisa.errors import Error as VisaError
 
 from pqnstack.base.errors import DeviceNotStartedError
-from pqnstack.base.instrument import Instrument, InstrumentInfo, log_operation, log_parameter
+from pqnstack.base.instrument import Instrument
+from pqnstack.base.instrument import InstrumentInfo
+from pqnstack.base.instrument import log_operation
+from pqnstack.base.instrument import log_parameter
 
 logger = logging.getLogger(__name__)
 
@@ -44,11 +49,11 @@ class PAX1000IR2Info(InstrumentInfo):
 class PAX1000IR2(Instrument):
     name: str
     desc: str
-    hw_address: str  # VISA resource or empty for discovery
+    hw_address: str
     parameters: set[str] = field(default_factory=set)
     operations: dict[str, Any] = field(default_factory=dict)
 
-    pax_id_contains: Optional[str] = None
+    pax_id_contains: str | None = None
     pax_idn_contains: str = "PAX1000"
 
     _rm: Any | None = field(default=None, init=False, repr=False)
@@ -81,26 +86,116 @@ class PAX1000IR2(Instrument):
     logging_thread: threading.Thread | None = field(default=None, init=False, repr=False)
     stop_logging_event: threading.Event = field(default_factory=threading.Event, init=False, repr=False)
 
-    def _q(self, cmd: str) -> str:
+    def _read_and_write(self, cmd: str, *, expect_response: bool) -> str:
         if self._instr is None:
-            raise DeviceNotStartedError("Start the device first.")
-        try:
-            self._instr.write(f"{cmd}\n")
-            return str(self._instr.read()).strip()
-        except Exception:
+            msg = "Start the device first."
+            raise DeviceNotStartedError(msg)
+        instr: Any = self._instr  # vendor object lacks type stubs
+        if expect_response:
             try:
-                return str(self._instr.query(cmd)).strip()
-            except Exception:
-                return ""
-
-    def _w(self, cmd: str) -> None:
-        if self._instr is None:
-            raise DeviceNotStartedError("Start the device first.")
+                instr.write(f"{cmd}\n")
+                return str(instr.read()).strip()
+            except (VisaError, OSError):
+                try:
+                    return str(instr.query(cmd)).strip()
+                except (VisaError, OSError):
+                    return ""
         try:
-            self._instr.write(f"{cmd}\n")
-        except Exception:
+            instr.write(f"{cmd}\n")
+        except (VisaError, OSError):
+            with contextlib.suppress(VisaError, OSError):
+                instr.write(cmd)
+        return ""
+
+    def _list_usb_resources(self) -> tuple[str, ...]:
+        assert self._rm is not None
+        try:
+            return self._rm.list_resources(USB_FILTER)  # type: ignore[no-any-return]
+        except VisaError as exc:
+            msg = f"VISA resource discovery failed: {exc}"
+            raise FileNotFoundError(msg) from exc
+
+    def _filter_candidates(self, resources: tuple[str, ...]) -> tuple[str, ...]:
+        if self.pax_id_contains:
+            return tuple(r for r in resources if self.pax_id_contains in r)
+        return resources
+
+    def _probe_idn(self, resource_name: str) -> str:
+        assert self._rm is not None
+        try:
+            with self._rm.open_resource(resource_name) as resource_handle:
+                visa_resource: Any = resource_handle  # vendor object lacks type stubs
+                visa_resource.timeout = self._timeout_ms
+                try:
+                    visa_resource.write(f"{QRY_IDN}\n")
+                    return str(visa_resource.read()).strip()
+                except (VisaError, OSError):
+                    try:
+                        return str(visa_resource.query(QRY_IDN)).strip()
+                    except (VisaError, OSError):
+                        return ""
+        except VisaError as exc:
+            logger.debug("Resource probe failed for %s: %s", resource_name, exc)
+            return ""
+
+    def _discover_resource(self) -> str:
+        resources = self._filter_candidates(self._list_usb_resources())
+
+        if not resources:
+            msg = "No USB VISA resources matched filter."
+            raise FileNotFoundError(msg)
+
+        if len(resources) == 1 and not self.pax_idn_contains:
+            return resources[0]
+
+        idn_substring = self.pax_idn_contains or ""
+        matched = [r for r in resources if (not idn_substring) or (idn_substring in self._probe_idn(r))]
+
+        if len(matched) != 1:
+            msg = "PAX discovery ambiguous or no match."
+            raise FileNotFoundError(msg)
+        return matched[0]
+
+    def _open_resource(self, resource_name: str) -> None:
+        assert self._rm is not None
+        try:
+            self._instr = self._rm.open_resource(resource_name)
+            self._instr.timeout = self._timeout_ms
+        except VisaError as exc:
+            self._instr = None
+            msg = f"Failed to open VISA resource {resource_name}: {exc}"
+            raise RuntimeError(msg) from exc
+
+    def _write_and_confirm(self, set_cmd: str, qry_cmd: str, expect: str | float) -> bool:
+        _ = self._read_and_write(set_cmd, expect_response=False)
+        expected_prefix = str(expect)
+        last_response = ""
+        for _ in range(10):
+            try:
+                last_response = self._read_and_write(qry_cmd, expect_response=True)
+            except DeviceNotStartedError:
+                last_response = ""
+            if last_response.startswith(expected_prefix):
+                return True
+            time.sleep(0.05)
+        return False
+
+    def _init_settings(self) -> None:
+        calc_ok = self._write_and_confirm(CMD_ENABLE_CALC, QRY_IS_CALC_ENABLED, 1)
+        rot_ok = self._write_and_confirm(CMD_ENABLE_ROTATION, QRY_IS_ROTATION_ENABLED, 1)
+        if not (calc_ok and rot_ok):
             with contextlib.suppress(Exception):
-                self._instr.write(cmd)
+                self._write_and_confirm(CMD_DISABLE_CALC, QRY_IS_CALC_ENABLED, 0)
+                self._write_and_confirm(CMD_DISABLE_ROTATION, QRY_IS_ROTATION_ENABLED, 0)
+            msg = "PAX setup failed to enable calc/rotation."
+            raise RuntimeError(msg)
+
+    def _read_wavelength_cache(self) -> None:
+        try:
+            raw_value = self._read_and_write(QRY_WAVELENGTH_METERS_OR_NM, expect_response=True)
+            self._wavelength_nm_cache = float(raw_value)
+        except (ValueError, TypeError):
+            self._wavelength_nm_cache = float("nan")
 
     def start(self) -> None:
         if self._instr is not None:
@@ -108,78 +203,13 @@ class PAX1000IR2(Instrument):
         try:
             self._rm = pyvisa.ResourceManager("@py")
         except Exception as exc:
-            raise RuntimeError(f"VISA backend not available: {exc}") from exc
+            msg = f"VISA backend not available: {exc}"
+            raise RuntimeError(msg) from exc
 
-        resource = self.hw_address
-        if not resource:
-            try:
-                resources: Tuple[str, ...] = self._rm.list_resources(USB_FILTER)
-            except Exception as exc:
-                raise FileNotFoundError(f"VISA resource discovery failed: {exc}") from exc
-            if self.pax_id_contains:
-                resources = tuple(r for r in resources if self.pax_id_contains in r)
-            if not resources:
-                raise FileNotFoundError("No USB VISA resources matched filter.")
-            if len(resources) == 1 and not self.pax_idn_contains:
-                resource = resources[0]
-            else:
-                target = self.pax_idn_contains or ""
-                matched = []
-                for rname in resources:
-                    try:
-                        with self._rm.open_resource(rname) as tmp:
-                            tmp.timeout = self._timeout_ms
-                            try:
-                                tmp.write(f"{QRY_IDN}\n")
-                                idn = str(tmp.read()).strip()
-                            except Exception:
-                                try:
-                                    idn = str(tmp.query(QRY_IDN)).strip()
-                                except Exception:
-                                    idn = ""
-                            if not target or target in idn:
-                                matched.append(rname)
-                    except Exception:
-                        continue
-                if len(matched) != 1:
-                    raise FileNotFoundError("PAX discovery ambiguous or no match.")
-                resource = matched[0]
-
-        try:
-            self._instr = self._rm.open_resource(resource)
-            self._instr.timeout = self._timeout_ms
-        except Exception as exc:
-            self._instr = None
-            raise RuntimeError(f"Failed to open VISA resource {resource}: {exc}") from exc
-
-        def write_and_confirm(set_cmd: str, qry_cmd: str, expect: str | int | float) -> bool:
-            self._w(set_cmd)
-            expected = str(expect)
-            last = ""
-            for _ in range(10):
-                try:
-                    last = self._q(qry_cmd)
-                except Exception:
-                    last = ""
-                if last.startswith(expected):
-                    return True
-                time.sleep(0.05)
-            return False
-
-        ok1 = write_and_confirm(CMD_ENABLE_CALC, QRY_IS_CALC_ENABLED, 1)
-        ok2 = write_and_confirm(CMD_ENABLE_ROTATION, QRY_IS_ROTATION_ENABLED, 1)
-        if not (ok1 and ok2):
-            with contextlib.suppress(Exception):
-                write_and_confirm(CMD_DISABLE_CALC, QRY_IS_CALC_ENABLED, 0)
-                write_and_confirm(CMD_DISABLE_ROTATION, QRY_IS_ROTATION_ENABLED, 0)
-            raise RuntimeError("PAX setup failed to enable calc/rotation.")
-
-        try:
-            raw = self._q(QRY_WAVELENGTH_METERS_OR_NM)
-            val = float(raw)
-            self._wavelength_nm_cache = val * 1e9 if val < 10.0 else val
-        except Exception:
-            self._wavelength_nm_cache = float("nan")
+        resource_name = self.hw_address or self._discover_resource()
+        self._open_resource(resource_name)
+        self._init_settings()
+        self._read_wavelength_cache()
 
         self.operations.update(
             {
@@ -187,7 +217,7 @@ class PAX1000IR2(Instrument):
                 "stop_logging": self.stop_logging,
                 "clear_log": self.clear_log,
                 "save_csv": self.save_csv,
-                "snapshot": self.snapshot,
+                "read": self.read,
             }
         )
         atexit.register(self.close)
@@ -196,10 +226,10 @@ class PAX1000IR2(Instrument):
         self.stop_logging()
         if self._instr is not None:
             with contextlib.suppress(Exception):
-                self._w(CMD_DISABLE_CALC)
-                self._w(CMD_DISABLE_ROTATION)
-                _ = self._q(QRY_IS_CALC_ENABLED)
-                _ = self._q(QRY_IS_ROTATION_ENABLED)
+                _ = self._read_and_write(CMD_DISABLE_CALC, expect_response=False)
+                _ = self._read_and_write(CMD_DISABLE_ROTATION, expect_response=False)
+                _ = self._read_and_write(QRY_IS_CALC_ENABLED, expect_response=True)
+                _ = self._read_and_write(QRY_IS_ROTATION_ENABLED, expect_response=True)
             with contextlib.suppress(Exception):
                 self._instr.close()
             self._instr = None
@@ -229,30 +259,31 @@ class PAX1000IR2(Instrument):
         return self._wavelength_nm_cache
 
     @log_operation
-    def snapshot(self) -> dict[str, float]:
+    def read(self) -> dict[str, float]:
         if self._instr is None:
-            raise DeviceNotStartedError("Start the device first.")
-        raw = self._q(QRY_LATEST)
+            msg = "Start the device first."
+            raise DeviceNotStartedError(msg)
+        raw_reply = self._read_and_write(QRY_LATEST, expect_response=True)
 
-        tokens = [p for p in raw.replace(";", ",").split(",") if p]
-        vals: list[float | str] = []
-        for t in tokens:
+        token_strs = [p for p in raw_reply.replace(";", ",").split(",") if p]
+        parsed_values: list[float | str] = []
+        for token_str in token_strs:
             try:
-                vals.append(float(t))
-            except Exception:
-                vals.append(t)
+                parsed_values.append(float(token_str))
+            except (ValueError, TypeError):
+                parsed_values.append(token_str)
 
-        def getf(i: int) -> float:
+        def get_float_at(index: int) -> float:
             try:
-                v = vals[i]
-                return float(v) if isinstance(v, (float, int)) else float(str(v))
-            except Exception:
+                value = parsed_values[index]
+                return float(value) if isinstance(value, (float, int)) else float(str(value))
+            except (ValueError, TypeError, IndexError):
                 return float("nan")
 
-        self._last_theta_deg = getf(9)
-        self._last_eta_deg = getf(10)
-        self._last_dop = getf(11)
-        self._last_power_w = getf(12)
+        self._last_theta_deg = get_float_at(9)
+        self._last_eta_deg = get_float_at(10)
+        self._last_dop = get_float_at(11)
+        self._last_power_w = get_float_at(12)
 
         return {
             "pax_theta_deg": self._last_theta_deg,
@@ -265,7 +296,8 @@ class PAX1000IR2(Instrument):
     @log_operation
     def start_logging(self, interval_sec: float = 0.2) -> None:
         if self._instr is None:
-            raise DeviceNotStartedError("Start the device before logging.")
+            msg = "Start the device before logging."
+            raise DeviceNotStartedError(msg)
         if self.logging_thread and self.logging_thread.is_alive():
             return
         self.stop_logging_event.clear()
@@ -273,8 +305,8 @@ class PAX1000IR2(Instrument):
 
         def loop() -> None:
             while not self.stop_logging_event.is_set():
-                now = time.perf_counter()
-                row = self.snapshot()
+                now_perf = time.perf_counter()
+                read_data = self.read()
                 self.data_log_dataframe = pd.concat(
                     [
                         self.data_log_dataframe,
@@ -283,13 +315,13 @@ class PAX1000IR2(Instrument):
                                 {
                                     "elapsed_sec": 0.0
                                     if self.log_start_time_perf_counter is None
-                                    else now - self.log_start_time_perf_counter,
+                                    else now_perf - self.log_start_time_perf_counter,
                                     "iso_timestamp": _dt.datetime.now(tz=_dt.UTC).isoformat(),
-                                    "pax_theta_deg": row["pax_theta_deg"],
-                                    "pax_eta_deg": row["pax_eta_deg"],
-                                    "pax_power_w": row["pax_power_w"],
-                                    "pax_dop": row["pax_dop"],
-                                    "pax_wavelength_nm": row["pax_wavelength_nm"],
+                                    "pax_theta_deg": read_data["pax_theta_deg"],
+                                    "pax_eta_deg": read_data["pax_eta_deg"],
+                                    "pax_power_w": read_data["pax_power_w"],
+                                    "pax_dop": read_data["pax_dop"],
+                                    "pax_wavelength_nm": read_data["pax_wavelength_nm"],
                                     "interval_sec": interval_sec,
                                 }
                             ]

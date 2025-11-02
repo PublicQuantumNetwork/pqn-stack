@@ -27,8 +27,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-WAV_UNIT_METERS_THRESHOLD = 10.0
-
 
 @dataclass(frozen=True, slots=True)
 class PM100DInfo(InstrumentInfo):
@@ -132,7 +130,7 @@ class PM100D(Instrument):
                 "stop_logging": self.stop_logging,
                 "clear_log": self.clear_log,
                 "save_csv": self.save_csv,
-                "snapshot": self.snapshot,
+                "read": self.read,
             }
         )
         atexit.register(self.close)
@@ -192,7 +190,7 @@ class PM100D(Instrument):
         return self._last_ref_w
 
     @log_operation
-    def snapshot(self) -> dict[str, float]:
+    def read(self) -> dict[str, float]:
         raw = self.power_w
         ref = self.ref_w()
         total = raw - ref if np.isfinite(ref) else raw
@@ -211,7 +209,7 @@ class PM100D(Instrument):
         def loop() -> None:
             while not self.stop_logging_event.is_set():
                 now = time.perf_counter()
-                row = self.snapshot()
+                row = self.read()
                 self.data_log_dataframe = pd.concat(
                     [
                         self.data_log_dataframe,

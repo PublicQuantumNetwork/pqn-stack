@@ -16,55 +16,80 @@ if TYPE_CHECKING:
 
 @dataclass(slots=True)
 class Sensor:
-    """Logging and CSV mixin for classes that implement read() -> Mapping[str, Any].
+    _log_rows: list[dict[str, Any]] = field(default_factory=list, init=False, repr=False)
+    _log_start_perf_counter: float | None = field(default=None, init=False, repr=False)
+    _log_thread: threading.Thread | None = field(default=None, init=False, repr=False)
+    _log_stop_event: threading.Event = field(default_factory=threading.Event, init=False, repr=False)
+    _log_lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
+    _extra_values: dict[str, Any] = field(default_factory=dict, init=False, repr=False)
 
-    Adds: start_logging, stop_logging, clear_log, save_csv, logging_rows.
-    """
+    def _read_with_optional_duration(self, duration_sec: float | None) -> dict[str, Any]:
+        read_method = getattr(self, "read", None)
+        if not callable(read_method):
+            msg = "Sensor requires a read() method"
+            raise TypeError(msg)
+        if duration_sec is None:
+            try:
+                return dict(read_method())
+            except TypeError:
+                return dict(read_method(0.0))
+        try:
+            return dict(read_method(duration_sec))
+        except TypeError:
+            return dict(read_method())
 
-    _sensor_log_rows: list[dict[str, Any]] = field(default_factory=list, init=False, repr=False)
-    _sensor_start_perf_counter: float | None = field(default=None, init=False, repr=False)
-    _sensor_thread: threading.Thread | None = field(default=None, init=False, repr=False)
-    _sensor_stop_event: threading.Event = field(default_factory=threading.Event, init=False, repr=False)
-    _sensor_lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
-
-    def start_logging(self, interval_sec: float = 0.2) -> None:
+    def start_logging(self, extra_fields: dict[str, Any] | None = None, *, interval_sec: float = 0.2) -> None:
         if not callable(getattr(self, "read", None)):
             msg = "Sensor requires a read() method"
             raise TypeError(msg)
-        if self._sensor_thread and self._sensor_thread.is_alive():
+        if self._log_thread and self._log_thread.is_alive():
             return
-        self._sensor_stop_event.clear()
-        self._sensor_start_perf_counter = time.perf_counter()
 
-        def _logging_loop() -> None:
-            while not self._sensor_stop_event.is_set():
+        with self._log_lock:
+            self._extra_values.clear()
+            if extra_fields:
+                for key, value in extra_fields.items():
+                    self._extra_values[str(key)] = value
+
+        self._log_stop_event.clear()
+        self._log_start_perf_counter = time.perf_counter()
+
+        def logging_loop() -> None:
+            while not self._log_stop_event.is_set():
                 perf_now = time.perf_counter()
                 iso_timestamp = _dt.datetime.now(tz=_dt.UTC).isoformat()
-                payload = dict(self.read())  # type: ignore[attr-defined]
-                payload["elapsed_sec"] = (
-                    0.0 if self._sensor_start_perf_counter is None else perf_now - self._sensor_start_perf_counter
-                )
-                payload["iso_timestamp"] = iso_timestamp
-                payload.setdefault("interval_sec", interval_sec)
-                with self._sensor_lock:
-                    self._sensor_log_rows.append(payload)
+                payload = self._read_with_optional_duration(interval_sec)
+                with self._log_lock:
+                    row = {**payload, **self._extra_values}
+                    row["elapsed_sec"] = (
+                        0.0 if self._log_start_perf_counter is None else perf_now - self._log_start_perf_counter
+                    )
+                    row["iso_timestamp"] = iso_timestamp
+                    row.setdefault("interval_sec", interval_sec)
+                    self._log_rows.append(row)
                 time.sleep(interval_sec)
 
-        self._sensor_thread = threading.Thread(
-            target=_logging_loop,
+        self._log_thread = threading.Thread(
+            target=logging_loop,
             name=f"{type(self).__name__}-sensor-log",
             daemon=True,
         )
-        self._sensor_thread.start()
+        self._log_thread.start()
+
+    def update_log(self, extra_updates: dict[str, Any]) -> None:
+        with self._log_lock:
+            for key, value in extra_updates.items():
+                self._extra_values[str(key)] = value
 
     def stop_logging(self) -> None:
-        if self._sensor_thread and self._sensor_thread.is_alive():
-            self._sensor_stop_event.set()
-            self._sensor_thread.join(timeout=2.0)
+        if self._log_thread and self._log_thread.is_alive():
+            self._log_stop_event.set()
+            self._log_thread.join(timeout=2.0)
 
     def clear_log(self) -> None:
-        with self._sensor_lock:
-            self._sensor_log_rows.clear()
+        with self._log_lock:
+            self._log_rows.clear()
+            self._extra_values.clear()
 
     def save_csv(self, path: str) -> None:
         rows = self._copy_log_rows()
@@ -80,13 +105,18 @@ class Sensor:
                 writer.writerow(row)
 
     @property
-    def logging_rows(self) -> int:
-        with self._sensor_lock:
-            return len(self._sensor_log_rows)
+    def log_row_count(self) -> int:
+        with self._log_lock:
+            return len(self._log_rows)
+
+    @property
+    def log_data(self) -> list[dict[str, Any]]:
+        with self._log_lock:
+            return [dict(row) for row in self._log_rows]
 
     def _csv_columns(self) -> Iterable[str]:
         return []
 
     def _copy_log_rows(self) -> list[dict[str, Any]]:
-        with self._sensor_lock:
-            return [dict(row) for row in self._sensor_log_rows]
+        with self._log_lock:
+            return [dict(row) for row in self._log_rows]

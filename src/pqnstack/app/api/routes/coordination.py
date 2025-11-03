@@ -160,9 +160,7 @@ async def follow_requested_alert(websocket: WebSocket, state: StateDep) -> None:
                 if state.following_requested:
                     logger.debug("Websocket detected a follow request, asking user for response.")
                     if websocket.client_state.name == "CONNECTED":
-                        await websocket.send_text(
-                            f"Do you want to accept a connection from {state.leaders_name} ({state.leaders_address})?"
-                        )
+                        await websocket.send_text(f"Do you want to accept a connection from {state.leaders_name}?")
                     else:
                         logger.debug("WebSocket not connected, cannot send message")
                         break

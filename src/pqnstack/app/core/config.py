@@ -23,6 +23,7 @@ class CHSHSettings(BaseModel):
     hwp: tuple[str, str] = ("", "")
     request_hwp: tuple[str, str] = ("", "")
     measurement_config: MeasurementConfig = Field(default_factory=lambda: MeasurementConfig(integration_time_s=5))
+    expectation_signs: tuple[int, int, int, int] = (1, 1, 1, -1)
 
 
 class QKDSettings(BaseModel):

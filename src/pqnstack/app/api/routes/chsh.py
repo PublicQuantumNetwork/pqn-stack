@@ -91,18 +91,10 @@ async def _chsh(  # Complexity is high due to the nature of the CHSH experiment.
     logger.info("Expectation values: %s", expectation_values)
     logger.info("Expectation errors: %s", expectation_errors)
 
-    negative_count = sum(1 for v in expectation_values if v < 0)
-    negative_indices = [i for i, v in enumerate(expectation_values) if v < 0]
-    impossible_counts = [0, 2, 4]
+    # FIXME: This is a temporary fix for handling impossible expectation values. We should not have to rely on the settings for this.
+    expectation_values = [x*y for x,y in zip(expectation_values, settings.chsh_settings.expectation_signs)]
 
-    if negative_count in impossible_counts:
-        msg = f"Impossible negative expectation values found: {negative_indices}, expectation_values = {expectation_values}, expectation_errors = {expectation_errors}"
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=msg)
-
-    if len(negative_indices) > 1 or negative_indices[0] != 0:
-        logger.warning("Expectation values have unexpected negative indices: %s", negative_indices)
-
-    chsh_value = sum(abs(x) for x in expectation_values)
+    chsh_value = sum(x for x in expectation_values)
     chsh_error = sum(x**2 for x in expectation_errors) ** 0.5
 
     return chsh_value, chsh_error

@@ -93,7 +93,9 @@ async def _chsh(  # Complexity is high due to the nature of the CHSH experiment.
 
     # FIXME: This is a temporary fix for handling impossible expectation values. We should not have to rely on the settings for this.
     expectation_values = [x*y for x,y in zip(expectation_values, settings.chsh_settings.expectation_signs)]
+    logger.info("What are you settings? %s", settings.chsh_settings.expectation_signs)
 
+    logger.info("After passing signed calculation: %s", expectation_values)
     chsh_value = sum(x for x in expectation_values)
     chsh_error = sum(x**2 for x in expectation_errors) ** 0.5
 

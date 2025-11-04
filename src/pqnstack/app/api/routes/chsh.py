@@ -40,6 +40,7 @@ async def _chsh(  # Complexity is high due to the nature of the CHSH experiment.
 
     expectation_values = []
     expectation_errors = []
+    basis = [0, abs(basis[0] - basis[1]) % 90]
     for angle in basis:  # Going through my basis angles
         for i in range(2):  # Going through follower basis angles
             counts = []

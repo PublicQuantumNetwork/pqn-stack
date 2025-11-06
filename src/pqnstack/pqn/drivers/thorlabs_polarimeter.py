@@ -3,7 +3,6 @@ from __future__ import annotations
 import atexit
 import contextlib
 import logging
-import threading
 import time
 from dataclasses import dataclass
 from dataclasses import field
@@ -64,15 +63,11 @@ class PAX1000IR2(Instrument):
     _last_dop: float = field(default=np.nan, init=False)
     _last_power_w: float = field(default=np.nan, init=False)
 
-    log_start_time_perf_counter: float | None = field(default=None, init=False, repr=False)
-    logging_thread: threading.Thread | None = field(default=None, init=False, repr=False)
-    stop_logging_event: threading.Event = field(default_factory=threading.Event, init=False, repr=False)
-
     def _read_and_write(self, cmd: str, *, expect_response: bool) -> str:
         if self._instr is None:
             msg = "Start the device first."
             raise DeviceNotStartedError(msg)
-        instr: Any = self._instr  # vendor object lacks type stubs
+        instr: Any = self._instr
         if expect_response:
             try:
                 instr.write(f"{cmd}\n")
@@ -195,17 +190,12 @@ class PAX1000IR2(Instrument):
 
         self.operations.update(
             {
-                "start_logging": self.start_logging,
-                "stop_logging": self.stop_logging,
-                "clear_log": self.clear_log,
-                "save_csv": self.save_csv,
                 "read": self.read,
             }
         )
         atexit.register(self.close)
 
     def close(self) -> None:
-        self.stop_logging()
         if self._instr is not None:
             with contextlib.suppress(Exception):
                 _ = self._read_and_write(CMD_DISABLE_CALC, expect_response=False)
@@ -232,7 +222,6 @@ class PAX1000IR2(Instrument):
             last_eta_deg=self._last_eta_deg,
             last_dop=self._last_dop,
             last_power_w=self._last_power_w,
-            logging_rows=len(self.data_log_dataframe),
         )
 
     @property

@@ -4,7 +4,6 @@ import atexit
 import contextlib
 import logging
 import os
-import threading
 import time
 from dataclasses import dataclass
 from dataclasses import field
@@ -47,18 +46,7 @@ class PM100D(Instrument):
     _last_power_w: float = field(default=np.nan, init=False)
     _last_ref_w: float = field(default=np.nan, init=False)
 
-    log_start_time_perf_counter: float | None = field(default=None, init=False, repr=False)
-    logging_thread: threading.Thread | None = field(default=None, init=False, repr=False)
-    stop_logging_event: threading.Event = field(default_factory=threading.Event, init=False, repr=False)
-
-    def _fd_required(self) -> int:
-        if self.file_descriptor is None:
-            msg = "Start the device first."
-            raise DeviceNotStartedError(msg)
-        return self.file_descriptor
-
     def _query(self, cmd: str, *, max_bytes: int = 4096, read: bool = True) -> str:
-        fd = self._fd_required()
         data = (cmd if cmd.endswith("\n") else cmd + "\n").encode("ascii", "ignore")
         total = 0
         while total < len(data):
@@ -109,17 +97,12 @@ class PM100D(Instrument):
         self._wavelength_nm_cache = self._read_float("SENSE:CORR:WAV?")
         self.operations.update(
             {
-                "start_logging": self.start_logging,
-                "stop_logging": self.stop_logging,
-                "clear_log": self.clear_log,
-                "save_csv": self.save_csv,
                 "read": self.read,
             }
         )
         atexit.register(self.close)
 
     def close(self) -> None:
-        self.stop_logging()
         if self.file_descriptor is not None:
             try:
                 os.close(self.file_descriptor)
@@ -135,7 +118,6 @@ class PM100D(Instrument):
             hw_status={"connected": self.file_descriptor is not None},
             wavelength_nm=self._wavelength_nm_cache,
             last_power_w=self._last_power_w,
-            logging_rows=len(self.data_log_dataframe),
         )
 
     @property

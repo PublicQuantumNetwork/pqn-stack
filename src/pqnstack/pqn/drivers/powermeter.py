@@ -3,6 +3,7 @@ from __future__ import annotations
 import atexit
 import contextlib
 import logging
+import math
 import os
 import time
 from dataclasses import dataclass
@@ -10,8 +11,6 @@ from dataclasses import field
 from pathlib import Path
 from typing import TYPE_CHECKING
 from typing import Any
-
-import numpy as np
 
 from pqnstack.base.errors import DeviceNotStartedError
 from pqnstack.base.instrument import Instrument
@@ -27,8 +26,8 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True, slots=True)
 class PM100DInfo(InstrumentInfo):
-    wavelength_nm: float = np.nan
-    last_power_w: float = np.nan
+    wavelength_nm: float = math.nan
+    last_power_w: float = math.nan
     logging_rows: int = 0
 
 
@@ -42,9 +41,9 @@ class PM100D(Instrument):
 
     file_descriptor: int | None = field(default=None, init=False, repr=False)
     _timeout_sec: float = field(default=5.0, init=False, repr=False)
-    _wavelength_nm_cache: float = field(default=np.nan, init=False)
-    _last_power_w: float = field(default=np.nan, init=False)
-    _last_ref_w: float = field(default=np.nan, init=False)
+    _wavelength_nm_cache: float = field(default=math.nan, init=False)
+    _last_power_w: float = field(default=math.nan, init=False)
+    _last_ref_w: float = field(default=math.nan, init=False)
 
     def _query(self, cmd: str, *, max_bytes: int = 4096, read: bool = True) -> str:
         data = (cmd if cmd.endswith("\n") else cmd + "\n").encode("ascii", "ignore")
@@ -89,17 +88,13 @@ class PM100D(Instrument):
             self.file_descriptor = os.open(self.hw_address, os.O_RDWR)
         with contextlib.suppress(Exception):
             self._query("*CLS", read=False)
-        if np.isfinite(self._wavelength_nm_cache):
+        if math.isfinite(self._wavelength_nm_cache):
             try:
                 self._query(f"SENSE:CORR:WAV {self._wavelength_nm_cache}NM", read=False)
             except (TimeoutError, OSError, DeviceNotStartedError) as exc:
                 logger.warning("failed to set wavelength to %s nm: %s", self._wavelength_nm_cache, exc)
         self._wavelength_nm_cache = self._read_float("SENSE:CORR:WAV?")
-        self.operations.update(
-            {
-                "read": self.read,
-            }
-        )
+        self.operations.update({"read": self.read})
         atexit.register(self.close)
 
     def close(self) -> None:
@@ -149,5 +144,10 @@ class PM100D(Instrument):
     def read(self) -> dict[str, float]:
         raw = self.power_w
         ref = self.ref_w()
-        total = raw - ref if np.isfinite(ref) else raw
-        return {"pm1_w": raw, "pm1_ref_w": ref, "pm1_total_w": total, "pax_wavelength_nm": self._wavelength_nm_cache}
+        total = raw - ref if math.isfinite(ref) else raw
+        return {
+            "pm1_w": raw,
+            "pm1_ref_w": ref,
+            "pm1_total_w": total,
+            "pax_wavelength_nm": self._wavelength_nm_cache,
+        }

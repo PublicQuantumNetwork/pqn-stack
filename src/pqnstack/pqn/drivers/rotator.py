@@ -266,7 +266,7 @@ class ELL14KRotator(RotatorInstrument):
         except ValueError as exc:
             msg = f"Bad GV value {hex_val!r} in reply {rep!r}"
             raise RuntimeError(msg) from exc
-        if not (0 <= val <= 100): # noqa: PLR2004
+        if not (0 <= val <= 100):  # noqa: PLR2004
             logger.warning("ell14k.velocity_percent.readback_out_of_range val=%d rep=%r", val, rep)
         return val
 
@@ -275,7 +275,7 @@ class ELL14KRotator(RotatorInstrument):
         if not isinstance(percent, int):
             msg = "velocity_percent must be an int in [0, 100]"
             raise TypeError(msg)
-        if not (0 <= percent <= 100): # noqa: PLR2004
+        if not (0 <= percent <= 100):  # noqa: PLR2004
             msg = "velocity_percent must be in [0, 100]"
             raise ValueError(msg)
         cmd = f"{self.addr_hex}sv{percent:02X}"

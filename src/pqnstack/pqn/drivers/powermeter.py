@@ -50,7 +50,7 @@ class PM100D(Instrument):
         data = (cmd if cmd.endswith("\n") else cmd + "\n").encode("ascii", "ignore")
         total = 0
         while total < len(data):
-            n = os.write(fd, data[total:])
+            n = os.write(self.file_descriptor, data[total:])  # type: ignore[arg-type]
             if n <= 0:
                 msg = "usbtmc write failed"
                 raise TimeoutError(msg)
@@ -63,7 +63,7 @@ class PM100D(Instrument):
             if time.monotonic() > deadline:
                 msg = "usbtmc read timeout"
                 raise TimeoutError(msg)
-            chunk = os.read(fd, max_bytes)
+            chunk = os.read(self.file_descriptor, max_bytes)  # type: ignore[arg-type]
             if chunk:
                 chunks.append(chunk)
                 if chunks[-1].endswith(b"\n") or sum(map(len, chunks)) >= max_bytes:
@@ -138,20 +138,11 @@ class PM100D(Instrument):
     @property
     @log_parameter
     def power_w(self) -> float:
-        raw = self._read_float("MEAS:POW?")
-        if not np.isfinite(raw):
-            msg = "unexpected PM100D power response"
-            raise ValueError(msg)
-        self._last_power_w = raw
-        return raw
+        self._last_power_w = self._read_float("MEAS:POW?")
+        return self._last_power_w
 
     def ref_w(self) -> float:
-        for q in ("SENS:POW:REF?", "SENS:POW:DC:REF?", "CALC:REL:REF?"):
-            v = self._read_float(q)
-            if np.isfinite(v):
-                self._last_ref_w = v
-                return v
-        self._last_ref_w = float("nan")
+        self._last_ref_w = self._read_float("SENS:POW:REF?")
         return self._last_ref_w
 
     @log_operation

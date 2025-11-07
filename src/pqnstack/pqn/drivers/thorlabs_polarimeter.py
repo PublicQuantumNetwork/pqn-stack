@@ -25,6 +25,7 @@ CMD_ENABLE_CALC = "SENS:CALC 1"
 CMD_ENABLE_ROTATION = "INP:ROT:STAT 1"
 CMD_DISABLE_CALC = "SENS:CALC 0"
 CMD_DISABLE_ROTATION = "INP:ROT:STAT 0"
+CMD_SET_WAVELENGTH_METERS = "SENS:CORR:WAV"
 QRY_IS_CALC_ENABLED = "SENS:CALC?"
 QRY_IS_ROTATION_ENABLED = "INP:ROT:STAT?"
 QRY_WAVELENGTH_METERS_OR_NM = "SENS:CORR:WAV?"
@@ -63,26 +64,30 @@ class PAX1000IR2(Instrument):
     _last_dop: float = field(default=np.nan, init=False)
     _last_power_w: float = field(default=np.nan, init=False)
 
-    def _read_and_write(self, cmd: str, *, expect_response: bool) -> str:
+    def _write(self, cmd: str) -> None:
         if self._instr is None:
             msg = "Start the device first."
             raise DeviceNotStartedError(msg)
         instr: Any = self._instr
-        if expect_response:
-            try:
-                instr.write(f"{cmd}\n")
-                return str(instr.read()).strip()
-            except (VisaError, OSError):
-                try:
-                    return str(instr.query(cmd)).strip()
-                except (VisaError, OSError):
-                    return ""
         try:
             instr.write(f"{cmd}\n")
         except (VisaError, OSError):
             with contextlib.suppress(VisaError, OSError):
                 instr.write(cmd)
-        return ""
+
+    def _query(self, cmd: str) -> str:
+        if self._instr is None:
+            msg = "Start the device first."
+            raise DeviceNotStartedError(msg)
+        instr: Any = self._instr
+        try:
+            instr.write(f"{cmd}\n")
+            return str(instr.read()).strip()
+        except (VisaError, OSError):
+            try:
+                return str(instr.query(cmd)).strip()
+            except (VisaError, OSError):
+                return ""
 
     def _list_usb_resources(self) -> tuple[str, ...]:
         assert self._rm is not None
@@ -144,12 +149,15 @@ class PAX1000IR2(Instrument):
             raise RuntimeError(msg) from exc
 
     def _write_and_confirm(self, set_cmd: str, qry_cmd: str, expect: str | float) -> bool:
-        _ = self._read_and_write(set_cmd, expect_response=False)
+        try:
+            self._write(set_cmd)
+        except DeviceNotStartedError:
+            return False
         expected_prefix = str(expect)
         last_response = ""
         for _ in range(10):
             try:
-                last_response = self._read_and_write(qry_cmd, expect_response=True)
+                last_response = self._query(qry_cmd)
             except DeviceNotStartedError:
                 last_response = ""
             if last_response.startswith(expected_prefix):
@@ -169,10 +177,21 @@ class PAX1000IR2(Instrument):
 
     def _read_wavelength_cache(self) -> None:
         try:
-            raw_value = self._read_and_write(QRY_WAVELENGTH_METERS_OR_NM, expect_response=True)
-            self._wavelength_nm_cache = float(raw_value)
+            raw_value = self._query(QRY_WAVELENGTH_METERS)
+            value_m = float(raw_value)
+            self._wavelength_nm_cache = value_m * 1e9
         except (ValueError, TypeError):
             self._wavelength_nm_cache = float("nan")
+
+    @log_operation
+    def set_wavelength_nm(self, wavelength_nm: float) -> None:
+        try:
+            value_m = float(wavelength_nm) * 1e-9
+        except (TypeError, ValueError) as exc:
+            msg = f"Invalid wavelength: {wavelength_nm}"
+            raise ValueError(msg) from exc
+        self._write(f"{CMD_SET_WAVELENGTH_METERS} {value_m}")
+        self._read_wavelength_cache()
 
     def start(self) -> None:
         if self._instr is not None:
@@ -191,6 +210,7 @@ class PAX1000IR2(Instrument):
         self.operations.update(
             {
                 "read": self.read,
+                "set_wavelength_nm": self.set_wavelength_nm,
             }
         )
         atexit.register(self.close)
@@ -198,10 +218,10 @@ class PAX1000IR2(Instrument):
     def close(self) -> None:
         if self._instr is not None:
             with contextlib.suppress(Exception):
-                _ = self._read_and_write(CMD_DISABLE_CALC, expect_response=False)
-                _ = self._read_and_write(CMD_DISABLE_ROTATION, expect_response=False)
-                _ = self._read_and_write(QRY_IS_CALC_ENABLED, expect_response=True)
-                _ = self._read_and_write(QRY_IS_ROTATION_ENABLED, expect_response=True)
+                self._write(CMD_DISABLE_CALC)
+                self._write(CMD_DISABLE_ROTATION)
+                _ = self._query(QRY_IS_CALC_ENABLED)
+                _ = self._query(QRY_IS_ROTATION_ENABLED)
             with contextlib.suppress(Exception):
                 self._instr.close()
             self._instr = None
@@ -234,7 +254,7 @@ class PAX1000IR2(Instrument):
         if self._instr is None:
             msg = "Start the device first."
             raise DeviceNotStartedError(msg)
-        raw_reply = self._read_and_write(QRY_LATEST, expect_response=True)
+        raw_reply = self._query(QRY_LATEST)
 
         token_strs = [p for p in raw_reply.replace(";", ",").split(",") if p]
         parsed_values: list[float | str] = []

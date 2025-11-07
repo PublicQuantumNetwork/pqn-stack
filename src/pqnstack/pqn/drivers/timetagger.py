@@ -108,7 +108,7 @@ class SwabianTimeTagger(TimeTaggerInstrument):
         start_ch: int,
         stop_ch: int,
         integration_time_s: float = 1.0,
-        binwidth_ps: int = 1,
+        binwidth_ps: int = 500,
         n_bins: int = int(1e5),
     ) -> int:
         # TODO: use these as kwargs

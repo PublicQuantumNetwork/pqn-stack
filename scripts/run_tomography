@@ -1,13 +1,16 @@
 #!/usr/bin/env python
-import datetime
-import time
-from dataclasses import dataclass
 
+import time
+import tomllib
+from pathlib import Path
+
+from pqnstack.base.datalogger import DataLogger
 from pqnstack.constants import DEFAULT_SETTINGS
 from pqnstack.constants import MeasurementBasis
 from pqnstack.pqn.drivers.powermeter import PM100D
 from pqnstack.pqn.drivers.rotator import ELL14KRotator
-from pqnstack.base.datalogger import DataLogger
+
+CONFIG_PATH = Path(__file__).with_name("tomography_config.toml")
 
 _TOMOGRAPHY_STATES: list[str] = ["H", "V", "D", "A", "R", "L"]
 
@@ -17,28 +20,71 @@ TOMOGRAPHY_BASIS: MeasurementBasis = MeasurementBasis(
     settings=DEFAULT_SETTINGS,
 )
 
-signal_qwp = ELL14KRotator(name = "signal_qwp", desc = "first_qwp", hw_address = "/dev/usbtmc1", offset_degrees = 22.5)
-signal_hwp = ELL14KRotator(name = "signal_hwp", desc = "first_hwp", hw_address = "/dev/usbtmc1", offset_degrees = 88.49)
-idler_qwp = ELL14KRotator(name = "idler_qwp", desc = "second_qwp", hw_address = "/dev/usbtmc1", offset_degrees = 201.498)
-idler_hwp = ELL14KRotator(name = "idler_hwp", desc = "second_hwp", hw_address = "/dev/usbtmc1", offset_degrees = 46.41)
-anciliary_qwp = ELL14KRotator(name = "useless_qwp", desc = "third_qwp", hw_address = "/dev/usbtmc1", offset_degrees = 129.5)
 
-h_powermeter = PM100D(name = "h_power", desc = "h_power_meter", hw_address = "/dev/usbtmc1")
-v_powermeter = PM100D(name = "v_power", desc = "v_power_meter", hw_address = "/dev/usbtmc1")
+def load_config(path: Path) -> dict:
+    with path.open("rb") as f:
+        return tomllib.load(f)
 
-data_logger = DataLogger()
-data_logger.add_instrument(h_powermeter)
-data_logger.add_instrument(v_powermeter)
 
-for signal_state, idler_state in TOMOGRAPHY_BASIS.pairs:
-    signal_angles: tuple[float, float] = TOMOGRAPHY_BASIS.settings[signal_state]
-    idler_angles: tuple[float, float] = TOMOGRAPHY_BASIS.settings[idler_state]
+def build_rotator(key: str, cfg: dict) -> ELL14KRotator:
+    section = cfg["rotators"][key]
+    dev = ELL14KRotator(
+        name=section["name"],
+        desc=section.get("desc", ""),
+        hw_address=section["hw_address"],
+        addr_hex=section.get("addr_hex", "0"),
+        offset_degrees=float(section.get("offset_degrees", 0.0)),
+    )
+    dev.start()
+    return dev
 
-    signal_hwp.degrees=signal_angles[0]
-    signal_qwp.degrees=signal_angles[1]
-    idler_hwp.degrees=idler_angles[0]
-    idler_qwp.degrees=idler_angles[1]
-     
-    data_logger.start_logging()
-    time.sleep(3)
-    data_logger.stop_logging()
+
+def build_powermeter(key: str, cfg: dict) -> PM100D:
+    section = cfg["powermeters"][key]
+    dev = PM100D(
+        name=section["name"],
+        desc=section.get("desc", ""),
+        hw_address=section["hw_address"],
+    )
+    dev.start()
+    return dev
+
+
+def main() -> None:
+    cfg = load_config(CONFIG_PATH)
+
+    sleep_after_move_s = float(cfg.get("measurement", {}).get("sleep_after_move_s", 3.0))
+    csv_path = cfg.get("logging", {}).get("csv_path")
+
+    signal_qwp = build_rotator("signal_qwp", cfg)
+    signal_hwp = build_rotator("signal_hwp", cfg)
+    idler_qwp = build_rotator("idler_qwp", cfg)
+    idler_hwp = build_rotator("idler_hwp", cfg)
+
+    ancillary_qwp = None
+    if "ancillary_qwp" in cfg.get("rotators", {}):
+        ancillary_qwp = build_rotator("ancillary_qwp", cfg)
+
+    h_powermeter = build_powermeter("h", cfg)
+    v_powermeter = build_powermeter("v", cfg)
+
+    data_logger = DataLogger()
+    data_logger.add_instrument(h_powermeter)
+    data_logger.add_instrument(v_powermeter)
+
+    for signal_state, idler_state in TOMOGRAPHY_BASIS.pairs:
+        signal_angles = TOMOGRAPHY_BASIS.settings[signal_state]
+        idler_angles = TOMOGRAPHY_BASIS.settings[idler_state]
+
+        signal_hwp.degrees = signal_angles[0]
+        signal_qwp.degrees = signal_angles[1]
+        idler_hwp.degrees = idler_angles[0]
+        idler_qwp.degrees = idler_angles[1]
+
+        data_logger.start_logging(auto_csv_path=csv_path)
+        time.sleep(sleep_after_move_s)
+        data_logger.stop_logging()
+
+
+if __name__ == "__main__":
+    main()

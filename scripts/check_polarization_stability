@@ -1,0 +1,220 @@
+#!/usr/bin/env python3
+"""
+Compare power and polarization stability between two polarization datasets.
+
+Files (edit if needed):
+  /home/pqn/Documents/Data/eo_converter.csv
+  /home/pqn/Documents/Data/tuneable_laser.csv
+
+Method:
+  Power stability          -> coefficient of variation (CV = std/mean)
+                              and detrended CV (std of residuals / mean)
+  Polarization stability   -> convert (DOP, eta, theta) to Stokes (S1,S2,S3)
+                              then sigma_pol = sqrt(Var(S1)+Var(S2)+Var(S3))
+
+Output:
+  A table per dataset and a head-to-head verdict for power and polarization.
+"""
+
+import os
+import math
+import numpy as np
+import pandas as pd
+
+# ---------- configuration ----------
+BASE = "/home/pqn/Documents/Data"
+FILES = {
+    "EO Converter": os.path.join(BASE, "eo_converter.csv"),
+    "Tuneable Laser": os.path.join(BASE, "tuneable_laser.csv"),
+}
+PREFIX = {  # column name stems in each file
+    "EO Converter": "eo_converter",
+    "Tuneable Laser": "tuneable_laser",
+}
+# -----------------------------------
+
+def read_dataset(label, path):
+    df = pd.read_csv(path)
+    stem = PREFIX[label]
+
+    cols = {
+        "elapsed": "elapsed_sec",
+        "dop": f"{stem}.pax_dop",
+        "eta_deg": f"{stem}.pax_eta_deg",
+        "theta_deg": f"{stem}.pax_theta_deg",
+        "power_w": f"{stem}.pax_power_w",
+    }
+    missing = [c for c in cols.values() if c not in df.columns]
+    if missing:
+        raise ValueError(f"{label}: missing columns {missing}")
+
+    # Drop any rows with NaNs in required columns
+    df = df.dropna(subset=list(cols.values())).reset_index(drop=True)
+
+    # Ensure types are numeric
+    for c in cols.values():
+        df[c] = pd.to_numeric(df[c], errors="coerce")
+    df = df.dropna(subset=list(cols.values())).reset_index(drop=True)
+
+    # Return a simple dict of series
+    return {
+        "label": label,
+        "elapsed": df[cols["elapsed"]].to_numpy(dtype=float),
+        "dop": df[cols["dop"]].to_numpy(dtype=float),
+        "eta_deg": df[cols["eta_deg"]].to_numpy(dtype=float),
+        "theta_deg": df[cols["theta_deg"]].to_numpy(dtype=float),
+        "power_w": df[cols["power_w"]].to_numpy(dtype=float),
+        "n": len(df),
+    }
+
+def coefficient_of_variation(x):
+    mu = np.mean(x)
+    sigma = np.std(x, ddof=1) if len(x) > 1 else 0.0
+    if np.isclose(mu, 0.0):
+        return np.inf, mu, sigma
+    return sigma / abs(mu), mu, sigma
+
+def detrended_residuals(y, t):
+    """
+    Fit y = a*t + b and return residuals.
+    Center time to improve conditioning.
+    """
+    if len(y) < 2:
+        return np.zeros_like(y)
+    t0 = t - np.mean(t)
+    a, b = np.polyfit(t0, y, 1)
+    y_fit = a * t0 + b
+    return y - y_fit
+
+def stokes_from_dop_eta_theta(dop, eta_deg, theta_deg):
+    """
+    DOP in [0,1]; eta, theta in degrees.
+    S1 = DOP * cos(2η) * cos(2θ)
+    S2 = DOP * cos(2η) * sin(2θ)
+    S3 = DOP * sin(2η)
+    """
+    # If DOP looks like percent, convert
+    dop_adj = np.where(dop > 1.0, dop / 100.0, dop)
+
+    eta = np.deg2rad(eta_deg)
+    theta = np.deg2rad(theta_deg)
+
+    c2e = np.cos(2.0 * eta)
+    s2e = np.sin(2.0 * eta)
+    c2t = np.cos(2.0 * theta)
+    s2t = np.sin(2.0 * theta)
+
+    S1 = dop_adj * c2e * c2t
+    S2 = dop_adj * c2e * s2t
+    S3 = dop_adj * s2e
+    return S1, S2, S3
+
+def polarization_instability(dop, eta_deg, theta_deg):
+    S1, S2, S3 = stokes_from_dop_eta_theta(dop, eta_deg, theta_deg)
+    # sample variances
+    v1 = np.var(S1, ddof=1) if len(S1) > 1 else 0.0
+    v2 = np.var(S2, ddof=1) if len(S2) > 1 else 0.0
+    v3 = np.var(S3, ddof=1) if len(S3) > 1 else 0.0
+    sigma_pol = math.sqrt(max(v1, 0) + max(v2, 0) + max(v3, 0))
+    return sigma_pol, (v1, v2, v3)
+
+def summarize(ds):
+    # Power stability: raw CV and detrended CV
+    cv_raw, mu_p, sd_p = coefficient_of_variation(ds["power_w"])
+    resid = detrended_residuals(ds["power_w"], ds["elapsed"])
+    sd_resid = np.std(resid, ddof=1) if len(resid) > 1 else 0.0
+    cv_detrended = (sd_resid / abs(mu_p)) if not np.isclose(mu_p, 0.0) else np.inf
+
+    # Polarization stability via Stokes
+    sigma_pol, (v1, v2, v3) = polarization_instability(ds["dop"], ds["eta_deg"], ds["theta_deg"])
+
+    return {
+        "label": ds["label"],
+        "n": ds["n"],
+        "power_mean_W": mu_p,
+        "power_sd_W": sd_p,
+        "power_cv": cv_raw,
+        "power_sd_resid_W": sd_resid,
+        "power_cv_detrended": cv_detrended,
+        "sigma_pol": sigma_pol,
+        "var_S1": v1,
+        "var_S2": v2,
+        "var_S3": v3,
+    }
+
+def compare(a_val, b_val, smaller_is_better=True):
+    if np.isfinite(a_val) and np.isfinite(b_val):
+        if smaller_is_better:
+            return "A" if a_val < b_val else ("B" if b_val < a_val else "Tie")
+        else:
+            return "A" if a_val > b_val else ("B" if b_val > a_val else "Tie")
+    if np.isfinite(a_val) and not np.isfinite(b_val):
+        return "A" if smaller_is_better else "B"
+    if not np.isfinite(a_val) and np.isfinite(b_val):
+        return "B" if smaller_is_better else "A"
+    return "Tie"
+
+def pretty(val, sci=False):
+    if not np.isfinite(val):
+        return "inf"
+    if sci:
+        return f"{val:.3e}"
+    # choose format based on magnitude
+    mag = abs(val)
+    if mag == 0:
+        return "0"
+    if mag >= 100:
+        return f"{val:.2f}"
+    if mag >= 1:
+        return f"{val:.4f}"
+    return f"{val:.6f}"
+
+def print_report(summary_a, summary_b, label_a, label_b):
+    print(f"\nSamples")
+    print(f"{label_a}: n={summary_a['n']}")
+    print(f"{label_b}: n={summary_b['n']}")
+
+    print(f"\nPower stability (lower is better)")
+    print(f"{label_a}: mean={pretty(summary_a['power_mean_W'])} W, sd={pretty(summary_a['power_sd_W'])} W, CV={pretty(summary_a['power_cv'])}")
+    print(f"{label_b}: mean={pretty(summary_b['power_mean_W'])} W, sd={pretty(summary_b['power_sd_W'])} W, CV={pretty(summary_b['power_cv'])}")
+    verdict_cv = compare(summary_a['power_cv'], summary_b['power_cv'])
+    print(f"Winner (raw CV): {label_a if verdict_cv=='A' else (label_b if verdict_cv=='B' else 'Tie')}")
+
+    print(f"\nPower stability after detrending linear drift (lower is better)")
+    print(f"{label_a}: sd_resid={pretty(summary_a['power_sd_resid_W'])} W, CV_resid={pretty(summary_a['power_cv_detrended'])}")
+    print(f"{label_b}: sd_resid={pretty(summary_b['power_sd_resid_W'])} W, CV_resid={pretty(summary_b['power_cv_detrended'])}")
+    verdict_cv_det = compare(summary_a['power_cv_detrended'], summary_b['power_cv_detrended'])
+    print(f"Winner (detrended CV): {label_a if verdict_cv_det=='A' else (label_b if verdict_cv_det=='B' else 'Tie')}")
+
+    print(f"\nPolarization stability via Stokes (lower is better)")
+    print(f"{label_a}: sigma_pol={pretty(summary_a['sigma_pol'], sci=True)} (sqrt(Var(S1)+Var(S2)+Var(S3)))")
+    print(f"  component variances: Var(S1)={pretty(summary_a['var_S1'], sci=True)}, Var(S2)={pretty(summary_a['var_S2'], sci=True)}, Var(S3)={pretty(summary_a['var_S3'], sci=True)}")
+    print(f"{label_b}: sigma_pol={pretty(summary_b['sigma_pol'], sci=True)} (sqrt(Var(S1)+Var(S2)+Var(S3)))")
+    print(f"  component variances: Var(S1)={pretty(summary_b['var_S1'], sci=True)}, Var(S2)={pretty(summary_b['var_S2'], sci=True)}, Var(S3)={pretty(summary_b['var_S3'], sci=True)}")
+    verdict_pol = compare(summary_a['sigma_pol'], summary_b['sigma_pol'])
+    print(f"Winner (polarization): {label_a if verdict_pol=='A' else (label_b if verdict_pol=='B' else 'Tie')}")
+
+    # Overall simple tally: detrended power and polarization each 50%
+    a_score = (summary_a['power_cv_detrended'] < summary_b['power_cv_detrended']) + (summary_a['sigma_pol'] < summary_b['sigma_pol'])
+    b_score = (summary_b['power_cv_detrended'] < summary_a['power_cv_detrended']) + (summary_b['sigma_pol'] < summary_a['sigma_pol'])
+    print(f"\nOverall (equal weight: detrended power + polarization): "
+          f"{label_a if a_score > b_score else (label_b if b_score > a_score else 'Tie')}")
+
+def main():
+    datasets = []
+    for label, path in FILES.items():
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"{label}: file not found at {path}")
+        ds = read_dataset(label, path)
+        datasets.append(ds)
+
+    # Keep original order: EO Converter = A, Tuneable Laser = B
+    ds_a, ds_b = datasets[0], datasets[1]
+    sum_a = summarize(ds_a)
+    sum_b = summarize(ds_b)
+
+    print_report(sum_a, sum_b, ds_a["label"], ds_b["label"])
+
+if __name__ == "__main__":
+    main()
+

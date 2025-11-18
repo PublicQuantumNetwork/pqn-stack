@@ -353,6 +353,7 @@ class ELL14KRotator(RotatorInstrument):
             logger.error("ell14k.start.identify_failed")
             msg = "ELL14K identify timed out"
             raise RuntimeError(msg)
+        print(ok_addr)
         return parsed, ok_addr
 
     def _init_scale(self, parsed: dict[str, str]) -> None:

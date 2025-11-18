@@ -1,0 +1,261 @@
+#!/usr/bin/env python3
+import argparse
+import sys
+import time
+
+from pqnstack.pqn.drivers.rotator import ELL14KRotator
+
+
+VALID_HEX = "0123456789ABCDEF"
+
+
+def scan_devices(dev: ELL14KRotator) -> dict[str, dict[str, str]]:
+    """
+    Scan all addresses 0-F with the 'IN' command.
+    Returns mapping addr_hex -> parsed_info (or {"raw": line} on parse failure).
+    """
+    devices: dict[str, dict[str, str]] = {}
+    dev._drain_reads(0.05)
+
+    for a in VALID_HEX:
+        dev._drain_reads(0.02)
+        dev._send(f"{a}in")
+        t0 = time.time()
+        reply: str | None = None
+
+        while time.time() - t0 < dev.timeout_s:
+            line = dev._readline_ascii()
+            if not line:
+                break
+            if line.startswith(f"{a}IN"):
+                reply = line
+                break
+
+        if reply is None:
+            continue
+
+        try:
+            parsed = dev._parse_in(reply)
+        except Exception:
+            parsed = {"raw": reply}
+        devices[a] = parsed
+
+    return devices
+
+
+def print_devices(devices: dict[str, dict[str, str]]) -> None:
+    if not devices:
+        print("No Elliptec devices detected on this bus.")
+        return
+
+    print("Detected devices:")
+    print("  Addr  SN         Year  FW   HW   TravelHex  PulsesHex")
+    print("  ----  ---------  ----  ---  ---  ---------  ---------")
+    for addr in sorted(devices.keys(), key=lambda x: int(x, 16)):
+        info = devices[addr]
+        sn = info.get("sn", "")
+        year = info.get("year", "")
+        fw = info.get("fw", "")
+        hw = info.get("hw", "")
+        travel = info.get("travel_hex", "")
+        pulses = info.get("pulses_per_unit_hex", "")
+
+        row = f"  {addr:>4}  {sn:>9}  {year:>4}  {fw:>3}  {hw:>3}  {travel:>9}  {pulses:>9}"
+        if not sn and "raw" in info:
+            row += f"   raw={info['raw']!r}"
+        print(row)
+
+
+def prompt_addr(prompt: str, valid_set: set[str] | None = None) -> str | None:
+    """
+    Prompt user for a single hex digit in [0-9A-F].
+    If valid_set is given, require it to be in that set.
+    Returns None if user types 'q' to quit.
+    """
+    while True:
+        s = input(prompt).strip()
+        if s.lower() == "q":
+            return None
+        if len(s) == 1 and s.upper() in VALID_HEX:
+            s = s.upper()
+            if valid_set is not None and s not in valid_set:
+                print(f"Address {s} not in the set of detected devices: {sorted(valid_set)}")
+                continue
+            return s
+        print("Invalid input. Enter a single hex digit [0-9, A-F] or 'q' to quit.")
+
+
+def prompt_sn(devices: dict[str, dict[str, str]]) -> tuple[str, dict[str, str]] | None:
+    """
+    Let user choose a device by serial number.
+    Returns (addr_hex, device_info) or None if cancelled.
+    """
+    # Build SN -> list of addresses
+    sn_map: dict[str, list[str]] = {}
+    for addr, info in devices.items():
+        sn = info.get("sn", "")
+        if not sn:
+            continue
+        sn_map.setdefault(sn, []).append(addr)
+
+    if not sn_map:
+        print("No serial numbers available in IN replies for these devices.")
+        return None
+
+    sns_sorted = sorted(sn_map.keys())
+    print("Serial numbers detected:")
+    for idx, sn in enumerate(sns_sorted, start=1):
+        addrs = ",".join(sorted(sn_map[sn], key=lambda x: int(x, 16)))
+        print(f"  [{idx}] SN={sn} at addr(s) {addrs}")
+
+    while True:
+        s = input("Select device by index, or 'q' to cancel: ").strip()
+        if s.lower() == "q":
+            return None
+        try:
+            i = int(s)
+        except ValueError:
+            print("Invalid index.")
+            continue
+        if not (1 <= i <= len(sns_sorted)):
+            print("Index out of range.")
+            continue
+        sn = sns_sorted[i - 1]
+        addrs = sn_map[sn]
+        if len(addrs) > 1:
+            print(f"SN {sn} appears at multiple addresses: {addrs}")
+            addr = prompt_addr(
+                "Enter which address for this SN you want to rename (or 'q' to cancel): ",
+                valid_set=set(addrs),
+            )
+            if addr is None:
+                return None
+        else:
+            addr = addrs[0]
+        return addr, devices[addr]
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Scan and re-address Elliptec devices on a single USB/serial port."
+    )
+    parser.add_argument(
+        "port",
+        help="Serial device path, e.g. /dev/ttyUSB0 or COM3",
+    )
+    args = parser.parse_args()
+
+    dev = ELL14KRotator(
+        name="addr_tool",
+        desc="address configuration",
+        hw_address=args.port,
+        addr_hex="0",
+    )
+
+    dev.timeout_s = 0.3
+
+    try:
+        print(f"Opening {args.port}...")
+        dev._open_port()
+    except Exception as exc:
+        print(f"Error opening port {args.port}: {exc}")
+        return 1
+
+    try:
+        while True:
+            print()
+            devices = scan_devices(dev)
+            print_devices(devices)
+
+            if not devices:
+                print("No devices found. Connect at least one Elliptec device and press Enter to rescan, or 'q' to quit.")
+                s = input("> ").strip()
+                if s.lower() == "q":
+                    return 0
+                continue
+
+            detected_addrs = set(devices.keys())
+
+            print()
+            print("Options:")
+            print("  r - rename a device by address")
+            print("  n - rename a device by serial number (SN)")
+            print("  s - rescan")
+            print("  q - quit")
+            choice = input("Enter choice [r/n/s/q]: ").strip().lower()
+
+            if choice == "q":
+                return 0
+            if choice in ("s", ""):
+                continue
+
+            if choice == "r":
+                print()
+                print_devices(devices)
+                src = prompt_addr(
+                    "Enter address of device to rename (single hex digit, or 'q' to cancel): ",
+                    valid_set=detected_addrs,
+                )
+                if src is None:
+                    continue
+
+            elif choice == "n":
+                print()
+                res = prompt_sn(devices)
+                if res is None:
+                    continue
+                src, info = res
+                print(f"Selected device at address {src} with SN={info.get('sn', '?')}")
+            else:
+                print("Unknown choice.")
+                continue
+
+            dst = prompt_addr(
+                f"Enter NEW address for device {src} [0-9, A-F], or 'q' to cancel: ",
+                valid_set=None,
+            )
+            if dst is None:
+                continue
+
+            if dst == src:
+                print("New address equals current address. No change performed.")
+                continue
+
+            if dst in detected_addrs:
+                print(f"Error: address {dst} is already in use by another device on this bus.")
+                continue
+
+            print(f"Changing address {src} -> {dst}...")
+            try:
+                dev._send(f"{src}ca{dst}")
+                time.sleep(0.2)
+                dev._drain_reads(0.1)
+
+                devices_after = scan_devices(dev)
+                print()
+                print("After change:")
+                print_devices(devices_after)
+
+                if src not in devices_after and dst in devices_after:
+                    print(f"Address change verified: device moved from {src} to {dst}.")
+                else:
+                    print("Warning: could not cleanly verify address change.")
+                    if src in devices_after:
+                        print(f"  Device still responds at old address {src}.")
+                    if dst not in devices_after:
+                        print(f"  No device responds at new address {dst}.")
+            except Exception as exc:
+                print(f"Error while changing or verifying address: {exc}")
+
+    finally:
+        try:
+            dev.close()
+        except Exception:
+            pass
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+

@@ -3,6 +3,7 @@ from __future__ import annotations
 import atexit
 import contextlib
 import logging
+import math
 import time
 from dataclasses import dataclass
 from dataclasses import field
@@ -20,11 +21,14 @@ from pqnstack.base.instrument import log_parameter
 logger = logging.getLogger(__name__)
 
 USB_FILTER = "USB?*::INSTR"
-CMD_ENABLE_CALC = "SENS:CALC 1"
+
+# Use calculation mode 9, which defines the layout used by SENS:DATA:LAT?
+CMD_ENABLE_CALC = "SENS:CALC 9"
 CMD_ENABLE_ROTATION = "INP:ROT:STAT 1"
 CMD_DISABLE_CALC = "SENS:CALC 0"
 CMD_DISABLE_ROTATION = "INP:ROT:STAT 0"
 CMD_SET_WAVELENGTH_METERS = "SENS:CORR:WAV"
+
 QRY_IS_CALC_ENABLED = "SENS:CALC?"
 QRY_IS_ROTATION_ENABLED = "INP:ROT:STAT?"
 QRY_WAVELENGTH_METERS = "SENS:CORR:WAV?"
@@ -34,10 +38,11 @@ QRY_IDN = "*IDN?"
 
 @dataclass(frozen=True, slots=True)
 class PAX1000IR2Info(InstrumentInfo):
+    # All angles are azimuth / ellipticity in DEGREES.
     wavelength_nm: float = float("nan")
-    last_theta_deg: float = float("nan")
-    last_eta_deg: float = float("nan")
-    last_dop: float = float("nan")
+    last_theta_deg: float = float("nan")  # azimuth (deg)
+    last_eta_deg: float = float("nan")    # ellipticity (deg)
+    last_dop: float = float("nan")       # unit as returned by device (typically 0–1)
     last_power_w: float = float("nan")
     logging_rows: int = 0
 
@@ -158,7 +163,8 @@ class PAX1000IR2(Instrument):
         return False
 
     def _init_settings(self) -> None:
-        calc_ok = self._write_and_confirm(CMD_ENABLE_CALC, QRY_IS_CALC_ENABLED, 1)
+        # Expect calc mode 9, rotation enabled
+        calc_ok = self._write_and_confirm(CMD_ENABLE_CALC, QRY_IS_CALC_ENABLED, 9)
         rot_ok = self._write_and_confirm(CMD_ENABLE_ROTATION, QRY_IS_ROTATION_ENABLED, 1)
         if not (calc_ok and rot_ok):
             with contextlib.suppress(Exception):
@@ -242,9 +248,19 @@ class PAX1000IR2(Instrument):
 
     @log_operation
     def read(self) -> dict[str, float]:
+        """
+        Read latest data using SENS:DATA:LAT? in calc mode 9.
+
+        The returned indices (1-based, per Thorlabs example) are:
+          message(10): azimuth Psi (rad)
+          message(11): ellipticity Chi (rad)
+          message(12): DOP (unit per device; usually 0–1)
+          message(13): power (W)
+        """
         if self._instr is None:
             msg = "Start the device first."
             raise DeviceNotStartedError(msg)
+
         raw_reply = self._query(QRY_LATEST)
         token_strs = [p for p in raw_reply.replace(";", ",").split(",") if p]
         parsed_values: list[float | str] = []
@@ -261,15 +277,30 @@ class PAX1000IR2(Instrument):
             except (ValueError, TypeError, IndexError):
                 return float("nan")
 
-        self._last_theta_deg = get_float_at(9)
-        self._last_eta_deg = get_float_at(10)
-        self._last_dop = get_float_at(11)
-        self._last_power_w = get_float_at(12)
+        # 0-based indices: 9 -> message(10), 10 -> message(11), etc.
+        psi_rad = get_float_at(9)
+        chi_rad = get_float_at(10)
+        dop = get_float_at(11)
+        power_w = get_float_at(12)
 
+        az_deg = math.degrees(psi_rad)
+        ellip_deg = math.degrees(chi_rad)
+
+        self._last_theta_deg = az_deg
+        self._last_eta_deg = ellip_deg
+        self._last_dop = dop
+        self._last_power_w = power_w
+
+        # Backwards-compatible keys plus clearer aliases
         return {
-            "pax_theta_deg": self._last_theta_deg,
-            "pax_eta_deg": self._last_eta_deg,
-            "pax_dop": self._last_dop,
-            "pax_power_w": self._last_power_w,
+            # aliases with physical meaning
+            "pax_azimuth_deg": az_deg,
+            "pax_ellipticity_deg": ellip_deg,
+            # historical names used elsewhere in your code
+            "pax_theta_deg": az_deg,
+            "pax_eta_deg": ellip_deg,
+            "pax_dop": dop,
+            "pax_power_w": power_w,
             "pax_wavelength_nm": self._wavelength_nm_cache,
         }
+

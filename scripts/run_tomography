@@ -58,32 +58,42 @@ def main() -> None:
 
     signal_qwp = build_rotator("signal_qwp", cfg)
     signal_hwp = build_rotator("signal_hwp", cfg)
-    idler_qwp = build_rotator("idler_qwp", cfg)
-    idler_hwp = build_rotator("idler_hwp", cfg)
+    #idler_qwp = build_rotator("idler_qwp", cfg)
+    #idler_hwp = build_rotator("idler_hwp", cfg)
 
-    ancillary_qwp = None
-    if "ancillary_qwp" in cfg.get("rotators", {}):
-        ancillary_qwp = build_rotator("ancillary_qwp", cfg)
+    #ancillary_qwp = None
+    #if "ancillary_qwp" in cfg.get("rotators", {}):
+    #    ancillary_qwp = build_rotator("ancillary_qwp", cfg)
 
-    h_powermeter = build_powermeter("h", cfg)
-    v_powermeter = build_powermeter("v", cfg)
+    #h_powermeter = build_powermeter("h", cfg)
+    #v_powermeter = build_powermeter("v", cfg)
+
+    from pqnstack.pqn.drivers.thorlabs_polarimeter import PAX1000IR2
+    pol = PAX1000IR2(name = "ns_white_end", desc = "desk", hw_address = "")
+    pol.start()
+    time.sleep(5)
 
     data_logger = DataLogger()
-    data_logger.add_instrument(h_powermeter)
-    data_logger.add_instrument(v_powermeter)
+    data_logger.add_instrument(pol)
+    #data_logger.add_instrument(h_powermeter)
+    #data_logger.add_instrument(v_powermeter)
 
-    for signal_state, idler_state in TOMOGRAPHY_BASIS.pairs:
-        signal_angles = TOMOGRAPHY_BASIS.settings[signal_state]
-        idler_angles = TOMOGRAPHY_BASIS.settings[idler_state]
+    while True:
+        for signal_state, idler_state in TOMOGRAPHY_BASIS.pairs:
+            signal_angles = TOMOGRAPHY_BASIS.settings[signal_state]
+            idler_angles = TOMOGRAPHY_BASIS.settings[idler_state]
 
-        signal_hwp.degrees = signal_angles[0]
-        signal_qwp.degrees = signal_angles[1]
-        idler_hwp.degrees = idler_angles[0]
-        idler_qwp.degrees = idler_angles[1]
+            signal_hwp.degrees = signal_angles[0]
+            signal_qwp.degrees = signal_angles[1]
+            #idler_hwp.degrees = idler_angles[0]
+            #idler_qwp.degrees = idler_angles[1]
+            print(f"hwp: {signal_hwp.degrees}, qwp: {signal_qwp.degrees}")
+            data_logger.start_logging(auto_csv_path=csv_path, extra_fields = {"hwp_angle": signal_hwp.degrees, "qwp_angle": signal_qwp.degrees})
+            time.sleep(sleep_after_move_s)
+            data_logger.stop_logging()
 
-        data_logger.start_logging(auto_csv_path=csv_path)
-        time.sleep(sleep_after_move_s)
-        data_logger.stop_logging()
+        print("One down, more to go")
+        time.sleep(600)
 
 
 if __name__ == "__main__":

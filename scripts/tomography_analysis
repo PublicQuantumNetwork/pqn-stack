@@ -1,0 +1,519 @@
+#!/usr/bin/env python3
+"""
+Analyze single-arm polarization tomography CSV logs.
+
+Usage:
+    python analyze_tomography.py path/to/data.csv
+
+Workflow:
+  - Read CSV from the tomography script (with PAX1000IR2 fields).
+  - Segment by constant HWP/QWP angles.
+  - Label segments as H,V,D,A,R,L using DEFAULT_SETTINGS, with circular
+    angle matching (±tol per motor).
+  - Average PAX data per segment.
+  - Fit a Mueller matrix describing the polarization transformation.
+  - Plot per-segment averages vs absolute time.
+  - Plot consistency of a single global Mueller matrix vs measured outputs.
+"""
+
+import argparse
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+TOMO_STATES = ["H", "V", "D", "A", "R", "L"]
+
+
+def build_state_angle_map():
+    try:
+        from pqnstack.constants import DEFAULT_SETTINGS  # type: ignore[attr-defined]
+    except ImportError as exc:
+        raise ImportError(
+            "Could not import pqnstack.constants.DEFAULT_SETTINGS. "
+            "Install pqnstack in the environment where you run this script, "
+            "or replace build_state_angle_map() with a hard-coded angle map."
+        ) from exc
+
+    state_angle_map: dict[str, tuple[float, float]] = {}
+    for s in TOMO_STATES:
+        settings = DEFAULT_SETTINGS[s]
+        hwp_deg = float(settings[0])
+        qwp_deg = float(settings[1])
+        state_angle_map[s] = (hwp_deg, qwp_deg)
+    return state_angle_map
+
+
+def load_csv(csv_path: Path) -> pd.DataFrame:
+    df = pd.read_csv(csv_path)
+    if "iso_timestamp" in df.columns:
+        df["iso_timestamp"] = pd.to_datetime(df["iso_timestamp"])
+        df = df.sort_values("iso_timestamp").reset_index(drop=True)
+    elif "elapsed_sec" in df.columns:
+        df = df.sort_values("elapsed_sec").reset_index(drop=True)
+    else:
+        raise ValueError("CSV must contain either 'iso_timestamp' or 'elapsed_sec'.")
+    return df
+
+
+def assign_segments(df: pd.DataFrame, eps_deg: float = 0.1) -> pd.DataFrame:
+    if "hwp_angle" not in df.columns or "qwp_angle" not in df.columns:
+        raise ValueError("CSV must contain 'hwp_angle' and 'qwp_angle' columns.")
+
+    dh = df["hwp_angle"].diff().fillna(0.0).abs()
+    dq = df["qwp_angle"].diff().fillna(0.0).abs()
+    new_segment = (dh > eps_deg) | (dq > eps_deg)
+    df["segment_id"] = new_segment.cumsum()
+    return df
+
+
+def circular_diff_deg(a: float, b: float) -> float:
+    d = abs((a - b) % 360.0)
+    return min(d, 360.0 - d)
+
+
+def label_segments_by_state(
+    df: pd.DataFrame,
+    state_angle_map: dict[str, tuple[float, float]],
+    tol_deg: float = 5.0,
+) -> pd.DataFrame:
+    states = list(state_angle_map.keys())
+    angles = np.array([state_angle_map[s] for s in states], dtype=float)
+
+    def classify_segment(seg: pd.DataFrame) -> str:
+        row = seg.iloc[0]
+        h_meas = float(row["hwp_angle"])
+        q_meas = float(row["qwp_angle"])
+
+        best_state = "Unknown"
+        best_score = float("inf")
+
+        for i, s in enumerate(states):
+            h_nom, q_nom = angles[i]
+            dh = circular_diff_deg(h_meas, h_nom)
+            dq = circular_diff_deg(q_meas, q_nom)
+            if dh <= tol_deg and dq <= tol_deg:
+                score = max(dh, dq)
+                if score < best_score:
+                    best_score = score
+                    best_state = s
+
+        return best_state
+
+    seg_labels = df.groupby("segment_id").apply(classify_segment)
+    df = df.join(seg_labels.rename("state"), on="segment_id")
+    return df
+
+
+def polarimeter_to_stokes(
+    dop: float,
+    azimuth_deg: float,
+    ellipticity_deg: float,
+    normalized: bool = True,
+    power_w: float | None = None,
+) -> np.ndarray:
+    """
+    Convert PAX azimuth (psi, deg) and ellipticity (chi, deg) + DOP to Stokes.
+
+    According to Thorlabs' Poincaré-sphere convention:
+      S1 = DOP * cos(2*chi) * cos(2*psi)
+      S2 = DOP * cos(2*chi) * sin(2*psi)
+      S3 = DOP * sin(2*chi)
+
+    If normalized=True, S0 = 1 and output is [1, S1, S2, S3].
+    Otherwise S0 = power_w (must be provided).
+    """
+    dop = float(dop)
+    psi = np.deg2rad(azimuth_deg)
+    chi = np.deg2rad(ellipticity_deg)
+
+    # Clip DOP into [0,1] for numerical robustness
+    dop = float(np.clip(dop, 0.0, 1.0))
+
+    s1 = dop * np.cos(2 * chi) * np.cos(2 * psi)
+    s2 = dop * np.cos(2 * chi) * np.sin(2 * psi)
+    s3 = dop * np.sin(2 * chi)
+
+    if normalized or power_w is None:
+        S0 = 1.0
+    else:
+        S0 = float(power_w)
+
+    return np.array([S0, S0 * s1, S0 * s2, S0 * s3], dtype=float)
+
+
+def nominal_input_stokes(state: str) -> np.ndarray:
+    if state == "H":
+        return np.array([1.0, 1.0, 0.0, 0.0])
+    if state == "V":
+        return np.array([1.0, -1.0, 0.0, 0.0])
+    if state == "D":
+        return np.array([1.0, 0.0, 1.0, 0.0])
+    if state == "A":
+        return np.array([1.0, 0.0, -1.0, 0.0])
+    if state == "R":
+        return np.array([1.0, 0.0, 0.0, 1.0])
+    if state == "L":
+        return np.array([1.0, 0.0, 0.0, -1.0])
+    raise ValueError(f"Unknown tomography state: {state}")
+
+
+def build_segment_averages(
+    df: pd.DataFrame,
+    dop_col: str,
+    az_col: str,
+    ellip_col: str,
+    power_col: str,
+) -> pd.DataFrame:
+    if "segment_id" not in df.columns or "state" not in df.columns:
+        raise ValueError("DataFrame must contain 'segment_id' and 'state'.")
+
+    seg = (
+        df.groupby(["segment_id", "state"])
+        .agg(
+            iso_time=("iso_timestamp", "mean"),
+            dop_mean=(dop_col, "mean"),
+            az_mean=(az_col, "mean"),
+            ellip_mean=(ellip_col, "mean"),
+            power_mean=(power_col, "mean"),
+            hwp_angle_mean=("hwp_angle", "mean"),
+            qwp_angle_mean=("qwp_angle", "mean"),
+        )
+        .reset_index()
+    )
+    return seg
+
+
+def estimate_mueller_matrix(
+    seg_df: pd.DataFrame,
+) -> np.ndarray | None:
+    """
+    Estimate a Mueller matrix using per-segment averages.
+
+    Uses normalized Stokes (S0 = 1) to focus on polarization transformation.
+    """
+    valid = seg_df["state"].isin(TOMO_STATES)
+    data = seg_df.loc[valid].copy()
+
+    if data.empty:
+        print("No labeled tomography states found; skipping Mueller estimation.")
+        return None
+
+    A_rows = []
+    b_rows = []
+
+    for _, row in data.iterrows():
+        state = row["state"]
+
+        S_in = nominal_input_stokes(state)  # ideal pure input, S0=1
+
+        S_out = polarimeter_to_stokes(
+            dop=row["dop_mean"],
+            azimuth_deg=row["az_mean"],
+            ellipticity_deg=row["ellip_mean"],
+            normalized=True,
+        )
+
+        I4 = np.eye(4)
+        kron_block = np.kron(S_in.reshape(1, 4), I4)  # (4,16)
+        A_rows.append(kron_block)
+        b_rows.append(S_out.reshape(4, 1))
+
+    A = np.vstack(A_rows)
+    b = np.vstack(b_rows).ravel()
+
+    m_vec, residuals, rank, svals = np.linalg.lstsq(A, b, rcond=None)
+
+    # Interpret the solution vector in column-major order so that
+    # S_out ≈ M @ S_in holds as intended.
+    M = m_vec.reshape(4, 4, order="F")
+
+    print("\nEstimated Mueller matrix (normalized Stokes, S_out ≈ M S_in):")
+    np.set_printoptions(precision=4, suppress=True)
+    print(M)
+
+    print("\nLeast-squares residual sum of squares:", float(residuals[0]) if len(residuals) else 0.0)
+    print("Rank of A:", int(rank))
+    print("Singular values of A:", svals)
+
+    print("\nPredicted output for ideal basis states:")
+    for s in TOMO_STATES:
+        S_in = nominal_input_stokes(s)
+        S_out = M @ S_in
+        S0 = S_out[0] if S_out[0] != 0 else 1.0
+        s1, s2, s3 = S_out[1:] / S0
+        dop = float(np.sqrt(s1**2 + s2**2 + s3**2))
+        if dop > 1e-9:
+            psi = 0.5 * np.arctan2(s2, s1)
+            chi = 0.5 * np.arcsin(np.clip(s3 / dop, -1.0, 1.0))
+            az_deg = np.rad2deg(psi)
+            ellip_deg = np.rad2deg(chi)
+        else:
+            az_deg = float("nan")
+            ellip_deg = float("nan")
+
+        print(
+            f"  {s}: S_out = {S_out}, "
+            f"(azimuth ≈ {az_deg:.2f} deg, ellipticity ≈ {ellip_deg:.2f} deg, DOP ≈ {dop:.3f})"
+        )
+
+    return M
+
+
+def stokes_to_az_ellip_dop(S: np.ndarray) -> tuple[float, float, float]:
+    """
+    Convert a Stokes vector [S0, S1, S2, S3] to (azimuth_deg, ellipticity_deg, dop)
+    using the same conventions as polarimeter_to_stokes / Thorlabs Poincaré sphere.
+    """
+    S0 = float(S[0])
+    if S0 == 0.0:
+        return float("nan"), float("nan"), float("nan")
+
+    s1, s2, s3 = (S[1:] / S0).astype(float)
+    dop = float(np.sqrt(s1**2 + s2**2 + s3**2))
+
+    if dop > 1e-9:
+        psi = 0.5 * np.arctan2(s2, s1)
+        chi = 0.5 * np.arcsin(np.clip(s3 / dop, -1.0, 1.0))
+        az_deg = float(np.rad2deg(psi))
+        ellip_deg = float(np.rad2deg(chi))
+    else:
+        az_deg = float("nan")
+        ellip_deg = float("nan")
+
+    return az_deg, ellip_deg, dop
+
+
+def signed_circular_diff_deg(a_deg: float, b_deg: float) -> float:
+    """
+    Minimal signed difference a - b on the circle, in degrees, in (-180, 180].
+    """
+    d = (float(a_deg) - float(b_deg) + 180.0) % 360.0 - 180.0
+    return d
+
+
+def plot_time_series_segments(
+    seg_df: pd.DataFrame,
+    out_path: Path | None = None,
+) -> None:
+    if "iso_time" not in seg_df.columns:
+        raise ValueError("Segment dataframe must contain 'iso_time'.")
+
+    t = seg_df["iso_time"]
+    x_label = "Time (absolute)"
+
+    states = sorted(seg_df["state"].unique())
+    color_cycle = [
+        "tab:blue", "tab:orange", "tab:green", "tab:red",
+        "tab:purple", "tab:brown", "tab:pink", "tab:gray",
+        "tab:olive", "tab:cyan",
+    ]
+    color_map = {s: color_cycle[i % len(color_cycle)] for i, s in enumerate(states)}
+
+    fig, axes = plt.subplots(4, 1, figsize=(12, 8), sharex=True)
+
+    for s in states:
+        mask = seg_df["state"] == s
+        c = color_map[s]
+        axes[0].plot(t[mask], seg_df.loc[mask, "ellip_mean"], "-o", label=s, color=c, markersize=3)
+        axes[1].plot(t[mask], seg_df.loc[mask, "az_mean"], "-o", color=c, markersize=3)
+        axes[2].plot(t[mask], seg_df.loc[mask, "power_mean"], "-o", color=c, markersize=3)
+        axes[3].plot(t[mask], seg_df.loc[mask, "dop_mean"], "-o", color=c, markersize=3)
+
+    axes[0].set_ylabel("ellipticity χ (deg)")
+    axes[1].set_ylabel("azimuth ψ (deg)")
+    axes[2].set_ylabel("Power (W)")
+    axes[3].set_ylabel("DOP")
+    axes[3].set_xlabel(x_label)
+
+    axes[0].legend(title="State", loc="best", fontsize="small")
+
+    for ax in axes:
+        ax.grid(True, which="both", linestyle=":", linewidth=0.5)
+
+    fig.autofmt_xdate()
+    fig.tight_layout()
+
+    if out_path is not None:
+        fig.savefig(out_path, dpi=300)
+        print(f"Saved plot to {out_path}")
+    else:
+        plt.show()
+
+
+def plot_transformation_consistency(
+    seg_df: pd.DataFrame,
+    M: np.ndarray,
+    out_path: Path | None = None,
+) -> None:
+    """
+    For each segment with a labeled tomography state, compare the PAX-measured
+    output Stokes to the output predicted by a single global Mueller matrix M.
+
+    Plots time series of:
+      - Δ ellipticity (pred - meas), degrees
+      - Δ azimuth (pred - meas), degrees
+      - Δ DOP (pred - meas)
+      - Angular separation on the Poincaré sphere between measured and predicted
+        polarization directions (deg)
+    """
+    if "iso_time" not in seg_df.columns:
+        raise ValueError("Segment dataframe must contain 'iso_time'.")
+
+    valid = seg_df["state"].isin(TOMO_STATES)
+    data = seg_df.loc[valid].copy()
+    if data.empty:
+        print("No labeled tomography states found; skipping transformation consistency plot.")
+        return
+
+    t = data["iso_time"]
+    x_label = "Time (absolute)"
+
+    states = sorted(data["state"].unique())
+    color_cycle = [
+        "tab:blue", "tab:orange", "tab:green", "tab:red",
+        "tab:purple", "tab:brown", "tab:pink", "tab:gray",
+        "tab:olive", "tab:cyan",
+    ]
+    color_map = {s: color_cycle[i % len(color_cycle)] for i, s in enumerate(states)}
+
+    delta_ellip_list = []
+    delta_az_list = []
+    delta_dop_list = []
+    sphere_angle_deg_list = []
+
+    for _, row in data.iterrows():
+        state = row["state"]
+
+        S_in = nominal_input_stokes(state)
+        S_out_pred = M @ S_in
+
+        S_out_meas = polarimeter_to_stokes(
+            dop=row["dop_mean"],
+            azimuth_deg=row["az_mean"],
+            ellipticity_deg=row["ellip_mean"],
+            normalized=True,
+        )
+
+        az_pred, ellip_pred, dop_pred = stokes_to_az_ellip_dop(S_out_pred)
+        az_meas, ellip_meas, dop_meas = stokes_to_az_ellip_dop(S_out_meas)
+
+        delta_az = signed_circular_diff_deg(az_pred, az_meas)
+        delta_ellip = signed_circular_diff_deg(ellip_pred, ellip_meas)
+        delta_dop = dop_pred - dop_meas
+
+        def unit_s123(S: np.ndarray) -> np.ndarray:
+            v = np.array(S[1:], dtype=float)
+            norm = np.linalg.norm(v)
+            if norm < 1e-12:
+                return np.array([np.nan, np.nan, np.nan])
+            return v / norm
+
+        u_meas = unit_s123(S_out_meas)
+        u_pred = unit_s123(S_out_pred)
+        if np.any(np.isnan(u_meas)) or np.any(np.isnan(u_pred)):
+            sphere_angle_deg = float("nan")
+        else:
+            dot = float(np.clip(np.dot(u_meas, u_pred), -1.0, 1.0))
+            sphere_angle_deg = float(np.rad2deg(np.arccos(dot)))
+
+        delta_az_list.append(delta_az)
+        delta_ellip_list.append(delta_ellip)
+        delta_dop_list.append(delta_dop)
+        sphere_angle_deg_list.append(sphere_angle_deg)
+
+    data["delta_ellip_deg"] = delta_ellip_list
+    data["delta_az_deg"] = delta_az_list
+    data["delta_dop"] = delta_dop_list
+    data["sphere_angle_deg"] = sphere_angle_deg_list
+
+    fig, axes = plt.subplots(4, 1, figsize=(12, 9), sharex=True)
+
+    for s in states:
+        mask = data["state"] == s
+        c = color_map[s]
+        axes[0].plot(t[mask], data.loc[mask, "delta_ellip_deg"], "-o", label=s, color=c, markersize=3)
+        axes[1].plot(t[mask], data.loc[mask, "delta_az_deg"], "-o", color=c, markersize=3)
+        axes[2].plot(t[mask], data.loc[mask, "delta_dop"], "-o", color=c, markersize=3)
+        axes[3].plot(t[mask], data.loc[mask, "sphere_angle_deg"], "-o", color=c, markersize=3)
+
+    axes[0].set_ylabel("Δ ellipticity χ (deg)")
+    axes[1].set_ylabel("Δ azimuth ψ (deg)")
+    axes[2].set_ylabel("Δ DOP")
+    axes[3].set_ylabel("Poincaré angle (deg)")
+    axes[3].set_xlabel(x_label)
+
+    axes[0].legend(title="State", loc="best", fontsize="small")
+
+    for ax in axes:
+        ax.axhline(0.0, color="k", linewidth=0.5, linestyle="--")
+        ax.grid(True, which="both", linestyle=":", linewidth=0.5)
+
+    fig.autofmt_xdate()
+    fig.tight_layout()
+
+    if out_path is not None:
+        fig.savefig(out_path, dpi=300)
+        print(f"Saved transformation-consistency plot to {out_path}")
+    else:
+        plt.show()
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Analyze polarization tomography CSV.")
+    parser.add_argument("csv_path", type=Path, help="Path to CSV file generated by tomography script")
+    parser.add_argument(
+        "--plot-out",
+        type=Path,
+        default=None,
+        help="Optional path to save plot instead of showing interactively",
+    )
+    parser.add_argument(
+        "--segment-angle-eps",
+        type=float,
+        default=0.1,
+        help="Angle change threshold (deg) for splitting segments (default: 0.1)",
+    )
+    parser.add_argument(
+        "--state-angle-tol",
+        type=float,
+        default=5.0,
+        help="Per-motor angle tolerance (deg) for assigning a segment to an ideal state (default: 5.0)",
+    )
+    args = parser.parse_args()
+
+    df = load_csv(args.csv_path)
+    df = assign_segments(df, eps_deg=args.segment_angle_eps)
+
+    state_angle_map = build_state_angle_map()
+    df = label_segments_by_state(df, state_angle_map, tol_deg=args.state_angle_tol)
+
+    print("Segment counts by state:")
+    print(df.groupby("state")["segment_id"].nunique())
+
+    # Column names from your logger
+    dop_col = "ns_white_end.pax_dop"
+    az_col = "ns_white_end.pax_theta_deg"   # actually azimuth ψ (deg)
+    ellip_col = "ns_white_end.pax_eta_deg"  # actually ellipticity χ (deg)
+    power_col = "ns_white_end.pax_power_w"
+
+    seg_df = build_segment_averages(df, dop_col, az_col, ellip_col, power_col)
+
+    M = estimate_mueller_matrix(seg_df)
+
+    plot_time_series_segments(seg_df, out_path=args.plot_out)
+
+    if M is not None:
+        if args.plot_out is not None:
+            residual_path = args.plot_out.with_name(
+                args.plot_out.stem + "_residuals" + args.plot_out.suffix
+            )
+        else:
+            residual_path = None
+        plot_transformation_consistency(seg_df, M, out_path=residual_path)
+
+
+if __name__ == "__main__":
+    main()
+

@@ -1,0 +1,130 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import math
+import argparse
+import time
+import numpy as np
+import matplotlib.pyplot as plt
+from pqnstack.pqn.drivers.thorlabs_polarimeter import PAX1000IR2
+
+def stokes_from_theta_eta(theta_deg: float, eta_deg: float):
+    two_theta = math.radians(2.0 * theta_deg)
+    two_eta = math.radians(2.0 * eta_deg)
+    s1 = math.cos(two_eta) * math.cos(two_theta)
+    s2 = math.cos(two_eta) * math.sin(two_theta)
+    s3 = math.sin(two_eta)
+    return s1, s2, s3
+
+def main():
+    parser = argparse.ArgumentParser(description="Continuously plot PAX1000IR2 polarization on a Poincaré/Bloch sphere.")
+    parser.add_argument("--name", default="pax")
+    parser.add_argument("--desc", default="Thorlabs PAX1000IR2")
+    parser.add_argument("--hw-address", default="")
+    parser.add_argument("--out", default="pax_poincare_plot.png")
+    parser.add_argument("--interval-ms", type=float, default=100.0, help="Update interval in milliseconds.")
+    args = parser.parse_args()
+
+    interval_s = max(0.0, args.interval_ms / 1000.0)
+
+    dev = PAX1000IR2(name=args.name, desc=args.desc, hw_address=args.hw_address)
+    dev.start()
+
+    # Set up static figure elements once
+    plt.ion()
+    fig = plt.figure(figsize=(6, 6))
+    ax = fig.add_subplot(111, projection="3d")
+
+    u = np.linspace(0, 2 * np.pi, 64)
+    v = np.linspace(0, np.pi, 32)
+    x = np.outer(np.cos(u), np.sin(v))
+    y = np.outer(np.sin(u), np.sin(v))
+    z = np.outer(np.ones_like(u), np.cos(v))
+    ax.plot_wireframe(x, y, z, linewidth=0.5, rstride=4, cstride=4, alpha=0.3)
+
+    ax.plot([-1, 1], [0, 0], [0, 0], linewidth=1.0, alpha=0.5)
+    ax.plot([0, 0], [-1, 1], [0, 0], linewidth=1.0, alpha=0.5)
+    ax.plot([0, 0], [0, 0], [-1, 1], linewidth=1.0, alpha=0.5)
+
+    ax.set_xlabel("s1")
+    ax.set_ylabel("s2")
+    ax.set_zlabel("s3")
+    ax.set_box_aspect((1, 1, 1))
+    ax.set_xlim([-1, 1])
+    ax.set_ylim([-1, 1])
+    ax.set_zlim([-1, 1])
+
+    # Placeholders for dynamic artists
+    arrow = None
+    dot = ax.scatter([0.0], [0.0], [0.0], s=60)
+    title_text = ax.set_title("Polarization on Poincaré/Bloch Sphere\ninitializing...")
+
+    fig.tight_layout()
+    last_vals = None
+
+    try:
+        while True:
+            vals = dev.read()
+            # Extract values (handle potential missing/NaNs gracefully)
+            theta = float(vals.get("pax_theta_deg", float("nan")))
+            eta = float(vals.get("pax_eta_deg", float("nan")))
+            dop = float(vals.get("pax_dop", float("nan")))
+            wav = float(vals.get("pax_wavelength_nm", float("nan")))
+            power = float(vals.get("pax_power_w", float("nan")))
+
+            if not (math.isnan(theta) or math.isnan(eta)):
+                s1, s2, s3 = stokes_from_theta_eta(theta, eta)
+                if not math.isnan(dop) and dop >= 0.0:
+                    s1, s2, s3 = dop * s1, dop * s2, dop * s3
+
+                # Update arrow: remove old and draw new
+                if arrow is not None:
+                    try:
+                        arrow.remove()
+                    except Exception:
+                        pass
+                arrow = ax.quiver(0, 0, 0, s1, s2, s3, arrow_length_ratio=0.1, linewidth=2.0)
+
+                # Update dot
+                try:
+                    dot._offsets3d = ([s1], [s2], [s3])
+                except Exception:
+                    # Fallback: replace the scatter if needed
+                    dot.remove()
+                    dot = ax.scatter([s1], [s2], [s3], s=60)
+
+                # Update title with current metadata
+                title = f"θ={theta:.2f}°, η={eta:.2f}°, DoP={dop:.3f}" if not math.isnan(dop) else f"θ={theta:.2f}°, η={eta:.2f}°"
+                if not math.isnan(wav):
+                    title += f", λ={wav:.1f} nm"
+                if not math.isnan(power):
+                    title += f", P={power:.3e} W"
+                title_text.set_text("Polarization on Poincaré/Bloch Sphere\n" + title)
+
+                last_vals = (theta, eta, dop, wav, power)
+
+            fig.canvas.draw_idle()
+            plt.pause(interval_s)
+
+            if not plt.fignum_exists(fig.number):
+                break  # window was closed
+
+    except KeyboardInterrupt:
+        pass
+    finally:
+        try:
+            # Save a final snapshot if we have a last reading
+            if last_vals is not None:
+                fig.savefig(args.out, dpi=160, bbox_inches="tight")
+        except Exception:
+            pass
+        try:
+            dev.close()
+        except Exception:
+            pass
+        plt.ioff()
+        plt.show()
+
+if __name__ == "__main__":
+    main()
+

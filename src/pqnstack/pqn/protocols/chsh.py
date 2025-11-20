@@ -3,8 +3,8 @@ import math
 from dataclasses import dataclass
 from time import sleep
 
-from pqnstack.pqn.drivers.rotator import RotatorInstrument
-from pqnstack.pqn.drivers.timetagger import TimeTaggerInstrument
+from pqnstack.base.instrument import RotatorInstrument
+from pqnstack.base.instrument import TimeTaggerInstrument
 from pqnstack.pqn.protocols.measurement import CHSHValue
 from pqnstack.pqn.protocols.measurement import ExpectationValue
 from pqnstack.pqn.protocols.measurement import MeasurementConfig

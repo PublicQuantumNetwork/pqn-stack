@@ -4,14 +4,10 @@ from collections import deque
 from dataclasses import KW_ONLY
 from dataclasses import dataclass
 from dataclasses import field
-from typing import Protocol
-from typing import runtime_checkable
 
 from pyfirmata2 import Arduino
 
-from pqnstack.base.instrument import Instrument
-from pqnstack.base.instrument import InstrumentInfo
-from pqnstack.base.instrument import log_operation
+from pqnstack.base.instrument import PolarimeterInstrument
 
 logger = logging.getLogger(__name__)
 
@@ -93,36 +89,6 @@ class PolarizationMeasurement:
     @property
     def phi(self) -> float:
         raise NotImplementedError
-
-
-@dataclass(frozen=True, slots=True)
-class PolarimeterInfo(InstrumentInfo):
-    pass
-
-
-@runtime_checkable
-@dataclass(slots=True)
-class PolarimeterInstrument(Instrument, Protocol):
-    def __post_init__(self) -> None:
-        self.operations["read"] = self.read
-        self.operations["reset"] = self.reset
-        self.operations["start_normalizing"] = self.start_normalizing
-        self.operations["stop_normalizing"] = self.stop_normalizing
-
-    @property
-    def info(self) -> PolarimeterInfo: ...
-
-    @log_operation
-    def read(self) -> PolarizationMeasurement: ...
-
-    @log_operation
-    def reset(self) -> None: ...
-
-    @log_operation
-    def start_normalizing(self) -> None: ...
-
-    @log_operation
-    def stop_normalizing(self) -> None: ...
 
 
 @dataclass(slots=True)

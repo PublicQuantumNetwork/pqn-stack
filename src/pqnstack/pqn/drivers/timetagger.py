@@ -1,8 +1,6 @@
 import logging
 from dataclasses import dataclass
 from dataclasses import field
-from typing import Protocol
-from typing import runtime_checkable
 
 from TimeTagger import ChannelEdge
 from TimeTagger import Correlation
@@ -11,32 +9,10 @@ from TimeTagger import TimeTagger
 from TimeTagger import createTimeTaggerNetwork
 from TimeTagger import freeTimeTagger
 
-from pqnstack.base.instrument import Instrument
-from pqnstack.base.instrument import InstrumentInfo
+from pqnstack.base.instrument import TimeTaggerInfo
+from pqnstack.base.instrument import TimeTaggerInstrument
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True, slots=True)
-class TimeTaggerInfo(InstrumentInfo):
-    active_channels: list[int] = field(default_factory=list)
-    test_signal_enabled: bool = False
-    test_signal_divider: int = 1
-
-
-@runtime_checkable
-@dataclass(slots=True)
-class TimeTaggerInstrument(Instrument, Protocol):
-    active_channels: list[int] = field(default_factory=list)
-    test_signal_enabled: bool = False
-    test_signal_divider: int = 1
-
-    def __post_init__(self) -> None:
-        self.operations["count_singles"] = self.count_singles
-        self.operations["measure_correlation"] = self.measure_correlation
-
-    def count_singles(self, channels: list[int], integration_time_s: float) -> list[int]: ...
-    def measure_correlation(self, start_ch: int, stop_ch: int, integration_time_s: float, binwidth_ps: int) -> int: ...
 
 
 @dataclass(slots=True)

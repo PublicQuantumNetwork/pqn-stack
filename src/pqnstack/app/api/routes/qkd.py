@@ -1,5 +1,6 @@
 import logging
-import random
+import secrets
+from typing import TYPE_CHECKING
 from typing import cast
 
 from fastapi import APIRouter
@@ -13,6 +14,9 @@ from pqnstack.constants import BasisBool
 from pqnstack.constants import QKDEncodingBasis
 from pqnstack.network.client import Client
 
+if TYPE_CHECKING:
+    from pqnstack.base.instrument import RotatorInstrument
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/qkd", tags=["qkd"])
@@ -25,7 +29,7 @@ async def _qkd(
 ) -> list[int]:
     logger.debug("Starting QKD")
     client = Client(host=settings.router_address, port=settings.router_port, timeout=600_000)
-    hwp = client.get_device(settings.qkd_settings.hwp[0], settings.qkd_settings.hwp[1])
+    hwp = cast("RotatorInstrument", client.get_device(settings.qkd_settings.hwp[0], settings.qkd_settings.hwp[1]))
 
     if hwp is None:
         logger.error("Could not find half waveplate device")
@@ -46,10 +50,9 @@ async def _qkd(
             )
         logger.debug("Handshake with follower successful")
 
-        int_choice = random.randint(0, 1)  # FIXME: Make this real quantum random.
+        int_choice = secrets.randbits(1)  # FIXME: Make this real quantum random.
         logger.debug("Chosen integer choice: %s", int_choice)
         state.qkd_bit_list.append(int_choice)
-        assert hasattr(hwp, "move_to")
         hwp.move_to(basis.angles[int_choice].value)
         logger.debug("Moving half waveplate to angle: %s", basis.angles[int_choice].value)
 
@@ -122,7 +125,10 @@ async def qkd(
 @router.post("/single_bit")
 async def request_qkd_single_pass() -> bool:
     client = Client(host=settings.router_address, port=settings.router_port, timeout=600_000)
-    hwp = client.get_device(settings.qkd_settings.request_hwp[0], settings.qkd_settings.request_hwp[1])
+    hwp = cast(
+        "RotatorInstrument",
+        client.get_device(settings.qkd_settings.request_hwp[0], settings.qkd_settings.request_hwp[1]),
+    )
 
     if hwp is None:
         logger.error("Could not find half waveplate device")
@@ -132,12 +138,10 @@ async def request_qkd_single_pass() -> bool:
         )
 
     logger.debug("Halfwaveplate device found: %s", hwp)
-    assert hasattr(hwp, "move_to")
 
-    basis_choice = random.choices([QKDEncodingBasis.HV, QKDEncodingBasis.DA])[
-        0
-    ]  # FIXME: Make this real quantum random.
-    int_choice = random.randint(0, 1)  # FIXME: Make this real quantum random.
+    _bases = (QKDEncodingBasis.HV, QKDEncodingBasis.DA)
+    basis_choice = _bases[secrets.randbits(1)]  # FIXME: Make this real quantum random.
+    int_choice = secrets.randbits(1)  # FIXME: Make this real quantum random.
 
     state.qkd_request_basis_list.append(basis_choice)
     state.qkd_request_bit_list.append(int_choice)

@@ -5,10 +5,10 @@ from typing import cast
 
 from pqnstack.base.instrument import Instrument
 from pqnstack.base.instrument import InstrumentInfo
+from pqnstack.base.instrument import RotatorInstrument
+from pqnstack.base.instrument import TimeTaggerInstrument
 from pqnstack.base.instrument import log_operation
 from pqnstack.network.client import Client
-from pqnstack.pqn.drivers.rotator import RotatorInstrument
-from pqnstack.pqn.drivers.timetagger import TimeTaggerInstrument
 from pqnstack.pqn.protocols.chsh import Devices
 from pqnstack.pqn.protocols.chsh import measure_chsh
 from pqnstack.pqn.protocols.measurement import CHSHValue

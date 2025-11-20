@@ -1,5 +1,7 @@
 import logging
+from typing import TYPE_CHECKING
 from typing import Annotated
+from typing import cast
 
 from fastapi import APIRouter
 from fastapi import HTTPException
@@ -9,6 +11,9 @@ from fastapi import status
 from pqnstack.app.core.config import settings
 from pqnstack.network.client import Client
 from pqnstack.pqn.protocols.measurement import MeasurementConfig
+
+if TYPE_CHECKING:
+    from pqnstack.base.instrument import TimeTaggerInstrument
 
 logger = logging.getLogger(__name__)
 
@@ -30,10 +35,13 @@ async def measure_correlation(
         )
 
     mconf = MeasurementConfig(
-        integration_time_s=integration_time_s, binwidth_ps=coincidence_window_ps, channel1=channel1, channel2=channel2
+        integration_time_s=integration_time_s,
+        binwidth_ps=coincidence_window_ps,
+        channel1=channel1,
+        channel2=channel2,
     )
     client = Client(host=settings.router_address, port=settings.router_port, timeout=600_000)
-    tagger = client.get_device(settings.timetagger[0], settings.timetagger[1])
+    tagger = cast("TimeTaggerInstrument", client.get_device(settings.timetagger[0], settings.timetagger[1]))
     if tagger is None:
         logger.error("Could not find time tagger device")
         raise HTTPException(
@@ -42,7 +50,6 @@ async def measure_correlation(
         )
 
     logger.debug("Time tagger device found: %s", tagger)
-    assert hasattr(tagger, "measure_correlation")
     count = tagger.measure_correlation(
         mconf.channel1,
         mconf.channel2,
@@ -67,7 +74,7 @@ async def count_singles(
         )
 
     client = Client(host=settings.router_address, port=settings.router_port, timeout=600_000)
-    tagger = client.get_device(settings.timetagger[0], settings.timetagger[1])
+    tagger = cast("TimeTaggerInstrument", client.get_device(settings.timetagger[0], settings.timetagger[1]))
     if tagger is None:
         logger.error("Could not find time tagger device")
         raise HTTPException(
@@ -76,7 +83,6 @@ async def count_singles(
         )
 
     logger.debug("Time tagger device found: %s", tagger)
-    assert hasattr(tagger, "count_singles")
     counts = tagger.count_singles(channels, integration_time_s=integration_time_s)
 
     logger.info("Measured singles counts: %s", counts)

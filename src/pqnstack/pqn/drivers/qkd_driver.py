@@ -5,9 +5,9 @@ from typing import cast
 from pqnstack.base.errors import DeviceNotStartedError
 from pqnstack.base.instrument import Instrument
 from pqnstack.base.instrument import InstrumentInfo
+from pqnstack.base.instrument import TimeTaggerInstrument
 from pqnstack.base.instrument import log_operation
 from pqnstack.network.client import Client
-from pqnstack.pqn.drivers.timetagger import TimeTaggerInstrument
 
 
 @dataclass(frozen=True, slots=True)

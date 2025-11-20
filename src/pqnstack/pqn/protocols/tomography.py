@@ -3,9 +3,9 @@ import time
 from dataclasses import dataclass
 
 from pqnstack.base.driver.rotator import RotatorInstrument
+from pqnstack.base.instruments import TimeTaggerInstrument
 from pqnstack.constants import DEFAULT_SETTINGS
 from pqnstack.constants import MeasurementBasis
-from pqnstack.pqn.drivers.timetagger import TimeTaggerInstrument
 from pqnstack.pqn.protocols.measurement import MeasurementConfig
 
 _TOMOGRAPHY_STATES: list[str] = ["H", "V", "D", "A", "R", "L"]

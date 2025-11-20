@@ -7,52 +7,15 @@ import logging
 import time
 from dataclasses import dataclass
 from dataclasses import field
-from typing import Protocol
-from typing import runtime_checkable
 
 import serial
 from thorlabs_apt_device import TDC001
 
 from pqnstack.base.errors import DeviceNotStartedError
-from pqnstack.base.instrument import Instrument
-from pqnstack.base.instrument import InstrumentInfo
-from pqnstack.base.instrument import log_parameter
+from pqnstack.base.instrument import RotatorInfo
+from pqnstack.base.instrument import RotatorInstrument
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True, slots=True)
-class RotatorInfo(InstrumentInfo):
-    degrees: float = 0.0
-    offset_degrees: float = 0.0
-
-
-@runtime_checkable
-@dataclass(slots=True)
-class RotatorInstrument(Instrument, Protocol):
-    offset_degrees: float = 0.0
-
-    def __post_init__(self) -> None:
-        self.operations["move_to"] = self.move_to
-        self.operations["move_by"] = self.move_by
-
-        self.parameters.add("degrees")
-
-    @property
-    @log_parameter
-    def degrees(self) -> float: ...
-
-    @degrees.setter
-    @log_parameter
-    def degrees(self, degrees: float) -> None: ...
-
-    def move_to(self, angle: float) -> None:
-        """Move the rotator to the specified angle."""
-        self.degrees = angle
-
-    def move_by(self, angle: float) -> None:
-        """Move the rotator by the specified angle."""
-        self.degrees += angle
 
 
 @dataclass(slots=True)

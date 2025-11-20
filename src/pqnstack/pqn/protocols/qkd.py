@@ -12,7 +12,7 @@ from pqnstack.pqn.protocols.measurement import MeasurementConfig
 from pqnstack.pqn.protocols.visibility import calculate_visibility
 
 if TYPE_CHECKING:
-    from pqnstack.pqn.drivers.rotator import RotatorInstrument
+    from pqnstack.base.instrument import RotatorInstrument
 
 
 @dataclass

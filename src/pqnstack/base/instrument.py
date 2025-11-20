@@ -147,3 +147,85 @@ def log_parameter[T](func: Callable[..., T]) -> Callable[..., T]:
         return result
 
     return wrapper
+
+
+@dataclass(frozen=True, slots=True)
+class TimeTaggerInfo(InstrumentInfo):
+    active_channels: list[int] = field(default_factory=list)
+    test_signal_enabled: bool = False
+    test_signal_divider: int = 1
+
+
+@runtime_checkable
+@dataclass(slots=True)
+class TimeTaggerInstrument(Instrument, Protocol):
+    active_channels: list[int] = field(default_factory=list)
+    test_signal_enabled: bool = False
+    test_signal_divider: int = 1
+
+    def __post_init__(self) -> None:
+        self.operations["count_singles"] = self.count_singles
+        self.operations["measure_correlation"] = self.measure_correlation
+
+    def count_singles(self, channels: list[int], integration_time_s: float) -> list[int]: ...
+    def measure_correlation(self, start_ch: int, stop_ch: int, integration_time_s: float, binwidth_ps: int) -> int: ...
+
+
+@dataclass(frozen=True, slots=True)
+class RotatorInfo(InstrumentInfo):
+    degrees: float = 0.0
+    offset_degrees: float = 0.0
+
+
+@runtime_checkable
+@dataclass(slots=True)
+class RotatorInstrument(Instrument, Protocol):
+    offset_degrees: float = 0.0
+
+    def __post_init__(self) -> None:
+        self.operations["move_to"] = self.move_to
+        self.operations["move_by"] = self.move_by
+
+        self.parameters.add("degrees")
+
+    @property
+    @log_parameter
+    def degrees(self) -> float: ...
+
+    @degrees.setter
+    @log_parameter
+    def degrees(self, degrees: float) -> None: ...
+
+    def move_to(self, angle: float) -> None:
+        """Move the rotator to the specified angle."""
+        self.degrees = angle
+
+    def move_by(self, angle: float) -> None:
+        """Move the rotator by the specified angle."""
+        self.degrees += angle
+
+
+@dataclass(frozen=True, slots=True)
+class PolarimeterInfo(InstrumentInfo):
+    pass
+
+
+@runtime_checkable
+@dataclass(slots=True)
+class PolarimeterInstrument(Instrument, Protocol):
+    def __post_init__(self) -> None:
+        self.operations["reset"] = self.reset
+        self.operations["start_normalizing"] = self.start_normalizing
+        self.operations["stop_normalizing"] = self.stop_normalizing
+
+    @property
+    def info(self) -> PolarimeterInfo: ...
+
+    @log_operation
+    def reset(self) -> None: ...
+
+    @log_operation
+    def start_normalizing(self) -> None: ...
+
+    @log_operation
+    def stop_normalizing(self) -> None: ...

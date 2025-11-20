@@ -1,4 +1,5 @@
 import logging
+from typing import TYPE_CHECKING
 from typing import cast
 
 from fastapi import APIRouter
@@ -10,6 +11,9 @@ from pqnstack.app.core.config import settings
 from pqnstack.app.core.config import state
 from pqnstack.app.core.models import calculate_chsh_expectation_error
 from pqnstack.network.client import Client
+
+if TYPE_CHECKING:
+    from pqnstack.base.instrument import RotatorInstrument
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +32,7 @@ async def _chsh(  # Complexity is high due to the nature of the CHSH experiment.
     client = Client(host=settings.router_address, port=settings.router_port, timeout=600_000)
 
     # TODO: Check if settings.chsh_settings.hwp is set before even trying to get the device.
-    hwp = client.get_device(settings.chsh_settings.hwp[0], settings.chsh_settings.hwp[1])
+    hwp = cast("RotatorInstrument", client.get_device(settings.chsh_settings.hwp[0], settings.chsh_settings.hwp[1]))
     if hwp is None:
         logger.error("Could not find half waveplate device")
         raise HTTPException(
@@ -44,7 +48,6 @@ async def _chsh(  # Complexity is high due to the nature of the CHSH experiment.
         for i in range(2):  # Going through follower basis angles
             counts = []
             for a in [angle, (angle + 90)]:
-                assert hasattr(hwp, "move_to")
                 hwp.move_to(a / 2)
                 for perp in [False, True]:
                     r = await http_client.post(
@@ -128,7 +131,10 @@ async def chsh(
 @router.post("/request-angle-by-basis")
 async def request_angle_by_basis(index: int, *, perp: bool = False) -> bool:
     client = Client(host=settings.router_address, port=settings.router_port, timeout=600_000)
-    hwp = client.get_device(settings.chsh_settings.request_hwp[0], settings.chsh_settings.request_hwp[1])
+    hwp = cast(
+        "RotatorInstrument",
+        client.get_device(settings.chsh_settings.request_hwp[0], settings.chsh_settings.request_hwp[1]),
+    )
     if hwp is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -136,7 +142,6 @@ async def request_angle_by_basis(index: int, *, perp: bool = False) -> bool:
         )
 
     angle = state.chsh_request_basis[index] + 90 * perp
-    assert hasattr(hwp, "move_to")
     hwp.move_to(angle / 2)
     logger.info("moving waveplate", extra={"angle": angle})
     return True

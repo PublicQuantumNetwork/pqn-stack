@@ -2,8 +2,8 @@ import math
 import time
 from typing import Any
 
+from pqnstack.base.instrument import RotatorInstrument
 from pqnstack.constants import MeasurementBasis
-from pqnstack.pqn.drivers.rotator import RotatorInstrument
 from pqnstack.pqn.protocols.measurement import MeasurementConfig
 
 

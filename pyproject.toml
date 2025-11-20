@@ -34,11 +34,11 @@ webapp = [
 ]
 
 [dependency-groups]
-dev = ["mypy>=1.13.0", "pytest-cov>=6.0.0", "ruff>=0.8.0"]
+dev = ["hypothesis", "mypy", "coverage", "pytest-randomly", "ruff"]
 
 
 [tool.mypy]
-files = ["src"]
+files = ["src/**/*.py"]
 strict = true
 pretty = true
 
@@ -76,8 +76,6 @@ extend-ignore = [
     "ISC001",
     "ISC002",
     "E501",
-    "S101", # Assert
-    "S311", # We know its not secure
 ]
 
 [tool.ruff.lint.extend-per-file-ignores]
@@ -95,5 +93,15 @@ force-single-line = true
 [tool.ruff.lint.pydocstyle]
 convention = "numpy" # One of: "google" | "numpy" | "pep257"
 
-[tool.uv.sources]
-TimeTagger = { path = "/usr/lib/python3/dist-packages" }
+
+[tool.coverage.run]
+# source = ["app"]
+dynamic_context = "test_function"
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
+sort = "-Cover"
+
+[tool.coverage.html]
+show_contexts = true

@@ -16,7 +16,7 @@ authors = [
     { name = "Soroush Hoseini", email = "soroushhoseini0@gmail.com" },
 ]
 dependencies = [
-    "numpy<2.0",
+    "numpy>=2.3.5",
     "pyfirmata2>=2.5.0",
     "pyzmq>=26.2.0",
     "thorlabs-apt-device>=0.3.8",

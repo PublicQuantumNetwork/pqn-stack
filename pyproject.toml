@@ -17,6 +17,7 @@ authors = [
 ]
 dependencies = [
     "numpy<2.0",
+    "pandas>=2.3.3",
     "pyfirmata2>=2.5.0",
     "pyzmq>=26.2.0",
     "thorlabs-apt-device>=0.3.8",

@@ -28,3 +28,13 @@ class SerialRotaryEncoder:
         self._conn.write(b"ANGLE?\n")
         angle = self._conn.readline().decode().strip()
         return float(angle) + self.offset_degrees
+
+
+class MockRotaryEncoder:
+    """Mock rotary encoder for terminal input when hardware is not available."""
+
+    def __init__(self) -> None:
+        self.theta = 0.0
+
+    def read(self) -> float:
+        return self.theta

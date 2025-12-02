@@ -10,6 +10,7 @@ from pydantic_settings import TomlConfigSettingsSource
 
 from pqnstack.constants import BellState
 from pqnstack.constants import QKDEncodingBasis
+from pqnstack.pqn.drivers.rotaryencoder import MockRotaryEncoder
 from pqnstack.pqn.drivers.rotaryencoder import SerialRotaryEncoder
 from pqnstack.pqn.protocols.measurement import MeasurementConfig
 
@@ -42,7 +43,7 @@ class Settings(BaseSettings):
     rotary_encoder_address: str = "/dev/ttyACM0"
     virtual_rotator: bool = False  # If True, use terminal input instead of hardware rotary encoder
 
-    rotary_encoder: SerialRotaryEncoder | None = None
+    rotary_encoder: SerialRotaryEncoder | MockRotaryEncoder | None = None
 
     model_config = SettingsConfigDict(toml_file="./config.toml", env_file=".env", env_file_encoding="utf-8")
 

@@ -1,5 +1,4 @@
 import logging
-import threading
 from typing import Annotated
 
 from fastapi import APIRouter
@@ -15,25 +14,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/serial", tags=["measure"])
 
 
-def update_theta_terminal(mock_encoder: MockRotaryEncoder) -> None:
-    while True:
-        try:
-            new_value = input("\nEnter new theta value: ")
-            mock_encoder.theta = float(new_value)
-            logger.info("Theta updated to %s", mock_encoder.theta)
-        except ValueError:
-            logger.info("Invalid value, please enter a number.")
-            continue
-
-
 def get_rotary_encoder() -> RotaryEncoderInstrument:
     if settings.rotary_encoder is None:
         if settings.virtual_rotator:
             # Virtual rotator mode enabled, use mock with terminal input
-            logger.info("Virtual rotator mode enabled, using terminal input")
+            logger.info("Virtual rotator mode enabled")
             mock_encoder = MockRotaryEncoder()
-            input_thread = threading.Thread(target=update_theta_terminal, args=(mock_encoder,), daemon=True)
-            input_thread.start()
             settings.rotary_encoder = mock_encoder
         else:
             # Use the real serial rotary encoder
@@ -54,4 +40,16 @@ class AngleResponse(BaseModel):
 
 @router.get("/")
 async def read_angle(rotary_encoder: SERDep) -> AngleResponse:
+    return AngleResponse(theta=rotary_encoder.read())
+
+
+@router.post("/debug_set_angle")
+async def debug_set_angle(rotary_encoder: SERDep, angle: float) -> AngleResponse:
+    if not isinstance(rotary_encoder, MockRotaryEncoder):
+        logger.error("Attempted to set angle on non-mock rotary encoder")
+        msg = "Cannot set angle on non-mock rotary encoder"
+        raise TypeError(msg)
+
+    rotary_encoder.theta = angle
+    logger.info("Debug: Theta set to %s", rotary_encoder.theta)
     return AngleResponse(theta=rotary_encoder.read())

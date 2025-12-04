@@ -17,7 +17,7 @@ ClientDep = Annotated[httpx.AsyncClient, Depends(get_http_client)]
 
 
 async def get_instrument_client() -> AsyncGenerator[Client, None]:
-    async with Client(host=settings.router_address, port=settings.router_port, timeout=60) as client:
+    async with Client(host=settings.router_address, port=settings.router_port) as client:
         yield client
 
 

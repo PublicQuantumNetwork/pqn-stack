@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from pqnstack.app.core.config import settings
 from pqnstack.pqn.drivers.rotaryencoder import MockRotaryEncoder
+from pqnstack.pqn.drivers.rotaryencoder import RotaryEncoderInstrument
 from pqnstack.pqn.drivers.rotaryencoder import SerialRotaryEncoder
 
 logger = logging.getLogger(__name__)
@@ -25,7 +26,7 @@ def update_theta_terminal(mock_encoder: MockRotaryEncoder) -> None:
             continue
 
 
-def get_rotary_encoder() -> SerialRotaryEncoder | MockRotaryEncoder:
+def get_rotary_encoder() -> RotaryEncoderInstrument:
     if settings.rotary_encoder is None:
         if settings.virtual_rotator:
             # Virtual rotator mode enabled, use mock with terminal input
@@ -44,7 +45,7 @@ def get_rotary_encoder() -> SerialRotaryEncoder | MockRotaryEncoder:
     return settings.rotary_encoder
 
 
-SERDep = Annotated[SerialRotaryEncoder | MockRotaryEncoder, Depends(get_rotary_encoder)]
+SERDep = Annotated[RotaryEncoderInstrument, Depends(get_rotary_encoder)]
 
 
 class AngleResponse(BaseModel):

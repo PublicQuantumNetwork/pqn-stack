@@ -1,8 +1,15 @@
 import atexit
 from dataclasses import dataclass
 from dataclasses import field
+from typing import Protocol
+from typing import runtime_checkable
 
 import serial
+
+
+@runtime_checkable
+class RotaryEncoderInstrument(Protocol):
+    def read(self) -> float: ...
 
 
 @dataclass(slots=True)
@@ -30,11 +37,11 @@ class SerialRotaryEncoder:
         return float(angle) + self.offset_degrees
 
 
+@dataclass(slots=True)
 class MockRotaryEncoder:
     """Mock rotary encoder for terminal input when hardware is not available."""
 
-    def __init__(self) -> None:
-        self.theta = 0.0
+    theta: float = 0.0
 
     def read(self) -> float:
         return self.theta

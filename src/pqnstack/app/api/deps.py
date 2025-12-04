@@ -13,7 +13,7 @@ async def get_http_client() -> AsyncGenerator[httpx.AsyncClient, None]:
         yield client
 
 
-type ClientDep = Annotated[httpx.AsyncClient, Depends(get_http_client)]
+ClientDep = Annotated[httpx.AsyncClient, Depends(get_http_client)]
 
 
 async def get_instrument_client() -> AsyncGenerator[Client, None]:
@@ -21,4 +21,4 @@ async def get_instrument_client() -> AsyncGenerator[Client, None]:
         yield client
 
 
-type InstrumentClientDep = Annotated[httpx.AsyncClient, Depends(get_instrument_client)]
+InstrumentClientDep = Annotated[httpx.AsyncClient, Depends(get_instrument_client)]

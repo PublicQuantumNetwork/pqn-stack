@@ -1,5 +1,6 @@
 import logging
 from typing import Annotated
+from typing import cast
 
 from fastapi import APIRouter
 from fastapi import Depends
@@ -46,11 +47,11 @@ async def read_angle(rotary_encoder: SERDep) -> AngleResponse:
 @router.post("/debug_set_angle")
 async def debug_set_angle(rotary_encoder: SERDep, angle: float) -> AngleResponse:
     try:
+        rotary_encoder = cast("MockRotaryEncoder", rotary_encoder)
         rotary_encoder.theta = angle
-    except AttributeError as e:
-        logger.error("Attempted to set angle on non-mock rotary encoder")
-        msg = "Cannot set angle on non-mock rotary encoder"
-        raise TypeError(msg)
+    except AttributeError:
+        logger.exception("Attempted to set angle on non-mock rotary encoder")
+        raise
 
     logger.info("Debug: Theta set to %s", rotary_encoder.theta)
     return AngleResponse(theta=rotary_encoder.read())

@@ -45,11 +45,12 @@ async def read_angle(rotary_encoder: SERDep) -> AngleResponse:
 
 @router.post("/debug_set_angle")
 async def debug_set_angle(rotary_encoder: SERDep, angle: float) -> AngleResponse:
-    if not isinstance(rotary_encoder, MockRotaryEncoder):
+    try:
+        rotary_encoder.theta = angle
+    except AttributeError as e:
         logger.error("Attempted to set angle on non-mock rotary encoder")
         msg = "Cannot set angle on non-mock rotary encoder"
         raise TypeError(msg)
 
-    rotary_encoder.theta = angle
     logger.info("Debug: Theta set to %s", rotary_encoder.theta)
     return AngleResponse(theta=rotary_encoder.read())

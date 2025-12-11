@@ -39,7 +39,7 @@ async def _qkd(
         )
 
     counts = []
-    for basis in state.qkd_basis_list:
+    for basis in state.qkd_leader_basis_list:
         r = await http_client.post(f"http://{follower_node_address}/qkd/single_bit")
 
         if r.status_code != status.HTTP_200_OK:
@@ -76,16 +76,19 @@ async def _qkd(
 
     outcome = []
     logger.debug(
-        "Going for qkd_basis_list: %s, qkd_bit_list: %s, counts: %s", state.qkd_basis_list, state.qkd_bit_list, counts
+        "Going for qkd_leader_basis_list: %s, qkd_bit_list: %s, counts: %s",
+        state.qkd_leader_basis_list,
+        state.qkd_bit_list,
+        counts,
     )
-    for basis, choice, count in zip(state.qkd_basis_list, state.qkd_bit_list, counts, strict=False):
+    for basis, choice, count in zip(state.qkd_leader_basis_list, state.qkd_bit_list, counts, strict=False):
         out = get_outcome(settings.bell_state.value, BasisBool[basis.name].value, choice, count)
         logger.debug(
             "Calculating outcome for basis: %s, choice: %s, count: %s, outcome: %s", basis.name, choice, count, out
         )
         outcome.append(out)
 
-    basis_list = [basis.name for basis in state.qkd_basis_list]
+    basis_list = [basis.name for basis in state.qkd_leader_basis_list]
 
     # FIXME: Send already binary basis instead of HV/AD.
     r = await http_client.post(f"http://{follower_node_address}/qkd/request_basis_list", json=basis_list)
@@ -112,7 +115,7 @@ async def qkd(
     timetagger_address: str | None = None,
 ) -> list[int]:
     """Perform a QKD protocol with the given follower node."""
-    if not state.qkd_basis_list:
+    if not state.qkd_leader_basis_list:
         logger.error("QKD basis list is empty")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

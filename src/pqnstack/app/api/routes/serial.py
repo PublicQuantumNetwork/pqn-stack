@@ -1,38 +1,17 @@
 import logging
-from typing import Annotated
+from typing import TYPE_CHECKING
 from typing import cast
 
 from fastapi import APIRouter
-from fastapi import Depends
 from pydantic import BaseModel
 
-from pqnstack.app.core.config import settings
-from pqnstack.pqn.drivers.rotaryencoder import MockRotaryEncoder
-from pqnstack.pqn.drivers.rotaryencoder import RotaryEncoderInstrument
-from pqnstack.pqn.drivers.rotaryencoder import SerialRotaryEncoder
+from pqnstack.app.api.deps import SERDep
+
+if TYPE_CHECKING:
+    from pqnstack.pqn.drivers.rotaryencoder import MockRotaryEncoder
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/serial", tags=["measure"])
-
-
-def get_rotary_encoder() -> RotaryEncoderInstrument:
-    if settings.rotary_encoder is None:
-        if settings.virtual_rotator:
-            # Virtual rotator mode enabled, use mock with terminal input
-            logger.info("Virtual rotator mode enabled")
-            mock_encoder = MockRotaryEncoder()
-            settings.rotary_encoder = mock_encoder
-        else:
-            # Use the real serial rotary encoder
-            rotary_encoder = SerialRotaryEncoder(
-                label="rotary_encoder", address=settings.rotary_encoder_address, offset_degrees=0.0
-            )
-            settings.rotary_encoder = rotary_encoder
-
-    return settings.rotary_encoder
-
-
-SERDep = Annotated[RotaryEncoderInstrument, Depends(get_rotary_encoder)]
 
 
 class AngleResponse(BaseModel):

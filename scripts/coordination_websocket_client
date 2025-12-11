@@ -1,0 +1,217 @@
+#!/usr/bin/env python
+
+"""
+WebSocket client for testing the coordination follow_requested_alerts endpoint.
+Acts as a proxy for the frontend, automatically responding to follow requests.
+"""
+
+import argparse
+import asyncio
+import logging
+import signal
+import sys
+
+import websockets
+from websockets.exceptions import ConnectionClosedError
+from websockets.exceptions import ConnectionClosedOK
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
+
+# Default configuration
+DEFAULT_HOST = "localhost"
+DEFAULT_PORT = 8000
+DEFAULT_RESPONSE = "yes"  # Default response to follow requests
+
+
+class CoordinationWebSocketClient:
+    """WebSocket client for coordination follow requests."""
+
+    def __init__(
+        self,
+        host: str = DEFAULT_HOST,
+        port: int = DEFAULT_PORT,
+        auto_response: str = DEFAULT_RESPONSE,
+        interactive: bool = False,
+    ) -> None:
+        """
+        Initialize the WebSocket client.
+
+        Parameters
+        ----------
+        host : str
+            The host address of the API server.
+        port : int
+            The port number of the API server.
+        auto_response : str
+            Automatic response to follow requests ('yes', 'no', 'true', 'false').
+        interactive : bool
+            If True, prompt user for each response. If False, use auto_response.
+        """
+        self.host = host
+        self.port = port
+        self.auto_response = auto_response.lower()
+        self.interactive = interactive
+        self.uri = f"ws://{host}:{port}/coordination/follow_requested_alerts"
+        self.websocket = None
+        self.running = False
+
+    async def connect(self) -> None:
+        """Establish connection to the WebSocket endpoint."""
+        try:
+            logger.info("Connecting to %s", self.uri)
+            self.websocket = await websockets.connect(self.uri)
+            logger.info("Successfully connected to coordination WebSocket")
+            self.running = True
+        except Exception as e:
+            logger.exception("Failed to connect to WebSocket: %s", e)
+            raise
+
+    async def handle_messages(self) -> None:
+        """Listen for messages from the server and respond accordingly."""
+        if not self.websocket:
+            logger.error("WebSocket not connected")
+            return
+
+        try:
+            async for message in self.websocket:
+                logger.info("Received message: %s", message)
+
+                # Determine response
+                if self.interactive:
+                    response = await self._get_user_input(message)
+                else:
+                    response = self.auto_response
+                    logger.info("Auto-responding with: %s", response)
+
+                # Send response
+                await self.websocket.send(response)
+                logger.info("Sent response: %s", response)
+
+        except ConnectionClosedOK:
+            logger.info("WebSocket connection closed normally")
+        except ConnectionClosedError as e:
+            logger.error("WebSocket connection closed with error: %s", e)
+        except Exception:
+            logger.exception("Error while handling messages")
+        finally:
+            self.running = False
+
+    async def _get_user_input(self, prompt: str) -> str:
+        """
+        Get user input interactively.
+
+        Parameters
+        ----------
+        prompt : str
+            The prompt message to display to the user.
+
+        Returns
+        -------
+        str
+            User's response.
+        """
+        loop = asyncio.get_event_loop()
+        print(f"\n{prompt}")
+        print("Enter your response (yes/no): ", end="", flush=True)
+
+        # Run blocking input() in executor to not block event loop
+        response = await loop.run_in_executor(None, sys.stdin.readline)
+        return response.strip().lower()
+
+    async def close(self) -> None:
+        """Close the WebSocket connection."""
+        if self.websocket:
+            await self.websocket.close()
+            logger.info("WebSocket connection closed")
+        self.running = False
+
+    async def run(self) -> None:
+        """Main run loop for the client."""
+        try:
+            await self.connect()
+            await self.handle_messages()
+        except KeyboardInterrupt:
+            logger.info("Received keyboard interrupt, shutting down...")
+        except Exception:
+            logger.exception("Unexpected error in run loop")
+        finally:
+            await self.close()
+
+
+async def main() -> None:
+    """Main entry point for the script."""
+    parser = argparse.ArgumentParser(
+        description="WebSocket client for coordination follow_requested_alerts endpoint"
+    )
+    parser.add_argument(
+        "--host",
+        type=str,
+        default=DEFAULT_HOST,
+        help=f"API server host (default: {DEFAULT_HOST})",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=DEFAULT_PORT,
+        help=f"API server port (default: {DEFAULT_PORT})",
+    )
+    parser.add_argument(
+        "--response",
+        type=str,
+        default=DEFAULT_RESPONSE,
+        choices=["yes", "no", "true", "false", "y", "n"],
+        help=f"Automatic response to follow requests (default: {DEFAULT_RESPONSE})",
+    )
+    parser.add_argument(
+        "--interactive",
+        action="store_true",
+        help="Prompt for user input for each follow request instead of auto-responding",
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Enable debug logging",
+    )
+
+    args = parser.parse_args()
+
+    # Set logging level
+    if args.debug:
+        logging.getLogger().setLevel(logging.DEBUG)
+
+    # Create and run client
+    client = CoordinationWebSocketClient(
+        host=args.host,
+        port=args.port,
+        auto_response=args.response,
+        interactive=args.interactive,
+    )
+
+    # Handle graceful shutdown
+    loop = asyncio.get_event_loop()
+
+    def signal_handler() -> None:
+        logger.info("Received shutdown signal")
+        if client.running:
+            asyncio.create_task(client.close())
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, signal_handler)
+
+    # Run the client
+    await client.run()
+
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Script terminated by user")
+    except Exception:
+        logger.exception("Fatal error")
+        sys.exit(1)

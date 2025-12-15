@@ -7,8 +7,8 @@ from fastapi import HTTPException
 from fastapi import status
 
 from pqnstack.app.api.deps import ClientDep
+from pqnstack.app.api.deps import StateDep
 from pqnstack.app.core.config import settings
-from pqnstack.app.core.config import state
 from pqnstack.app.core.models import calculate_chsh_expectation_error
 from pqnstack.network.client import Client
 
@@ -44,6 +44,7 @@ async def _chsh(  # Complexity is high due to the nature of the CHSH experiment.
 
     expectation_values = []
     expectation_errors = []
+    basis = (0, abs(basis[0] - basis[1]) % 90)
     for angle in basis:  # Going through my basis angles
         for i in range(2):  # Going through follower basis angles
             counts = []
@@ -94,18 +95,14 @@ async def _chsh(  # Complexity is high due to the nature of the CHSH experiment.
     logger.info("Expectation values: %s", expectation_values)
     logger.info("Expectation errors: %s", expectation_errors)
 
-    negative_count = sum(1 for v in expectation_values if v < 0)
-    negative_indices = [i for i, v in enumerate(expectation_values) if v < 0]
-    impossible_counts = [0, 2, 4]
+    # FIXME: This is a temporary fix for handling impossible expectation values. We should not have to rely on the settings for this.
+    expectation_values = [
+        x * y for x, y in zip(expectation_values, settings.chsh_settings.expectation_signs, strict=False)
+    ]
+    logger.info("What are you settings? %s", settings.chsh_settings.expectation_signs)
 
-    if negative_count in impossible_counts:
-        msg = f"Impossible negative expectation values found: {negative_indices}, expectation_values = {expectation_values}, expectation_errors = {expectation_errors}"
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=msg)
-
-    if len(negative_indices) > 1 or negative_indices[0] != 0:
-        logger.warning("Expectation values have unexpected negative indices: %s", negative_indices)
-
-    chsh_value = sum(abs(x) for x in expectation_values)
+    logger.info("After passing signed calculation: %s", expectation_values)
+    chsh_value = sum(x for x in expectation_values)
     chsh_error = sum(x**2 for x in expectation_errors) ** 0.5
 
     return chsh_value, chsh_error
@@ -129,7 +126,7 @@ async def chsh(
 
 
 @router.post("/request-angle-by-basis")
-async def request_angle_by_basis(index: int, *, perp: bool = False) -> bool:
+async def request_angle_by_basis(index: int, state: StateDep, *, perp: bool = False) -> bool:
     client = Client(host=settings.router_address, port=settings.router_port, timeout=600_000)
     hwp = cast(
         "RotatorInstrument",

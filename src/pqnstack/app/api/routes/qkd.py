@@ -300,7 +300,7 @@ async def is_follower_ready(state: StateDep) -> bool:
 
 @router.post("/submit_qkd_result")
 async def submit_qkd_result(result: QKDResult, state: StateDep) -> None:
-    """QKD leader calls this endpoint of the follower once qkd is done to submit the QKD result as well as the emoji chosen."""
+    """QKD leader calls this endpoint of the follower to submit the QKD result as well as the emoji chosen."""
     state.qkd_emoji_pick = result.emoji
     state.qkd_n_matching_bits = result.n_matching_bits
     qkd_result_received_event.set()  # Signal that the result has been received

@@ -95,37 +95,36 @@ uv run fastapi run src/pqnstack/app/main.py
 
 See the [FastAPI docs](https://fastapi.tiangolo.com/deployment/) for more options on how to run the API
 
-### Router and Hardware Provider
+### Configure Router and Hardware Provider
 
-Both the Router and Hardware Provider can be configured in two ways:
+For the first computer on the PQN, both a router and hardware provider are needed. For subsequent computers added to the same node, only a hardware provider is needed.
 
-#### 1. **Using a config file** - Use the `--config` flag with a path to a TOML configuration file (see example in [configs/config_messaging_example.toml](https://github.com/PublicQuantumNetwork/pqn-stack/blob/master/configs/config_messaging_example.toml))
+Both the Router and Hardware Provider can be configured using a config file. (Alternatively you could use CLI flags for quick tests.)
 
-The config file can contain settings for both router and provider:
+Create a TOML configuration file for the router and hardware provider (see example in [configs/config_messaging_example.toml](https://github.com/PublicQuantumNetwork/pqn-stack/blob/master/configs/config_messaging_example.toml)). The config file can contain settings for both router and provider:
 - Router settings go under `[router]`
 - Provider settings go under `[provider]` with instruments defined as `[[provider.instruments]]`
 
-Command-line arguments override config file settings.
-
-##### Starting the Router
+Start the router:
 
 ```bash
 uv run pqn start-router --config configs/config_messaging_example.toml
 ```
 
-##### Starting an Instrument Provider
+Start the Hardware Provider:
 
 ```bash
 uv run pqn start-provider --config configs/config_messaging_example.toml
 ```
 
-2. **Using CLI flags** - Pass configuration directly as command-line arguments
-##### Starting the Router
+**Alternative method using CLI flags:** - Pass configuration directly as command-line arguments
+
+Start the Router with CLI flags:
 ```bash
 uv run pqn start-router --name router1 --host localhost --port 5555
 ```
 
-##### Starting an Instrument Provider
+Start the Instrument Provider with CLI flags:
 ```bash
 uv run pqn start-provider \
   --name provider1 \

@@ -54,12 +54,7 @@ Our Node is composed of multiple components. All components inside a node are pa
 
 2. **Install dependencies**
 
-   For normal operation using the back end code
-   ```bash
-   uv sync
-   ```
-
-   Adding the ability to run fast api back end for node operations 
+   To run the fastapi backend for node operations, use:
    ```bash 
    uv sync --extra webapp
    ```

@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 
-A distributed node based approach to quantum networks. This repository hosts all the code necessary to make the backend of nodes of the PQN function. For the frontend, see [here](https://github.com/PublicQuantumNetwork/pqn-gui)).
+A distributed node based approach to quantum networks. This repository hosts all the code necessary to make the backend of nodes of the PQN function. For the frontend, see [here](https://github.com/PublicQuantumNetwork/pqn-gui).
 
 
 <p align="center">
@@ -57,9 +57,10 @@ Our Node is composed of multiple components. All components inside a node are pa
    For normal operation using the back end code
    ```bash
    uv sync
-  ```
+   ```
+
    Adding the ability to run fast api back end for node operations 
-  ```bash 
+   ```bash 
    uv sync --extra webapp
    ```
 

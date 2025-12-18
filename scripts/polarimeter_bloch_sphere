@@ -4,25 +4,44 @@ from __future__ import annotations
 import math
 import argparse
 import time
+import contextlib
+
 import numpy as np
 import matplotlib.pyplot as plt
 from pqnstack.pqn.drivers.thorlabs_polarimeter import PAX1000IR2
 
-def stokes_from_theta_eta(theta_deg: float, eta_deg: float):
-    two_theta = math.radians(2.0 * theta_deg)
-    two_eta = math.radians(2.0 * eta_deg)
-    s1 = math.cos(two_eta) * math.cos(two_theta)
-    s2 = math.cos(two_eta) * math.sin(two_theta)
-    s3 = math.sin(two_eta)
+
+def stokes_from_azimuth_ellipticity(azimuth_deg: float, ellipticity_deg: float):
+    """
+    Compute normalized Stokes parameters (s1, s2, s3) from
+    polarization ellipse azimuth (psi) and ellipticity (chi), both in degrees.
+
+    s1 = cos(2ψ) cos(2χ)
+    s2 = sin(2ψ) cos(2χ)
+    s3 = sin(2χ)
+    """
+    two_psi = math.radians(2.0 * azimuth_deg)
+    two_chi = math.radians(2.0 * ellipticity_deg)
+    s1 = math.cos(two_psi) * math.cos(two_chi)
+    s2 = math.sin(two_psi) * math.cos(two_chi)
+    s3 = math.sin(two_chi)
     return s1, s2, s3
 
+
 def main():
-    parser = argparse.ArgumentParser(description="Continuously plot PAX1000IR2 polarization on a Poincaré/Bloch sphere.")
+    parser = argparse.ArgumentParser(
+        description="Continuously plot PAX1000IR2 polarization on a Poincaré/Bloch sphere and linear disk."
+    )
     parser.add_argument("--name", default="pax")
     parser.add_argument("--desc", default="Thorlabs PAX1000IR2")
     parser.add_argument("--hw-address", default="")
     parser.add_argument("--out", default="pax_poincare_plot.png")
-    parser.add_argument("--interval-ms", type=float, default=100.0, help="Update interval in milliseconds.")
+    parser.add_argument(
+        "--interval-ms",
+        type=float,
+        default=100.0,
+        help="Update interval in milliseconds.",
+    )
     args = parser.parse_args()
 
     interval_s = max(0.0, args.interval_ms / 1000.0)
@@ -30,100 +49,184 @@ def main():
     dev = PAX1000IR2(name=args.name, desc=args.desc, hw_address=args.hw_address)
     dev.start()
 
-    # Set up static figure elements once
     plt.ion()
-    fig = plt.figure(figsize=(6, 6))
-    ax = fig.add_subplot(111, projection="3d")
+    fig = plt.figure(figsize=(10, 5))
+
+    # 3D Poincaré/Bloch sphere on the left
+    ax3d = fig.add_subplot(121, projection="3d")
 
     u = np.linspace(0, 2 * np.pi, 64)
     v = np.linspace(0, np.pi, 32)
     x = np.outer(np.cos(u), np.sin(v))
     y = np.outer(np.sin(u), np.sin(v))
     z = np.outer(np.ones_like(u), np.cos(v))
-    ax.plot_wireframe(x, y, z, linewidth=0.5, rstride=4, cstride=4, alpha=0.3)
+    ax3d.plot_wireframe(x, y, z, linewidth=0.5, rstride=4, cstride=4, alpha=0.3)
 
-    ax.plot([-1, 1], [0, 0], [0, 0], linewidth=1.0, alpha=0.5)
-    ax.plot([0, 0], [-1, 1], [0, 0], linewidth=1.0, alpha=0.5)
-    ax.plot([0, 0], [0, 0], [-1, 1], linewidth=1.0, alpha=0.5)
+    axis_lw = 3.0
+    ax3d.plot([-1, 1], [0, 0], [0, 0], linewidth=axis_lw, alpha=0.7)  # s1
+    ax3d.plot([0, 0], [-1, 1], [0, 0], linewidth=axis_lw, alpha=0.7)  # s2
+    ax3d.plot([0, 0], [0, 0], [-1, 1], linewidth=axis_lw, alpha=0.7)  # s3
 
-    ax.set_xlabel("s1")
-    ax.set_ylabel("s2")
-    ax.set_zlabel("s3")
-    ax.set_box_aspect((1, 1, 1))
-    ax.set_xlim([-1, 1])
-    ax.set_ylim([-1, 1])
-    ax.set_zlim([-1, 1])
+    ax3d.set_xlabel("s1")
+    ax3d.set_ylabel("s2")
+    ax3d.set_zlabel("s3")
+    ax3d.set_box_aspect((1, 1, 1))
+    ax3d.set_xlim([-1, 1])
+    ax3d.set_ylim([-1, 1])
+    ax3d.set_zlim([-1, 1])
 
-    # Placeholders for dynamic artists
-    arrow = None
-    dot = ax.scatter([0.0], [0.0], [0.0], s=60)
-    title_text = ax.set_title("Polarization on Poincaré/Bloch Sphere\ninitializing...")
+    # Labels on sphere
+    label_offset = 1.1
+    ax3d.text(label_offset, 0.0, 0.0, "H", ha="center", va="center")
+    ax3d.text(-label_offset, 0.0, 0.0, "V", ha="center", va="center")
+    ax3d.text(0.0, label_offset, 0.0, "D", ha="center", va="center")
+    ax3d.text(0.0, -label_offset, 0.0, "A", ha="center", va="center")
+    ax3d.text(0.0, 0.0, label_offset, "R", ha="center", va="center")
+    ax3d.text(0.0, 0.0, -label_offset, "L", ha="center", va="center")
+
+    # 2D linear (S1–S2) disk on the right
+    ax2d = fig.add_subplot(122)
+
+    # Unit circle
+    theta = np.linspace(0, 2 * np.pi, 256)
+    circle_x = np.cos(theta)
+    circle_y = np.sin(theta)
+    ax2d.plot(circle_x, circle_y, linewidth=1.5, alpha=0.7)
+
+    # Axes in disk
+    ax2d.axhline(0, linewidth=axis_lw, alpha=0.7)
+    ax2d.axvline(0, linewidth=axis_lw, alpha=0.7)
+
+    ax2d.set_aspect("equal", adjustable="box")
+    ax2d.set_xlim([-1.1, 1.1])
+    ax2d.set_ylim([-1.1, 1.1])
+    ax2d.set_xlabel("s1")
+    ax2d.set_ylabel("s2")
+    ax2d.set_title("Linear polarization disk (S1–S2)")
+
+    # Labels on disk
+    disk_label_offset = 1.05
+    ax2d.text(disk_label_offset, 0.0, "H", ha="center", va="center")
+    ax2d.text(-disk_label_offset, 0.0, "V", ha="center", va="center")
+    ax2d.text(0.0, disk_label_offset, "D", ha="center", va="center")
+    ax2d.text(0.0, -disk_label_offset, "A", ha="center", va="center")
+
+    # Dynamic artists
+    arrow3d = None
+    dot3d = ax3d.scatter([0.0], [0.0], [0.0], s=60)
+
+    arrow2d = None
+    dot2d, = ax2d.plot([0.0], [0.0], "o", markersize=8)
+
+    title_text = ax3d.set_title("Polarization on Poincaré/Bloch Sphere\ninitializing...")
 
     fig.tight_layout()
+    fig.show()
+
     last_vals = None
 
     try:
         while True:
+            if not plt.fignum_exists(fig.number):
+                break  # window was closed
+
             vals = dev.read()
-            # Extract values (handle potential missing/NaNs gracefully)
-            theta = float(vals.get("pax_theta_deg", float("nan")))
-            eta = float(vals.get("pax_eta_deg", float("nan")))
-            dop = float(vals.get("pax_dop", float("nan")))
+
+            # New driver keys, with fallback to old ones if present
+            azimuth = float(
+                vals.get(
+                    "pax_azimuth_deg",
+                    vals.get("pax_theta_deg", float("nan")),
+                )
+            )
+            ellipticity = float(
+                vals.get(
+                    "pax_ellipticity_deg",
+                    vals.get("pax_eta_deg", float("nan")),
+                )
+            )
+
+            dop_raw = float(vals.get("pax_dop", float("nan")))
+            if math.isnan(dop_raw):
+                dop = float("nan")
+            else:
+                # Clamp DoP to [0, 1]
+                dop = max(0.0, min(dop_raw, 1.0))
+
             wav = float(vals.get("pax_wavelength_nm", float("nan")))
             power = float(vals.get("pax_power_w", float("nan")))
 
-            if not (math.isnan(theta) or math.isnan(eta)):
-                s1, s2, s3 = stokes_from_theta_eta(theta, eta)
-                if not math.isnan(dop) and dop >= 0.0:
+            if not (math.isnan(azimuth) or math.isnan(ellipticity)):
+                s1, s2, s3 = stokes_from_azimuth_ellipticity(azimuth, ellipticity)
+                if not math.isnan(dop):
                     s1, s2, s3 = dop * s1, dop * s2, dop * s3
 
-                # Update arrow: remove old and draw new
-                if arrow is not None:
-                    try:
-                        arrow.remove()
-                    except Exception:
-                        pass
-                arrow = ax.quiver(0, 0, 0, s1, s2, s3, arrow_length_ratio=0.1, linewidth=2.0)
+                # 3D update
+                if arrow3d is not None:
+                    with contextlib.suppress(Exception):
+                        arrow3d.remove()
+                arrow3d = ax3d.quiver(
+                    0,
+                    0,
+                    0,
+                    s1,
+                    s2,
+                    s3,
+                    arrow_length_ratio=0.1,
+                    linewidth=2.5,
+                )
 
-                # Update dot
                 try:
-                    dot._offsets3d = ([s1], [s2], [s3])
+                    dot3d._offsets3d = ([s1], [s2], [s3])
                 except Exception:
-                    # Fallback: replace the scatter if needed
-                    dot.remove()
-                    dot = ax.scatter([s1], [s2], [s3], s=60)
+                    dot3d.remove()
+                    dot3d = ax3d.scatter([s1], [s2], [s3], s=60)
 
-                # Update title with current metadata
-                title = f"θ={theta:.2f}°, η={eta:.2f}°, DoP={dop:.3f}" if not math.isnan(dop) else f"θ={theta:.2f}°, η={eta:.2f}°"
+                # 2D disk update: projection onto S1–S2 plane
+                if arrow2d is not None:
+                    with contextlib.suppress(Exception):
+                        arrow2d.remove()
+                arrow2d = ax2d.arrow(
+                    0.0,
+                    0.0,
+                    s1,
+                    s2,
+                    width=0.01,
+                    length_includes_head=True,
+                )
+                dot2d.set_data([s1], [s2])
+
+                # Title text
+                if not math.isnan(dop):
+                    title = f"ψ={azimuth:.2f}°, χ={ellipticity:.2f}°, DoP={dop:.3f}"
+                else:
+                    title = f"ψ={azimuth:.2f}°, χ={ellipticity:.2f}°"
+
                 if not math.isnan(wav):
                     title += f", λ={wav:.1f} nm"
                 if not math.isnan(power):
                     title += f", P={power:.3e} W"
+
                 title_text.set_text("Polarization on Poincaré/Bloch Sphere\n" + title)
 
-                last_vals = (theta, eta, dop, wav, power)
+                last_vals = (azimuth, ellipticity, dop, wav, power)
 
             fig.canvas.draw_idle()
-            plt.pause(interval_s)
-
-            if not plt.fignum_exists(fig.number):
-                break  # window was closed
+            fig.canvas.flush_events()
+            time.sleep(interval_s)
 
     except KeyboardInterrupt:
         pass
     finally:
         try:
-            # Save a final snapshot if we have a last reading
             if last_vals is not None:
                 fig.savefig(args.out, dpi=160, bbox_inches="tight")
         except Exception:
             pass
-        try:
+        with contextlib.suppress(Exception):
             dev.close()
-        except Exception:
-            pass
         plt.ioff()
-        plt.show()
+
 
 if __name__ == "__main__":
     main()

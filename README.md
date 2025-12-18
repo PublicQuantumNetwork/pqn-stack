@@ -99,7 +99,7 @@ See the [FastAPI docs](https://fastapi.tiangolo.com/deployment/) for more option
 
 Both the Router and Hardware Provider can be configured in two ways:
 
-1. **Using a config file** - Use the `--config` flag with a path to a TOML configuration file (see example in [configs/config_messaging_example.toml](https://github.com/PublicQuantumNetwork/pqn-stack/blob/master/configs/config_messaging_example.toml))
+#### 1. **Using a config file** - Use the `--config` flag with a path to a TOML configuration file (see example in [configs/config_messaging_example.toml](https://github.com/PublicQuantumNetwork/pqn-stack/blob/master/configs/config_messaging_example.toml))
 
 The config file can contain settings for both router and provider:
 - Router settings go under `[router]`
@@ -107,23 +107,26 @@ The config file can contain settings for both router and provider:
 
 Command-line arguments override config file settings.
 
-#### Starting the Router
+##### Starting the Router
 
 ```bash
 uv run pqn start-router --config configs/config_messaging_example.toml
 ```
+
+##### Starting an Instrument Provider
+
+```bash
+uv run pqn start-provider --config configs/config_messaging_example.toml
+```
+
 2. **Using CLI flags** - Pass configuration directly as command-line arguments
+##### Starting the Router
 ```bash
 uv run pqn start-router --name router1 --host localhost --port 5555
 ```
 
-#### Starting an Instrument Provider
-
+##### Starting an Instrument Provider
 ```bash
-# Using a config file (recommended for defining instruments)
-uv run pqn start-provider --config configs/config_messaging_example.toml
-
-# Using CLI flags with inline JSON for instruments
 uv run pqn start-provider \
   --name provider1 \
   --router-name router1 \

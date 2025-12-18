@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 
-A distributed node based approach to quantum networks. This repository hosts all the code necessary to make nodes of the PQN function (except for the frontend located [here](https://github.com/PublicQuantumNetwork/pqn-gui)).
+A distributed node based approach to quantum networks. This repository hosts all the code necessary to make the backend of nodes of the PQN function. For the frontend, see [here](https://github.com/PublicQuantumNetwork/pqn-gui)).
 
 
 <p align="center">
@@ -54,10 +54,12 @@ Our Node is composed of multiple components. All components inside a node are pa
 
 2. **Install dependencies**
 
+   For normal operation using the back end code
    ```bash
    uv sync
-   
-   # Or sync with the --extra flag to run the full node
+  ```
+   Adding the ability to run fast api back end for node operations 
+  ```bash 
    uv sync --extra webapp
    ```
 
@@ -65,12 +67,14 @@ Our Node is composed of multiple components. All components inside a node are pa
 
 To fully start a PQN Node, you need to initialize 4 different processes:
 
-* **Node API**
+* **PQN API**
 * **Router**
 * **Hardware provider** (optional)
 * **Web GUI** (optional)
 
-### Node API
+### PQN API
+
+
 
 #### Config file
 
@@ -81,26 +85,28 @@ Before starting a Node API, you need to set up a configuration file:
    cp configs/config_app_example.toml config.toml
    ```
 
-2. **Edit the configuration:**
-   Open `config.toml` in your editor and replace the placeholder values with your actual settings (router addresses, instrument names, etc.).
-
 > [!IMPORTANT]
 > The configuration file **must** be named `config.toml` and placed at the root of the repository. If you use a different name or location, the API will not be able to find it.
 
-#### Run the FastAPI instance
-For a quick run you can simply run to get started:
+2. **Edit the configuration:**
+   Open `config.toml` in your editor and replace the placeholder values with your actual settings (router addresses, instrument names, etc.).
+
+#### Start the PQN API server
 
 ```bash
-   uv run fastapi run src/pqnstack/app/main.py
+uv run fastapi run src/pqnstack/app/main.py
 ```
 
-Please take a look at the [FastAPI docs](https://fastapi.tiangolo.com/deployment/) for more options on how to run the API
+See the [FastAPI docs](https://fastapi.tiangolo.com/deployment/) for more options on how to run the API
 
 ### Router and Hardware Provider
 
 Both the Router and Hardware Provider can be configured in two ways:
 
 1. **Using CLI flags** - Pass configuration directly as command-line arguments
+```bash
+uv run pqn start-router --name router1 --host localhost --port 5555
+```
 2. **Using a config file** - Use the `--config` flag with a path to a TOML configuration file (see example in [configs/config_messaging_example.toml](https://github.com/PublicQuantumNetwork/pqn-stack/blob/master/configs/config_messaging_example.toml))
 
 The config file can contain settings for both router and provider:

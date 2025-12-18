@@ -74,7 +74,7 @@ To fully start a PQN Node, you need to initialize 4 different processes:
 
 #### Config file
 
-Before starting a Node API, you need to set up a configuration file:
+Before starting a Node API, you need to set up a configuration file for the Node:
 
 1. **Copy the example configuration:**
    ```bash

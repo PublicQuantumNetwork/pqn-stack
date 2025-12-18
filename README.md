@@ -140,3 +140,7 @@ For instructions on how install and start the web GUI please see the repo where 
 ## Acknowledgements
 
 The Public Quantum Network is supported in part by NSF Quantum Leap Challenge Institute HQAN under Award No. 2016136, Illinois Computes, and by the DOE Grant No. 712869, "Advanced Quantum Networks for Science Discovery."
+
+## Have questions?
+
+Feel free to contact the PQN team at publicquantumnetwork@gmail.com.

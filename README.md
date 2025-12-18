@@ -27,7 +27,7 @@ A distributed node based approach to quantum networks. This repository hosts all
 
 Our Node is composed of multiple components. All components inside a node are part of an in internal intranet with no external world access except for quantum links to other hardware or the _Node API_.
 
-* **Node API**: FastAPI based, handles communications with web-ui as well as Node to Node communication. Only component in a Node than can talk to other components and the outside world. Resides in [src/pqnstack/app/main.py](https://github.com/PublicQuantumNetwork/pqn-stack/blob/master/src/pqnstack/app/main.py).
+* **Node API**: FastAPI based, handles communications with web-ui as well as Node to Node communication. Only component in a Node than can talk to other components and the outside world. Resides in [src/pqnstack/app/main.py](https://github.com/PublicQuantumNetwork/pqn-stack/blob/master/src/pqnstack/app/main.py). See the [FastAPI docs](https://fastapi.tiangolo.com/deployment/) for more options on how to run the API.
 * **Lightweight Web UI**: Designed for the general public to be able to interact with quantum networks. Resides in its own repository [here](https://github.com/PublicQuantumNetwork/pqn-gui).
 * **Router**: Routes messages between _Hardware Providers_, PQN developers and _Node APIs_. Uses ZMQ sockets to communicate between machines. Resides in [src/pqnstack/network/router.py](https://github.com/PublicQuantumNetwork/pqn-stack/blob/master/src/pqnstack/network/router.py).
 * **Hardware Provider**: Hosts hardware resources that are provided to whoever needs them inside a Node through the use of ProxyInstruments. Resides in [src/pqnstack/network/instrument_provider.py](https://github.com/PublicQuantumNetwork/pqn-stack/blob/master/src/pqnstack/network/instrument_provider.py).
@@ -59,7 +59,7 @@ Our Node is composed of multiple components. All components inside a node are pa
    uv sync --extra webapp
    ```
 
-### Starting a Node
+### Start a Node
 
 To fully start a PQN Node, you need to initialize 4 different processes:
 
@@ -68,7 +68,7 @@ To fully start a PQN Node, you need to initialize 4 different processes:
 * **Hardware provider** (optional)
 * **Web GUI** (optional)
 
-### PQN API
+### Set up the PQN API
 
 
 
@@ -87,13 +87,6 @@ Before starting a Node API, you need to set up a configuration file for the Node
 2. **Edit the configuration:**
    Open `config.toml` in your editor and replace the placeholder values with your actual settings (router addresses, instrument names, etc.).
 
-#### Start the PQN API server
-
-```bash
-uv run fastapi run src/pqnstack/app/main.py
-```
-
-See the [FastAPI docs](https://fastapi.tiangolo.com/deployment/) for more options on how to run the API
 
 ### Configure Router and Hardware Provider
 
@@ -132,7 +125,15 @@ uv run pqn start-provider \
   --instruments '{"dummy1": {"import": "pqnstack.pqn.drivers.dummies.DummyInstrument", "desc": "Test Instrument", "hw_address": "123456"}}'
 ```
 
-### Web GUI
+### Start the PQN API server
+
+```bash
+uv run fastapi run src/pqnstack/app/main.py
+```
+
+To see the list of all the protocols that can be run, go to http://127.0.0.1:8000/docs.
+
+### Install the Web GUI
 
 For instructions on how install and start the web GUI please see the repo where it lives at [https://github.com/PublicQuantumNetwork/pqn-gui](https://github.com/PublicQuantumNetwork/pqn-gui)
 

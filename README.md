@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 
-A distributed node based approach to quantum networks. This repository hosts all the code necessary to make nodes of the PQN function (except for the frontend located [here](https://github.com/PublicQuantumNetwork/pqn-gui)).
+A distributed node based approach to quantum networks. This repository hosts all the code necessary to make the backend of nodes of the PQN function. For the frontend, see [here](https://github.com/PublicQuantumNetwork/pqn-gui).
 
 
 <p align="center">
@@ -27,7 +27,7 @@ A distributed node based approach to quantum networks. This repository hosts all
 
 Our Node is composed of multiple components. All components inside a node are part of an in internal intranet with no external world access except for quantum links to other hardware or the _Node API_.
 
-* **Node API**: FastAPI based, handles communications with web-ui as well as Node to Node communication. Only component in a Node than can talk to other components and the outside world. Resides in [src/pqnstack/app/main.py](https://github.com/PublicQuantumNetwork/pqn-stack/blob/master/src/pqnstack/app/main.py).
+* **Node API**: FastAPI based, handles communications with web-ui as well as Node to Node communication. Only component in a Node than can talk to other components and the outside world. Resides in [src/pqnstack/app/main.py](https://github.com/PublicQuantumNetwork/pqn-stack/blob/master/src/pqnstack/app/main.py). See the [FastAPI docs](https://fastapi.tiangolo.com/deployment/) for more options on how to run the API.
 * **Lightweight Web UI**: Designed for the general public to be able to interact with quantum networks. Resides in its own repository [here](https://github.com/PublicQuantumNetwork/pqn-gui).
 * **Router**: Routes messages between _Hardware Providers_, PQN developers and _Node APIs_. Uses ZMQ sockets to communicate between machines. Resides in [src/pqnstack/network/router.py](https://github.com/PublicQuantumNetwork/pqn-stack/blob/master/src/pqnstack/network/router.py).
 * **Hardware Provider**: Hosts hardware resources that are provided to whoever needs them inside a Node through the use of ProxyInstruments. Resides in [src/pqnstack/network/instrument_provider.py](https://github.com/PublicQuantumNetwork/pqn-stack/blob/master/src/pqnstack/network/instrument_provider.py).
@@ -54,88 +54,93 @@ Our Node is composed of multiple components. All components inside a node are pa
 
 2. **Install dependencies**
 
-   ```bash
-   uv sync
-   
-   # Or sync with the --extra flag to run the full node
+   To run the fastapi backend for node operations, use:
+   ```bash 
    uv sync --extra webapp
    ```
 
-### Starting a Node
+### Start a Node
 
 To fully start a PQN Node, you need to initialize 4 different processes:
 
-* **Node API**
+* **PQN API**
 * **Router**
 * **Hardware provider** (optional)
 * **Web GUI** (optional)
 
-### Node API
+### Set up the PQN API
+
+
 
 #### Config file
 
-Before starting a Node API, you need to set up a configuration file:
+Before starting a Node API, you need to set up a configuration file for the Node:
 
 1. **Copy the example configuration:**
    ```bash
    cp configs/config_app_example.toml config.toml
    ```
 
-2. **Edit the configuration:**
-   Open `config.toml` in your editor and replace the placeholder values with your actual settings (router addresses, instrument names, etc.).
-
 > [!IMPORTANT]
 > The configuration file **must** be named `config.toml` and placed at the root of the repository. If you use a different name or location, the API will not be able to find it.
 
-#### Run the FastAPI instance
-For a quick run you can simply run to get started:
+2. **Edit the configuration:**
+   Open `config.toml` in your editor and replace the placeholder values with your actual settings (router addresses, instrument names, etc.).
 
-```bash
-   uv run fastapi run src/pqnstack/app/main.py
-```
 
-Please take a look at the [FastAPI docs](https://fastapi.tiangolo.com/deployment/) for more options on how to run the API
+### Configure Router and Hardware Provider
 
-### Router and Hardware Provider
+For the first computer on the PQN, both a router and hardware provider are needed. For subsequent computers added to the same node, only a hardware provider is needed.
 
-Both the Router and Hardware Provider can be configured in two ways:
+Both the Router and Hardware Provider can be configured using a config file. (Alternatively you could use CLI flags for quick tests.)
 
-1. **Using CLI flags** - Pass configuration directly as command-line arguments
-2. **Using a config file** - Use the `--config` flag with a path to a TOML configuration file (see example in [configs/config_messaging_example.toml](https://github.com/PublicQuantumNetwork/pqn-stack/blob/master/configs/config_messaging_example.toml))
-
-The config file can contain settings for both router and provider:
+Create a TOML configuration file for the router and hardware provider (see example in [configs/config_messaging_example.toml](https://github.com/PublicQuantumNetwork/pqn-stack/blob/master/configs/config_messaging_example.toml)). The config file can contain settings for both router and provider:
 - Router settings go under `[router]`
 - Provider settings go under `[provider]` with instruments defined as `[[provider.instruments]]`
 
-Command-line arguments override config file settings.
-
-#### Starting the Router
+Start the router:
 
 ```bash
-# Using CLI flags
-uv run pqn start-router --name router1 --host localhost --port 5555
-
-# Using a config file
 uv run pqn start-router --config configs/config_messaging_example.toml
 ```
 
-#### Starting an Instrument Provider
+Start the Hardware Provider:
 
 ```bash
-# Using a config file (recommended for defining instruments)
 uv run pqn start-provider --config configs/config_messaging_example.toml
+```
 
-# Using CLI flags with inline JSON for instruments
+**Alternative method using CLI flags:** - Pass configuration directly as command-line arguments
+
+Start the Router with CLI flags:
+```bash
+uv run pqn start-router --name router1 --host localhost --port 5555
+```
+
+Start the Instrument Provider with CLI flags:
+```bash
 uv run pqn start-provider \
   --name provider1 \
   --router-name router1 \
   --instruments '{"dummy1": {"import": "pqnstack.pqn.drivers.dummies.DummyInstrument", "desc": "Test Instrument", "hw_address": "123456"}}'
 ```
 
-### Web GUI
+### Start the PQN API server
+
+```bash
+uv run fastapi run src/pqnstack/app/main.py
+```
+
+To see the list of all the protocols that can be run, go to http://127.0.0.1:8000/docs.
+
+### Install the Web GUI
 
 For instructions on how install and start the web GUI please see the repo where it lives at [https://github.com/PublicQuantumNetwork/pqn-gui](https://github.com/PublicQuantumNetwork/pqn-gui)
 
 ## Acknowledgements
 
 The Public Quantum Network is supported in part by NSF Quantum Leap Challenge Institute HQAN under Award No. 2016136, Illinois Computes, and by the DOE Grant No. 712869, "Advanced Quantum Networks for Science Discovery."
+
+## Have questions?
+
+Feel free to contact the PQN team at publicquantumnetwork@gmail.com.

@@ -11,7 +11,6 @@ from pydantic_settings import TomlConfigSettingsSource
 
 from pqnstack.constants import BellState
 from pqnstack.constants import QKDEncodingBasis
-from pqnstack.pqn.drivers.rotaryencoder import RotaryEncoderInstrument
 from pqnstack.pqn.protocols.measurement import MeasurementConfig
 
 logger = logging.getLogger(__name__)
@@ -28,7 +27,9 @@ class CHSHSettings(BaseModel):
 class QKDSettings(BaseModel):
     hwp: tuple[str, str] = ("", "")
     request_hwp: tuple[str, str] = ("", "")
-    bitstring_length: int = 4
+    bitstring_length: int = 6
+    minimum_question_index: int = 1
+    maximum_question_index: int = 8
     discriminating_threshold: int = 10
     measurement_config: MeasurementConfig = Field(default_factory=lambda: MeasurementConfig(integration_time_s=5))
 
@@ -44,8 +45,6 @@ class Settings(BaseSettings):
     timetagger: tuple[str, str] | None = None  # Name of the timetagger to use for the CHSH experiment.
     rotary_encoder_address: str = "/dev/ttyACM0"
     virtual_rotator: bool = False  # If True, use terminal input instead of hardware rotary encoder
-
-    rotary_encoder: RotaryEncoderInstrument | None = None
 
     model_config = SettingsConfigDict(toml_file="./config.toml", env_file=".env", env_file_encoding="utf-8")
 

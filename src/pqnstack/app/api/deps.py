@@ -6,7 +6,8 @@ from fastapi import Depends
 
 from pqnstack.app.core.config import settings
 from pqnstack.network.client import Client
-
+from pqnstack.app.core.config import NodeState
+from pqnstack.app.core.config import get_state
 
 async def get_http_client() -> AsyncGenerator[httpx.AsyncClient, None]:
     async with httpx.AsyncClient(timeout=60) as client:
@@ -22,3 +23,6 @@ async def get_instrument_client() -> AsyncGenerator[Client, None]:
 
 
 InstrumentClientDep = Annotated[httpx.AsyncClient, Depends(get_instrument_client)]
+
+
+StateDep = Annotated[NodeState, Depends(get_state)]

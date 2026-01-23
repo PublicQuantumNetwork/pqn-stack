@@ -133,6 +133,7 @@ state = NodeState()
 ask_user_for_follow_event = asyncio.Event()
 user_replied_event = asyncio.Event()
 qkd_result_received_event = asyncio.Event()
+protocol_cancelled_event = asyncio.Event()
 
 
 def get_state() -> NodeState:

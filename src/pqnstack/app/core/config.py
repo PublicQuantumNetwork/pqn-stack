@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from enum import auto, Enum
 from functools import lru_cache
 
 from pydantic import BaseModel
@@ -45,8 +46,6 @@ class Settings(BaseSettings):
     rotary_encoder_address: str = "/dev/ttyACM0"
     virtual_rotator: bool = False  # If True, use terminal input instead of hardware rotary encoder
 
-    rotary_encoder: RotaryEncoderInstrument | None = None
-
     model_config = SettingsConfigDict(toml_file="./config.toml", env_file=".env", env_file_encoding="utf-8")
 
     @classmethod
@@ -74,18 +73,21 @@ def get_settings() -> Settings:
 
 settings = get_settings()
 
+class NodeRole(Enum):
+    """Enum indicating the role of this Node. Enum values are strings to see the role explicitly in logging instead of seeing numeric values."""
+    INDEPENDENT = "independent"
+    LEADER = "leader"
+    FOLLOWER = "follower"
 
 class NodeState(BaseModel):
     # Coordination state
     # FIXME: Make sure we are checking for the client_listening_for_follower_requests state everywhere.
     client_listening_for_follower_requests: bool = False
 
-    # Leader's state
-    leading: bool = False
+    # Current role of this node.
+    role: NodeRole = NodeRole.INDEPENDENT
+    # Address of the Node following this node
     followers_address: str = ""
-
-    # Follower's state
-    following: bool = False
     # Other node requested this node to follow it.
     following_requested: bool = False
     # User's response to the follow request. None if no response yet, True if accepted, False if rejected.

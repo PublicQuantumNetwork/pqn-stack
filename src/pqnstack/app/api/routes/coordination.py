@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 from pqnstack.app.api.deps import ClientDep
 from pqnstack.app.api.deps import StateDep
-from pqnstack.app.core.config import ask_user_for_follow_event
+from pqnstack.app.core.config import ask_user_for_follow_event, NodeRole
 from pqnstack.app.core.config import settings
 from pqnstack.app.core.config import user_replied_event
 
@@ -38,9 +38,8 @@ router = APIRouter(prefix="/coordination", tags=["coordination"])
 @router.post("/reset_coordination_state")
 async def reset_coordination_state(state: StateDep) -> ResetCoordinationStateResponse:
     """Reset the coordination state of the node."""
-    state.leading = False
+    state.role = NodeRole.INDEPENDENT
     state.followers_address = ""
-    state.following = False
     state.following_requested = False
     state.following_requested_user_response = None
     state.leaders_address = ""
@@ -82,7 +81,7 @@ async def collect_follower(
 
     response_data = ret.json()
     if response_data.get("accepted") is True:
-        state.leading = True
+        state.role = NodeRole.LEADER
         state.followers_address = address
         logger.info("Successfully collected follower")
         return CollectFollowerResponse(accepted=True)
@@ -113,13 +112,13 @@ async def follow_requested(
     leaders_address = f"{request.client.host}:{leaders_port}"
 
     # Check if the client is ready to accept a follower request and that node is not already following someone.
-    if not state.client_listening_for_follower_requests or state.following:
+    if not state.client_listening_for_follower_requests or state.role != NodeRole.INDEPENDENT:
         logger.info(
             "Request rejected because %s",
             (
                 "client is not listening for requests"
                 if not state.client_listening_for_follower_requests
-                else "this node is already following someone"
+                else f"this node is already a {state.role}"
             ),
         )
         return FollowRequestResponse(accepted=False)
@@ -135,7 +134,7 @@ async def follow_requested(
     user_replied_event.clear()  # Reset the event for the next change
     if state.following_requested_user_response:
         logger.debug("Follow request from %s accepted.", leaders_address)
-        state.following = True
+        state.role = NodeRole.FOLLOWER
         state.leaders_name = leaders_name
         state.leaders_address = leaders_address
         return FollowRequestResponse(accepted=True)

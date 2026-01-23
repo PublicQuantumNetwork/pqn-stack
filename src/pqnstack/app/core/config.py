@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from enum import auto, Enum
+from enum import Enum
 from functools import lru_cache
 
 from pydantic import BaseModel
@@ -12,7 +12,6 @@ from pydantic_settings import TomlConfigSettingsSource
 
 from pqnstack.constants import BellState
 from pqnstack.constants import QKDEncodingBasis
-from pqnstack.pqn.drivers.rotaryencoder import RotaryEncoderInstrument
 from pqnstack.pqn.protocols.measurement import MeasurementConfig
 
 logger = logging.getLogger(__name__)
@@ -73,11 +72,14 @@ def get_settings() -> Settings:
 
 settings = get_settings()
 
+
 class NodeRole(Enum):
     """Enum indicating the role of this Node. Enum values are strings to see the role explicitly in logging instead of seeing numeric values."""
+
     INDEPENDENT = "independent"
     LEADER = "leader"
     FOLLOWER = "follower"
+
 
 class NodeState(BaseModel):
     # Coordination state

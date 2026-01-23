@@ -11,7 +11,8 @@ from pydantic import BaseModel
 
 from pqnstack.app.api.deps import ClientDep
 from pqnstack.app.api.deps import StateDep
-from pqnstack.app.core.config import ask_user_for_follow_event, NodeRole
+from pqnstack.app.core.config import NodeRole
+from pqnstack.app.core.config import ask_user_for_follow_event
 from pqnstack.app.core.config import settings
 from pqnstack.app.core.config import user_replied_event
 
@@ -79,19 +80,15 @@ async def collect_follower(
     if ret.status_code != status.HTTP_200_OK:
         raise HTTPException(status_code=ret.status_code, detail=ret.text)
 
-    response_data = ret.json()
-    if response_data.get("accepted") is True:
+    response_data = FollowRequestResponse(**ret.json())
+    if response_data.accepted:
         state.role = NodeRole.LEADER
         state.followers_address = address
         logger.info("Successfully collected follower")
         return CollectFollowerResponse(accepted=True)
-    if response_data.get("accepted") is False:
-        logger.info("Follower rejected follow request")
-        return CollectFollowerResponse(accepted=False)
 
-    raise HTTPException(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Could not collect follower for unknown reasons"
-    )
+    logger.info("Follower rejected follow request")
+    return CollectFollowerResponse(accepted=False)
 
 
 @router.post("/follow_requested")

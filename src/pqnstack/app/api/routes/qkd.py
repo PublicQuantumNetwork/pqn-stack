@@ -15,6 +15,7 @@ from pqnstack.app.api.deps import ClientDep
 from pqnstack.app.api.deps import StateDep
 from pqnstack.app.core.config import NodeRole
 from pqnstack.app.core.config import NodeState
+from pqnstack.app.core.config import protocol_cancelled_event
 from pqnstack.app.core.config import qkd_result_received_event
 from pqnstack.app.core.config import settings
 from pqnstack.constants import BasisBool
@@ -296,8 +297,24 @@ async def submit_result(result: QKDResult, state: StateDep) -> None:
 async def _wait_for_follower_ready(state: NodeState, http_client: httpx.AsyncClient) -> None:
     """Poll the follower until it's ready, checking every 0.5 seconds."""
     ready = False
+    first_503 = True
     while not ready:
+        # Check if protocol was cancelled
+        if protocol_cancelled_event.is_set():
+            logger.warning("Protocol cancelled while waiting for follower ready")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Protocol cancelled by peer or user"
+            )
+
         r = await http_client.get(f"http://{state.followers_address}/qkd/is_follower_ready")
+
+        # If the follower disconnects while the leader is waiting, the 503 error of `Node is not a follower` error might come before we can handle the cancellation event.
+        if r.status_code == status.HTTP_503_SERVICE_UNAVAILABLE and first_503:
+            logger.warning("Received QKD result from follower: %s", r)
+            first_503 = False
+            continue
+
         if r.status_code != status.HTTP_200_OK:
             logger.error("Failed to check if follower is ready: %s", r.text)
             raise HTTPException(
@@ -308,9 +325,9 @@ async def _wait_for_follower_ready(state: NodeState, http_client: httpx.AsyncCli
         ready = r.json()
         if not ready:
             logger.info("Follower is not ready yet, waiting.")
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(0.4) # Make sure this is smaller than the protocol_cancelled event clear timer.
 
-    logger.info("Follower ready is ready")
+    logger.info("Follower is ready")
 
 
 async def _submit_result_to_follower(state: NodeState, http_client: httpx.AsyncClient, qkd_result: QKDResult) -> None:
@@ -352,8 +369,26 @@ async def _submit_basis_list_follower(state: NodeState, basis_list: list[QKDEnco
 
     # don't wait for the event if the result is already set. This avoids deadlocks in case the result was set before this function is called.
     if state.qkd_n_matching_bits == -1:
-        # Wait until the leader submits the QKD result
-        await qkd_result_received_event.wait()
+        # Wait for EITHER result OR cancellation
+        done, pending = await asyncio.wait(
+            [
+                asyncio.create_task(qkd_result_received_event.wait()),
+                asyncio.create_task(protocol_cancelled_event.wait())
+            ],
+            return_when=asyncio.FIRST_COMPLETED
+        )
+
+        # Cancel pending tasks
+        for task in pending:
+            task.cancel()
+
+        # Check if protocol was cancelled
+        if protocol_cancelled_event.is_set():
+            logger.warning("Protocol cancelled while waiting for QKD result")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Protocol cancelled by peer or user"
+            )
 
     # Reassemble the QKDResult object from the state
     qkd_result = QKDResult(

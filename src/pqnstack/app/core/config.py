@@ -1,4 +1,6 @@
+import asyncio
 import logging
+from enum import Enum
 from functools import lru_cache
 
 from pydantic import BaseModel
@@ -10,7 +12,6 @@ from pydantic_settings import TomlConfigSettingsSource
 
 from pqnstack.constants import BellState
 from pqnstack.constants import QKDEncodingBasis
-from pqnstack.pqn.drivers.rotaryencoder import RotaryEncoderInstrument
 from pqnstack.pqn.protocols.measurement import MeasurementConfig
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,7 @@ class QKDSettings(BaseModel):
 
 
 class Settings(BaseSettings):
+    node_name: str = "node1"
     router_name: str = "router1"
     router_address: str = "localhost"
     router_port: int = 5555
@@ -42,8 +44,6 @@ class Settings(BaseSettings):
     timetagger: tuple[str, str] | None = None  # Name of the timetagger to use for the CHSH experiment.
     rotary_encoder_address: str = "/dev/ttyACM0"
     virtual_rotator: bool = False  # If True, use terminal input instead of hardware rotary encoder
-
-    rotary_encoder: RotaryEncoderInstrument | None = None
 
     model_config = SettingsConfigDict(toml_file="./config.toml", env_file=".env", env_file_encoding="utf-8")
 
@@ -73,10 +73,39 @@ def get_settings() -> Settings:
 settings = get_settings()
 
 
+class NodeRole(Enum):
+    """Enum indicating the role of this Node. Enum values are strings to see the role explicitly in logging instead of seeing numeric values."""
+
+    INDEPENDENT = "independent"
+    LEADER = "leader"
+    FOLLOWER = "follower"
+
+
 class NodeState(BaseModel):
+    # Coordination state
+    # FIXME: Make sure we are checking for the client_listening_for_follower_requests state everywhere.
+    client_listening_for_follower_requests: bool = False
+
+    # Current role of this node.
+    role: NodeRole = NodeRole.INDEPENDENT
+    # Address of the Node following this node
+    followers_address: str = ""
+    # Other node requested this node to follow it.
+    following_requested: bool = False
+    # User's response to the follow request. None if no response yet, True if accepted, False if rejected.
+    following_requested_user_response: bool | None = None
+    # The address of the leader this node is following. None if not following anyone.
+    leaders_address: str = ""
+    leaders_name: str = ""
+
+    # CHSH state
     chsh_request_basis: list[float] = [22.5, 67.5]
-    # FIXME: Use enums for this
-    qkd_basis_list: list[QKDEncodingBasis] = [
+
+    # QKD state
+    # FIXME: At the moment the reset_coordination_state resets this, probably want to refactor that function out.
+    qkd_question_order: list[int] = []  # Order of questions for QKD
+    qkd_emoji_pick: str = ""  # Emoji chosen for QKD
+    qkd_leader_basis_list: list[QKDEncodingBasis] = [
         QKDEncodingBasis.DA,
         QKDEncodingBasis.DA,
         QKDEncodingBasis.DA,
@@ -89,13 +118,19 @@ class NodeState(BaseModel):
         QKDEncodingBasis.HV,
         QKDEncodingBasis.HV,
     ]
+    qkd_follower_basis_list: list[QKDEncodingBasis] = []
+    qkd_single_bit_current_index: int = 0  # Current index in follower basis list for single_bit endpoint
     qkd_bit_list: list[int] = []
     qkd_resulting_bit_list: list[int] = []  # Resulting bits after QKD
     qkd_request_basis_list: list[QKDEncodingBasis] = []  # Basis angles for QKD
     qkd_request_bit_list: list[int] = []
+    qkd_n_matching_bits: int = -1  # Leaders populate this value after qkd is done. Same with the emoji
 
 
 state = NodeState()
+ask_user_for_follow_event = asyncio.Event()
+user_replied_event = asyncio.Event()
+qkd_result_received_event = asyncio.Event()
 
 
 def get_state() -> NodeState:

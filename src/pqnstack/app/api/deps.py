@@ -1,4 +1,5 @@
 from collections.abc import AsyncGenerator
+from functools import lru_cache
 from typing import Annotated
 
 import httpx
@@ -6,8 +7,12 @@ from fastapi import Depends
 
 from pqnstack.app.core.config import NodeState
 from pqnstack.app.core.config import get_state
+from pqnstack.app.core.config import logger
 from pqnstack.app.core.config import settings
 from pqnstack.network.client import Client
+from pqnstack.pqn.drivers.rotaryencoder import MockRotaryEncoder
+from pqnstack.pqn.drivers.rotaryencoder import RotaryEncoderInstrument
+from pqnstack.pqn.drivers.rotaryencoder import SerialRotaryEncoder
 
 
 async def get_http_client() -> AsyncGenerator[httpx.AsyncClient, None]:
@@ -25,4 +30,23 @@ async def get_instrument_client() -> AsyncGenerator[Client, None]:
 
 InstrumentClientDep = Annotated[httpx.AsyncClient, Depends(get_instrument_client)]
 
+
 StateDep = Annotated[NodeState, Depends(get_state)]
+
+
+@lru_cache
+def get_rotary_encoder() -> RotaryEncoderInstrument:
+    if settings.virtual_rotator:
+        # Virtual rotator mode enabled, use mock with terminal input
+        logger.info("Virtual rotator mode enabled")
+        rotary_encoder: RotaryEncoderInstrument = MockRotaryEncoder()
+    else:
+        # Use the real serial rotary encoder
+        rotary_encoder = SerialRotaryEncoder(
+            label="rotary_encoder", address=settings.rotary_encoder_address, offset_degrees=0.0
+        )
+
+    return rotary_encoder
+
+
+SERDep = Annotated[RotaryEncoderInstrument, Depends(get_rotary_encoder)]

@@ -28,7 +28,9 @@ class CHSHSettings(BaseModel):
 class QKDSettings(BaseModel):
     hwp: tuple[str, str] = ("", "")
     request_hwp: tuple[str, str] = ("", "")
-    bitstring_length: int = 4
+    bitstring_length: int = 6
+    minimum_question_index: int = 1
+    maximum_question_index: int = 8
     discriminating_threshold: int = 10
     measurement_config: MeasurementConfig = Field(default_factory=lambda: MeasurementConfig(integration_time_s=5))
 

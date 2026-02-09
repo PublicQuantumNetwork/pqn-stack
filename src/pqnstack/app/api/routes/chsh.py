@@ -102,7 +102,7 @@ async def _chsh(  # Complexity is high due to the nature of the CHSH experiment.
     logger.info("What are you settings? %s", settings.chsh_settings.expectation_signs)
 
     logger.info("After passing signed calculation: %s", expectation_values)
-    chsh_value = sum(x for x in expectation_values)
+    chsh_value = abs(sum(x for x in expectation_values))
     chsh_error = sum(x**2 for x in expectation_errors) ** 0.5
 
     return chsh_value, chsh_error

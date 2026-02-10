@@ -102,11 +102,17 @@ class NodeState(BaseModel):
 
     # CHSH state
     chsh_request_basis: list[float] = [22.5, 67.5]
+    chsh_progress_current: int = 0  # Current iteration in CHSH measurement
+    chsh_progress_total: int = 16  # Total iterations (2 basis × 2 follower × 2 angles × 2 perp)
+    chsh_running: bool = False  # Whether CHSH measurement is currently running
 
     # QKD state
     # FIXME: At the moment the reset_coordination_state resets this, probably want to refactor that function out.
     qkd_question_order: list[int] = []  # Order of questions for QKD
     qkd_emoji_pick: str = ""  # Emoji chosen for QKD
+    qkd_progress_current: int = 0  # Current iteration in QKD measurement
+    qkd_progress_total: int = 11  # Total iterations (bitstring length)
+    qkd_running: bool = False  # Whether QKD measurement is currently running
     qkd_leader_basis_list: list[QKDEncodingBasis] = [
         QKDEncodingBasis.DA,
         QKDEncodingBasis.DA,
@@ -128,12 +134,19 @@ class NodeState(BaseModel):
     qkd_request_bit_list: list[int] = []
     qkd_n_matching_bits: int = -1  # Leaders populate this value after qkd is done. Same with the emoji
 
+    # RNG state
+    rng_progress_current: int = 0  # Current iteration in RNG fortune measurement
+    rng_progress_total: int = 0  # Total iterations (fortune_size)
+    rng_running: bool = False  # Whether RNG fortune measurement is currently running
+
 
 state = NodeState()
 ask_user_for_follow_event = asyncio.Event()
 user_replied_event = asyncio.Event()
 qkd_result_received_event = asyncio.Event()
 protocol_cancelled_event = asyncio.Event()
+chsh_progress_event = asyncio.Event()
+rng_progress_event = asyncio.Event()
 
 
 def get_state() -> NodeState:

@@ -1,3 +1,5 @@
+import asyncio
+import json
 import logging
 from typing import TYPE_CHECKING
 from typing import cast
@@ -5,9 +7,11 @@ from typing import cast
 from fastapi import APIRouter
 from fastapi import HTTPException
 from fastapi import status
+from fastapi.responses import StreamingResponse
 
 from pqnstack.app.api.deps import ClientDep
 from pqnstack.app.api.deps import StateDep
+from pqnstack.app.core.config import chsh_progress_event
 from pqnstack.app.core.config import settings
 from pqnstack.app.core.models import calculate_chsh_expectation_error
 from pqnstack.network.client import Client
@@ -20,13 +24,60 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/chsh", tags=["chsh"])
 
 
+@router.get("/progress")
+async def chsh_progress(state: StateDep) -> StreamingResponse:
+    """SSE endpoint for streaming CHSH measurement progress to frontend."""
+    async def event_generator():
+        try:
+            # Send initial connection event
+            yield f"data: {json.dumps({'event': 'connected'})}\n\n"
+
+            while True:
+                event_sent = False
+
+                # Check for progress event
+                try:
+                    await asyncio.wait_for(chsh_progress_event.wait(), timeout=1.0)
+                    yield f"data: {json.dumps({'event': 'chsh_progress', 'current': state.chsh_progress_current, 'total': state.chsh_progress_total, 'running': state.chsh_running})}\n\n"
+                    chsh_progress_event.clear()
+                    event_sent = True
+                except asyncio.TimeoutError:
+                    pass
+
+                # Send heartbeat if no event was sent to keep connection alive
+                if not event_sent:
+                    yield ":\n"
+
+                await asyncio.sleep(1.0)
+
+        except asyncio.CancelledError:
+            logger.info("CHSH SSE connection closed by client")
+            raise
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        }
+    )
+
+
 async def _chsh(  # Complexity is high due to the nature of the CHSH experiment.
     basis: tuple[float, float],
     follower_node_address: str,
     http_client: ClientDep,
     timetagger_address: str,
+    state: StateDep,
 ) -> tuple[float, float]:
     logger.debug("Starting CHSH")
+
+    # Initialize progress tracking
+    state.chsh_running = True
+    state.chsh_progress_current = 0
+    state.chsh_progress_total = 16  # 2 basis × 2 follower × 2 angles × 2 perp
+    chsh_progress_event.set()
 
     logger.debug("Instantiating client")
     client = Client(host=settings.router_address, port=settings.router_port, timeout=600_000)
@@ -74,6 +125,10 @@ async def _chsh(  # Complexity is high due to the nature of the CHSH experiment.
                     count = cast("int", count_ret.json())
                     counts.append(count)
 
+                    # Update progress
+                    state.chsh_progress_current += 1
+                    chsh_progress_event.set()
+
             # Calculating expectation value
             numerator = counts[0] - counts[1] - counts[2] + counts[3]
             denominator = sum(counts) - 4 * settings.chsh_settings.measurement_config.dark_count
@@ -105,6 +160,10 @@ async def _chsh(  # Complexity is high due to the nature of the CHSH experiment.
     chsh_value = abs(sum(x for x in expectation_values))
     chsh_error = sum(x**2 for x in expectation_errors) ** 0.5
 
+    # Mark CHSH as complete
+    state.chsh_running = False
+    chsh_progress_event.set()
+
     return chsh_value, chsh_error
 
 
@@ -114,10 +173,11 @@ async def chsh(
     follower_node_address: str,
     http_client: ClientDep,
     timetagger_address: str,
+    state: StateDep,
 ) -> dict[str, float]:
     logger.info("Starting CHSH experiment with basis: %s", basis)
 
-    chsh_value, chsh_error = await _chsh(basis, follower_node_address, http_client, timetagger_address)
+    chsh_value, chsh_error = await _chsh(basis, follower_node_address, http_client, timetagger_address, state)
 
     return {
         "chsh_value": chsh_value,

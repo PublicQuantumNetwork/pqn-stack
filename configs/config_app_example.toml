@@ -20,6 +20,7 @@ bell_state = 0
 [chsh_settings]
 hwp = ["provider", "instrument_hwp"]  # Replace with actual HWP names
 request_hwp = ["provider", "instrument_hwp"]
+expectation_signs = [-1, 1, 1, 1]  # This is for HV + VH. for HH + VV, the signs are [1, -1, 1, 1]
 
 # CHSH measurement configuration
 [chsh_settings.measurement_config]

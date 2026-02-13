@@ -85,19 +85,63 @@ def run_chsh_measurement(config: dict) -> dict:
 
 def post_to_slack(webhook_url: str, chsh_data: dict, config: dict):
     """Post CHSH results to Slack."""
-    chsh_value = chsh_data["chsh_value"]
-    chsh_error = chsh_data["chsh_error"]
-    expectation_values = chsh_data["expectation_values"]
-    expectation_errors = chsh_data["expectation_errors"]
-    expectation_values_sign_fixed = chsh_data["expectation_values_sign_fixed"]
-
-    # Determine emoji based on Bell inequality violation (CHSH > 2)
+    # Determine emoji based on Bell inequality violation (CHSH > 2) if chsh_value exists
+    chsh_value = chsh_data.get("chsh_value", 0)
     emoji = ":sparkles:" if chsh_value > 2 else ":thinking_face:"
 
     daily_report_config = config.get("daily_report", {})
     basis = daily_report_config.get("basis", [0, 22.5])
     follower_address = daily_report_config.get("follower_node_address", "unknown")
     timetagger_address = daily_report_config.get("timetagger_address", "unknown")
+
+    # Build fields dynamically from all returned data
+    fields = []
+
+    # Add all fields from the API response
+    for key, value in chsh_data.items():
+        # Format the key nicely (replace underscores with spaces, capitalize)
+        field_name = key.replace("_", " ").title()
+
+        # Format the value based on type
+        if isinstance(value, float):
+            formatted_value = f"{value:.4f}"
+        elif isinstance(value, list):
+            # Format list nicely
+            if all(isinstance(x, (int, float)) for x in value):
+                formatted_value = "[" + ", ".join(f"{x:.4f}" if isinstance(x, float) else str(x) for x in value) + "]"
+            else:
+                formatted_value = str(value)
+        else:
+            formatted_value = str(value)
+
+        fields.append({
+            "type": "mrkdwn",
+            "text": f"*{field_name}:*\n`{formatted_value}`"
+        })
+
+    # Create sections with 2 fields each (Slack limit)
+    sections = []
+    for i in range(0, len(fields), 2):
+        section_fields = fields[i:i+2]
+        sections.append({
+            "type": "section",
+            "fields": section_fields
+        })
+
+    # Add configuration info section
+    sections.append({
+        "type": "section",
+        "fields": [
+            {
+                "type": "mrkdwn",
+                "text": f"*Basis:*\n`{basis}`"
+            },
+            {
+                "type": "mrkdwn",
+                "text": f"*Timestamp:*\n{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            }
+        ]
+    })
 
     # Format Slack message using Block Kit
     slack_message = {
@@ -110,45 +154,7 @@ def post_to_slack(webhook_url: str, chsh_data: dict, config: dict):
                     "emoji": True
                 }
             },
-            {
-                "type": "section",
-                "fields": [
-                    {
-                        "type": "mrkdwn",
-                        "text": f"*CHSH Value:*\n`{chsh_value:.4f}` ± `{chsh_error:.4f}`"
-                    },
-                    {
-                        "type": "mrkdwn",
-                        "text": f"*Basis:*\n`{basis}`"
-                    }
-                ]
-            },
-            {
-                "type": "section",
-                "fields": [
-                    {
-                        "type": "mrkdwn",
-                        "text": f"*Expectation Values:*\n`{expectation_values}`"
-                    },
-                    {
-                        "type": "mrkdwn",
-                        "text": f"*Expectation Errors:*\n`{expectation_errors}`"
-                    }
-                ]
-            },
-            {
-                "type": "section",
-                "fields": [
-                    {
-                        "type": "mrkdwn",
-                        "text": f"*Expectation Values (Sign Fixed):*\n`{expectation_values_sign_fixed}`"
-                    },
-                    {
-                        "type": "mrkdwn",
-                        "text": f"*Timestamp:*\n{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-                    }
-                ]
-            },
+            *sections,
             {
                 "type": "context",
                 "elements": [

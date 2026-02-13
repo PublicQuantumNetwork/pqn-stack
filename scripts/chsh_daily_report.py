@@ -69,11 +69,11 @@ def run_chsh_measurement(config: dict) -> dict:
         with httpx.Client(timeout=600.0) as client:
             response = client.post(
                 f"{api_url}/chsh/",
-                json={
-                    "basis": basis,
+                params={
                     "follower_node_address": follower_node_address,
                     "timetagger_address": timetagger_address,
-                }
+                },
+                json={"basis": basis}
             )
             response.raise_for_status()
             return response.json()

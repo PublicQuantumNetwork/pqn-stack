@@ -175,7 +175,7 @@ async def chsh(
     http_client: ClientDep,
     timetagger_address: str,
     state: StateDep,
-) -> dict[str, float]:
+) -> dict[str, float | list[float]]:
     logger.info("Starting CHSH experiment with basis: %s", basis)
 
     chsh_value, chsh_error, expectation_values, expectation_errors, expectation_values_sign_fixed = await _chsh(basis, follower_node_address, http_client, timetagger_address, state)

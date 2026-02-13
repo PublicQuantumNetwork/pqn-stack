@@ -44,3 +44,11 @@ binwidth = 500
 channel1 = 1
 channel2 = 2
 dark_count = 0
+
+# Daily CHSH report settings (for automated Slack reporting)
+[daily_report]
+slack_webhook_url = "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"  # Get from https://api.slack.com/apps
+api_url = "http://localhost:8000"  # API endpoint (usually localhost if running on same machine)
+timetagger_address = "127.0.0.1:8000"  # TimeTagger address
+follower_node_address = "192.168.1.100:9000"  # Replace with actual follower node address
+basis = [0, 22.5]  # CHSH basis angles to use for daily measurements

@@ -63,7 +63,7 @@ async def chsh_progress(state: StateDep) -> StreamingResponse:
         }
     )
 
-
+# FIXME: Make the return of this function a dataclass
 async def _chsh(  # Complexity is high due to the nature of the CHSH experiment.
     basis: tuple[float, float],
     follower_node_address: str,
@@ -151,22 +151,23 @@ async def _chsh(  # Complexity is high due to the nature of the CHSH experiment.
     logger.info("Expectation errors: %s", expectation_errors)
 
     # FIXME: This is a temporary fix for handling impossible expectation values. We should not have to rely on the settings for this.
-    expectation_values = [
+    expectation_values_sign_fixed = [
         x * y for x, y in zip(expectation_values, settings.chsh_settings.expectation_signs, strict=False)
     ]
     logger.info("What are you settings? %s", settings.chsh_settings.expectation_signs)
 
-    logger.info("After passing signed calculation: %s", expectation_values)
-    chsh_value = abs(sum(x for x in expectation_values))
+    logger.info("After passing signed calculation: %s", expectation_values_sign_fixed)
+    chsh_value = abs(sum(x for x in expectation_values_sign_fixed))
     chsh_error = sum(x**2 for x in expectation_errors) ** 0.5
 
     # Mark CHSH as complete
     state.chsh_running = False
     chsh_progress_event.set()
 
-    return chsh_value, chsh_error
+    return chsh_value, chsh_error, expectation_values, expectation_errors, expectation_values_sign_fixed
 
 
+# FIXME: make the return of this function the same dataclass as the one returned by _chsh.
 @router.post("/")
 async def chsh(
     basis: tuple[float, float],
@@ -177,11 +178,14 @@ async def chsh(
 ) -> dict[str, float]:
     logger.info("Starting CHSH experiment with basis: %s", basis)
 
-    chsh_value, chsh_error = await _chsh(basis, follower_node_address, http_client, timetagger_address, state)
+    chsh_value, chsh_error, expectation_values, expectation_errors, expectation_values_sign_fixed = await _chsh(basis, follower_node_address, http_client, timetagger_address, state)
 
     return {
         "chsh_value": chsh_value,
         "chsh_error": chsh_error,
+        "expectation_values": expectation_values,
+        "expectation_errors": expectation_errors,
+        "expectation_values_sign_fixed": expectation_values_sign_fixed,
     }
 
 

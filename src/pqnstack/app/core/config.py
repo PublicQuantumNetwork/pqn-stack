@@ -47,7 +47,12 @@ class Settings(BaseSettings):
     rotary_encoder_address: str = "/dev/ttyACM0"
     virtual_rotator: bool = False  # If True, use terminal input instead of hardware rotary encoder
 
-    model_config = SettingsConfigDict(toml_file="./config.toml", env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        toml_file="./config.toml",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore"  # Allow extra fields in config.toml (e.g., daily_report)
+    )
 
     @classmethod
     def settings_customise_sources(

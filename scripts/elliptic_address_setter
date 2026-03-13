@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import argparse
-import sys
 import time
 
 from pqnstack.pqn.drivers.rotator import ELL14KRotator
@@ -9,28 +8,53 @@ from pqnstack.pqn.drivers.rotator import ELL14KRotator
 VALID_HEX = "0123456789ABCDEF"
 
 
+def _norm_line(s: str) -> str:
+    return s.strip().replace(" ", "")
+
+
+def _read_matching_line(dev: ELL14KRotator, predicate, timeout_s: float) -> str | None:
+    t0 = time.time()
+    while time.time() - t0 < timeout_s:
+        line = dev._readline_ascii()
+        if not line:
+            continue
+        if predicate(line):
+            return line
+    return None
+
+
+def read_gs(dev: ELL14KRotator, addr_hex: str, timeout_s: float) -> tuple[str | None, int | None]:
+    addr_hex = addr_hex.upper()
+    dev._drain_reads(0.05)
+    dev._send(f"{addr_hex}gs")
+    def pred(line: str) -> bool:
+        n = _norm_line(line)
+        return n.startswith(f"{addr_hex}GS") and len(n) >= 5
+    line = _read_matching_line(dev, pred, timeout_s)
+    if not line:
+        return None, None
+    n = _norm_line(line)
+    code_hex = n[4:6] if len(n) >= 6 else None
+    try:
+        code = int(code_hex, 16) if code_hex is not None else None
+    except Exception:
+        code = None
+    return line, code
+
+
 def scan_devices(dev: ELL14KRotator) -> dict[str, dict[str, str]]:
-    """
-    Scan all addresses 0-F with the 'IN' command.
-    Returns mapping addr_hex -> parsed_info (or {"raw": line} on parse failure).
-    """
     devices: dict[str, dict[str, str]] = {}
     dev._drain_reads(0.05)
 
     for a in VALID_HEX:
         dev._drain_reads(0.02)
         dev._send(f"{a}in")
-        t0 = time.time()
-        reply: str | None = None
 
-        while time.time() - t0 < dev.timeout_s:
-            line = dev._readline_ascii()
-            if not line:
-                break
-            if line.startswith(f"{a}IN"):
-                reply = line
-                break
+        def pred(line: str) -> bool:
+            n = _norm_line(line)
+            return n.startswith(f"{a},IN,") or n.startswith(f"{a},IN") or n.startswith(f"{a}IN")
 
+        reply = _read_matching_line(dev, pred, dev.timeout_s)
         if reply is None:
             continue
 
@@ -67,11 +91,6 @@ def print_devices(devices: dict[str, dict[str, str]]) -> None:
 
 
 def prompt_addr(prompt: str, valid_set: set[str] | None = None) -> str | None:
-    """
-    Prompt user for a single hex digit in [0-9A-F].
-    If valid_set is given, require it to be in that set.
-    Returns None if user types 'q' to quit.
-    """
     while True:
         s = input(prompt).strip()
         if s.lower() == "q":
@@ -85,12 +104,41 @@ def prompt_addr(prompt: str, valid_set: set[str] | None = None) -> str | None:
         print("Invalid input. Enter a single hex digit [0-9, A-F] or 'q' to quit.")
 
 
+def prompt_addr_list(prompt: str, valid_set: set[str] | None = None) -> list[str] | None:
+    while True:
+        s = input(prompt).strip()
+        if s.lower() == "q":
+            return None
+        if not s:
+            print("Enter one or more hex digits separated by commas/spaces, or 'q' to quit.")
+            continue
+        raw = s.replace(",", " ").split()
+        addrs: list[str] = []
+        ok = True
+        for tok in raw:
+            tok = tok.strip().upper()
+            if len(tok) != 1 or tok not in VALID_HEX:
+                ok = False
+                break
+            addrs.append(tok)
+        if not ok or not addrs:
+            print("Invalid input. Example: 1,2,A or 1 2 A. Or 'q' to quit.")
+            continue
+        uniq = []
+        seen = set()
+        for a in addrs:
+            if a not in seen:
+                uniq.append(a)
+                seen.add(a)
+        if valid_set is not None:
+            bad = [a for a in uniq if a not in valid_set]
+            if bad:
+                print(f"These addresses are not detected on the bus: {bad}. Detected: {sorted(valid_set)}")
+                continue
+        return uniq
+
+
 def prompt_sn(devices: dict[str, dict[str, str]]) -> tuple[str, dict[str, str]] | None:
-    """
-    Let user choose a device by serial number.
-    Returns (addr_hex, device_info) or None if cancelled.
-    """
-    # Build SN -> list of addresses
     sn_map: dict[str, list[str]] = {}
     for addr, info in devices.items():
         sn = info.get("sn", "")
@@ -125,7 +173,7 @@ def prompt_sn(devices: dict[str, dict[str, str]]) -> tuple[str, dict[str, str]] 
         if len(addrs) > 1:
             print(f"SN {sn} appears at multiple addresses: {addrs}")
             addr = prompt_addr(
-                "Enter which address for this SN you want to rename (or 'q' to cancel): ",
+                "Enter which address for this SN you want to select (or 'q' to cancel): ",
                 valid_set=set(addrs),
             )
             if addr is None:
@@ -135,13 +183,130 @@ def prompt_sn(devices: dict[str, dict[str, str]]) -> tuple[str, dict[str, str]] 
         return addr, devices[addr]
 
 
+def do_change_address(dev: ELL14KRotator, src: str, dst: str) -> None:
+    src = src.upper()
+    dst = dst.upper()
+    before = scan_devices(dev)
+
+    try:
+        dev._drain_reads(0.05)
+        dev._send(f"{src}ca{dst}")
+        line, code = read_gs(dev, dst, timeout_s=max(dev.timeout_s, 0.5))
+        if line:
+            n = _norm_line(line)
+            print(f"Reply: {n}")
+        if code is not None and code != 0:
+            print(f"Warning: status/error code {code} (0x{code:02X}) after ca")
+    except Exception as exc:
+        print(f"Error sending ca: {exc}")
+        return
+
+    time.sleep(0.1)
+    after = scan_devices(dev)
+
+    print()
+    print("After change:")
+    print_devices(after)
+
+    moved = (src in before) and (dst in after) and (src not in after)
+    if moved:
+        print(f"Address change verified: device moved from {src} to {dst}.")
+        return
+
+    print("Warning: could not cleanly verify address change.")
+    if src in after:
+        print(f"  Device still responds at old address {src}.")
+    if dst not in after:
+        print(f"  No device responds at new address {dst}.")
+
+    print("Attempting best-effort revert...")
+    try:
+        dev._drain_reads(0.05)
+        dev._send(f"{dst}ca{src}")
+        line2, _ = read_gs(dev, src, timeout_s=max(dev.timeout_s, 0.5))
+        if line2:
+            print(f"Revert reply: {_norm_line(line2)}")
+        time.sleep(0.1)
+        reverted = scan_devices(dev)
+        print()
+        print("After revert attempt:")
+        print_devices(reverted)
+    except Exception as exc:
+        print(f"Revert attempt failed: {exc}")
+
+
+def do_save_user_data(dev: ELL14KRotator, addr: str) -> None:
+    addr = addr.upper()
+    try:
+        dev._drain_reads(0.05)
+        dev._send(f"{addr}us")
+        line, code = read_gs(dev, addr, timeout_s=max(dev.timeout_s, 0.5))
+        if line:
+            print(f"Reply: {_norm_line(line)}")
+        else:
+            print("No GS reply received to us; polling status...")
+            line2, code2 = read_gs(dev, addr, timeout_s=max(dev.timeout_s, 0.5))
+            if line2:
+                print(f"Polled: {_norm_line(line2)}")
+                code = code2
+        if code is None:
+            print("Warning: could not parse status/error code.")
+        elif code != 0:
+            print(f"Warning: status/error code {code} (0x{code:02X}) after us")
+        else:
+            print("Save user data accepted (GS00).")
+    except Exception as exc:
+        print(f"Error while sending us: {exc}")
+
+
+def do_group_address(dev: ELL14KRotator, sources: list[str], group_addr: str) -> None:
+    group_addr = group_addr.upper()
+    for src in sources:
+        src = src.upper()
+        try:
+            dev._drain_reads(0.05)
+            dev._send(f"{src}ga{group_addr}")
+            line, code = read_gs(dev, group_addr, timeout_s=max(dev.timeout_s, 0.5))
+            if line:
+                print(f"{src} -> {group_addr} reply: {_norm_line(line)}")
+            else:
+                print(f"{src} -> {group_addr}: no GS reply received")
+            if code is not None and code != 0:
+                print(f"{src} -> {group_addr}: warning status/error {code} (0x{code:02X})")
+        except Exception as exc:
+            print(f"{src} -> {group_addr}: error sending ga: {exc}")
+
+
+def do_clear_group(dev: ELL14KRotator, sources: list[str]) -> None:
+    for src in sources:
+        src = src.upper()
+        try:
+            dev._drain_reads(0.05)
+            dev._send(f"{src}ga{src}")
+            line, code = read_gs(dev, src, timeout_s=max(dev.timeout_s, 0.5))
+            if line:
+                print(f"{src} cleared reply: {_norm_line(line)}")
+            else:
+                print(f"{src} cleared: no GS reply received")
+            if code is not None and code != 0:
+                print(f"{src} cleared: warning status/error {code} (0x{code:02X})")
+        except Exception as exc:
+            print(f"{src} cleared: error sending ga: {exc}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Scan and re-address Elliptec devices on a single USB/serial port."
+        description="Interactive Elliptec (ELLx) address tool for a single serial bus: scan (in), change address (ca), save (us), and group listen address (ga)."
     )
     parser.add_argument(
         "port",
         help="Serial device path, e.g. /dev/ttyUSB0 or COM3",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=0.3,
+        help="Per-command read timeout in seconds used for scanning and replies (default: 0.3).",
     )
     args = parser.parse_args()
 
@@ -151,8 +316,7 @@ def main() -> int:
         hw_address=args.port,
         addr_hex="0",
     )
-
-    dev.timeout_s = 0.3
+    dev.timeout_s = float(args.timeout)
 
     try:
         print(f"Opening {args.port}...")
@@ -168,7 +332,7 @@ def main() -> int:
             print_devices(devices)
 
             if not devices:
-                print("No devices found. Connect at least one Elliptec device and press Enter to rescan, or 'q' to quit.")
+                print("No devices found. Connect at least one device and press Enter to rescan, or 'q' to quit.")
                 s = input("> ").strip()
                 if s.lower() == "q":
                     return 0
@@ -178,11 +342,14 @@ def main() -> int:
 
             print()
             print("Options:")
-            print("  r - rename a device by address")
-            print("  n - rename a device by serial number (SN)")
+            print("  r - change a device base address (ca)")
+            print("  n - select a device by serial number, then change base address (ca)")
+            print("  u - save user data on a device (us)")
+            print("  g - set group listen address for one or more devices (ga)")
+            print("  x - clear group listen address for one or more devices (ga back to itself)")
             print("  s - rescan")
             print("  q - quit")
-            choice = input("Enter choice [r/n/s/q]: ").strip().lower()
+            choice = input("Enter choice [r/n/u/g/x/s/q]: ").strip().lower()
 
             if choice == "q":
                 return 0
@@ -193,59 +360,87 @@ def main() -> int:
                 print()
                 print_devices(devices)
                 src = prompt_addr(
-                    "Enter address of device to rename (single hex digit, or 'q' to cancel): ",
+                    "Enter address of device to change (single hex digit, or 'q' to cancel): ",
                     valid_set=detected_addrs,
                 )
                 if src is None:
                     continue
+                dst = prompt_addr(
+                    f"Enter NEW base address for device {src} [0-9, A-F], or 'q' to cancel: ",
+                    valid_set=None,
+                )
+                if dst is None:
+                    continue
+                if dst == src:
+                    print("New address equals current address. No change performed.")
+                    continue
+                if dst in detected_addrs:
+                    print(f"Error: address {dst} is already in use by another detected device.")
+                    continue
+                print(f"Changing base address {src} -> {dst}...")
+                do_change_address(dev, src, dst)
+                continue
 
-            elif choice == "n":
+            if choice == "n":
                 print()
                 res = prompt_sn(devices)
                 if res is None:
                     continue
                 src, info = res
                 print(f"Selected device at address {src} with SN={info.get('sn', '?')}")
-            else:
-                print("Unknown choice.")
+                dst = prompt_addr(
+                    f"Enter NEW base address for device {src} [0-9, A-F], or 'q' to cancel: ",
+                    valid_set=None,
+                )
+                if dst is None:
+                    continue
+                if dst == src:
+                    print("New address equals current address. No change performed.")
+                    continue
+                if dst in detected_addrs:
+                    print(f"Error: address {dst} is already in use by another detected device.")
+                    continue
+                print(f"Changing base address {src} -> {dst}...")
+                do_change_address(dev, src, dst)
                 continue
 
-            dst = prompt_addr(
-                f"Enter NEW address for device {src} [0-9, A-F], or 'q' to cancel: ",
-                valid_set=None,
-            )
-            if dst is None:
+            if choice == "u":
+                addr = prompt_addr(
+                    "Enter address of device to save (us) [0-9, A-F], or 'q' to cancel: ",
+                    valid_set=detected_addrs,
+                )
+                if addr is None:
+                    continue
+                do_save_user_data(dev, addr)
                 continue
 
-            if dst == src:
-                print("New address equals current address. No change performed.")
+            if choice == "g":
+                srcs = prompt_addr_list(
+                    "Enter one or more source addresses to group (e.g. 1,2,A), or 'q' to cancel: ",
+                    valid_set=detected_addrs,
+                )
+                if srcs is None:
+                    continue
+                grp = prompt_addr(
+                    "Enter group listen address [0-9, A-F], or 'q' to cancel: ",
+                    valid_set=None,
+                )
+                if grp is None:
+                    continue
+                do_group_address(dev, srcs, grp)
                 continue
 
-            if dst in detected_addrs:
-                print(f"Error: address {dst} is already in use by another device on this bus.")
+            if choice == "x":
+                srcs = prompt_addr_list(
+                    "Enter one or more addresses to clear group listen mapping (e.g. 1,2,A), or 'q' to cancel: ",
+                    valid_set=detected_addrs,
+                )
+                if srcs is None:
+                    continue
+                do_clear_group(dev, srcs)
                 continue
 
-            print(f"Changing address {src} -> {dst}...")
-            try:
-                dev._send(f"{src}ca{dst}")
-                time.sleep(0.2)
-                dev._drain_reads(0.1)
-
-                devices_after = scan_devices(dev)
-                print()
-                print("After change:")
-                print_devices(devices_after)
-
-                if src not in devices_after and dst in devices_after:
-                    print(f"Address change verified: device moved from {src} to {dst}.")
-                else:
-                    print("Warning: could not cleanly verify address change.")
-                    if src in devices_after:
-                        print(f"  Device still responds at old address {src}.")
-                    if dst not in devices_after:
-                        print(f"  No device responds at new address {dst}.")
-            except Exception as exc:
-                print(f"Error while changing or verifying address: {exc}")
+            print("Unknown choice.")
 
     finally:
         try:
@@ -258,4 +453,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

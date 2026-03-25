@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from dataclasses import field
 
 import serial
+from thorlabs_apt_device import KDC101
 from thorlabs_apt_device import TDC001
 
 from pqnstack.base.errors import DeviceNotStartedError
@@ -21,12 +22,16 @@ logger = logging.getLogger(__name__)
 @dataclass(slots=True)
 class APTRotator(RotatorInstrument):
     _degrees: float = field(default=0.0, init=False)
-    _device: TDC001 = field(init=False, repr=False)
+    _device: TDC001 | KDC101 = field(init=False, repr=False)
     _encoder_units_per_degree: float = field(default=86384 / 45, init=False, repr=False)
 
     def start(self) -> None:
         # Additional setup for APT Rotator
-        self._device = TDC001(serial_number=self.hw_address)
+        try:
+            self._device = TDC001(serial_number=self.hw_address)
+        except RuntimeError:
+            self._device = KDC101(self.hw_address)
+
         offset_eu = round(self.offset_degrees * self._encoder_units_per_degree)
 
         # NOTE: Velocity units seem to not match position units

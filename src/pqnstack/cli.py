@@ -4,6 +4,7 @@ import tomllib
 from pathlib import Path
 from typing import Annotated
 
+import tomli_w
 import typer
 
 from pqnstack.base.errors import InvalidNetworkConfigurationError
@@ -187,7 +188,7 @@ def start_router(
 @app.command()
 def toggle_game(
     games: Annotated[list[str], typer.Argument(help="Games to toggle: chsh, qf, ssm")],
-    enable: Annotated[bool, typer.Option("--enable/--disable", help="Enable or disable the games")] = True,
+    enable: Annotated[bool, typer.Option("--enable/--disable", help="Enable or disable the games")] = True,  # noqa: FBT002
     config: Annotated[str, typer.Option(help="Path to config.toml")] = "./config.toml",
 ) -> None:
     """
@@ -195,10 +196,6 @@ def toggle_game(
 
     Changes take effect on the next server restart. Games: chsh (Verify Quantum Link), qf (Quantum Fortune), ssm (Share a Secret Message).
     """
-    import tomllib
-
-    import tomli_w
-
     valid_games = {"chsh", "qf", "ssm"}
     invalid = [g for g in games if g not in valid_games]
     if invalid:

@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
-from pqnstack.app.core.config import GamesAvailability, get_settings
+from pqnstack.app.core.config import GamesAvailability
+from pqnstack.app.core.config import get_settings
 
 router = APIRouter(prefix="/games", tags=["games"])
 

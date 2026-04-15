@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+from collections.abc import AsyncGenerator
 
 from fastapi import APIRouter
 from fastapi import HTTPException
@@ -272,9 +273,8 @@ async def follow_requested_alert(websocket: WebSocket, state: StateDep) -> None:
 async def state_events(state: StateDep) -> StreamingResponse:
     """SSE endpoint for streaming state change events to frontend."""
 
-    async def event_generator():
+    async def event_generator() -> AsyncGenerator[str, None]:
         try:
-
             # Send initial connection event
             yield f"data: {json.dumps({'event': 'connected', 'role': state.role.value})}\n\n"
 

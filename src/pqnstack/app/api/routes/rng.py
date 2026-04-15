@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+from collections.abc import AsyncGenerator
 from typing import Annotated
 from typing import Any
 
@@ -23,7 +24,7 @@ router = APIRouter(prefix="/rng", tags=["rng"])
 async def rng_progress(state: StateDep) -> StreamingResponse:
     """SSE endpoint for streaming RNG fortune measurement progress to frontend."""
 
-    async def event_generator():
+    async def event_generator() -> AsyncGenerator[str, None]:
         try:
             # Send initial connection event
             yield f"data: {json.dumps({'event': 'connected'})}\n\n"

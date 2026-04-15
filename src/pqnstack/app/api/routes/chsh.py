@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING
 from typing import cast
 
@@ -8,6 +9,7 @@ from fastapi import APIRouter
 from fastapi import HTTPException
 from fastapi import status
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 from pqnstack.app.api.deps import ClientDep
 from pqnstack.app.api.deps import StateDep
@@ -21,6 +23,15 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+
+class ChshResult(BaseModel):
+    chsh_value: float
+    chsh_error: float
+    expectation_values: list[float]
+    expectation_errors: list[float]
+    expectation_values_sign_fixed: list[float]
+
+
 router = APIRouter(prefix="/chsh", tags=["chsh"])
 
 
@@ -28,7 +39,7 @@ router = APIRouter(prefix="/chsh", tags=["chsh"])
 async def chsh_progress(state: StateDep) -> StreamingResponse:
     """SSE endpoint for streaming CHSH measurement progress to frontend."""
 
-    async def event_generator():
+    async def event_generator() -> AsyncGenerator[str, None]:
         try:
             # Send initial connection event
             yield f"data: {json.dumps({'event': 'connected'})}\n\n"
@@ -65,14 +76,13 @@ async def chsh_progress(state: StateDep) -> StreamingResponse:
     )
 
 
-# FIXME: Make the return of this function a dataclass
 async def _chsh(  # Complexity is high due to the nature of the CHSH experiment.
     basis: tuple[float, float],
     follower_node_address: str,
     http_client: ClientDep,
     timetagger_address: str,
     state: StateDep,
-) -> tuple[float, float]:
+) -> ChshResult:
     logger.debug("Starting CHSH")
 
     # Initialize progress tracking
@@ -166,10 +176,15 @@ async def _chsh(  # Complexity is high due to the nature of the CHSH experiment.
     state.chsh_running = False
     chsh_progress_event.set()
 
-    return chsh_value, chsh_error, expectation_values, expectation_errors, expectation_values_sign_fixed
+    return ChshResult(
+        chsh_value=chsh_value,
+        chsh_error=chsh_error,
+        expectation_values=expectation_values,
+        expectation_errors=expectation_errors,
+        expectation_values_sign_fixed=expectation_values_sign_fixed,
+    )
 
 
-# FIXME: make the return of this function the same dataclass as the one returned by _chsh.
 @router.post("/")
 async def chsh(
     basis: tuple[float, float],
@@ -177,20 +192,9 @@ async def chsh(
     http_client: ClientDep,
     timetagger_address: str,
     state: StateDep,
-) -> dict[str, float | list[float]]:
+) -> ChshResult:
     logger.info("Starting CHSH experiment with basis: %s", basis)
-
-    chsh_value, chsh_error, expectation_values, expectation_errors, expectation_values_sign_fixed = await _chsh(
-        basis, follower_node_address, http_client, timetagger_address, state
-    )
-
-    return {
-        "chsh_value": chsh_value,
-        "chsh_error": chsh_error,
-        "expectation_values": expectation_values,
-        "expectation_errors": expectation_errors,
-        "expectation_values_sign_fixed": expectation_values_sign_fixed,
-    }
+    return await _chsh(basis, follower_node_address, http_client, timetagger_address, state)
 
 
 @router.post("/request-angle-by-basis")

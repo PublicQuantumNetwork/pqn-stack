@@ -17,6 +17,14 @@ from pqnstack.pqn.protocols.measurement import MeasurementConfig
 logger = logging.getLogger(__name__)
 
 
+class DailyReportConfig(BaseModel):
+    slack_webhook_url: str
+    follower_node_address: str
+    api_url: str = "http://localhost:8000"
+    timetagger_address: str = "127.0.0.1:8000"
+    basis: list[float] = Field(default_factory=lambda: [0.0, 22.5])
+
+
 class CHSHSettings(BaseModel):
     # Specifies which half waveplate to use for the CHSH experiment. First value is the provider's name, second is the motor name.
     hwp: tuple[str, str] = ("", "")

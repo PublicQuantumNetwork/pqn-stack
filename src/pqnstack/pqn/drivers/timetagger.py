@@ -117,3 +117,45 @@ class SwabianTimeTagger(TimeTaggerInstrument):
         corr.startFor(count_time_ps)
         corr.waitUntilFinished()
         return int(max(corr.getData()))
+
+    def measure_count_trace(
+        self,
+        channel: int,
+        duration_s: float = 0.002,
+        binwidth_ps: int = 1_000,
+    ) -> CountTrace:
+        """
+        Measure a continuous count-rate trace on one channel without any sync input.
+
+        Example:
+            duration_s = 0.002  -> 2 ms window
+            binwidth_ps = 1000  -> 1 ns bins
+        """
+        if duration_s <= 0:
+            raise ValueError("duration_s must be > 0")
+        if binwidth_ps <= 0:
+            raise ValueError("binwidth_ps must be > 0")
+
+        duration_ps = int(duration_s * 1e12)
+        n_bins = duration_ps // binwidth_ps
+        if duration_ps % binwidth_ps:
+            n_bins += 1
+            duration_ps = n_bins * binwidth_ps
+
+        if n_bins <= 0:
+            raise ValueError("duration_s is too short for the requested binwidth_ps")
+
+        counter = Counter(self._tagger, [channel], binwidth_ps, n_bins)
+        counter.startFor(duration_ps)
+        counter.waitUntilFinished()
+
+        time_ps = [int(x) for x in counter.getIndex()]
+        counts = [int(x) for x in counter.getData(rolling=False)[0]]
+        count_rate_hz = [float(x) for x in counter.getDataNormalized(rolling=False)[0]]
+
+        return CountTrace(
+            time_ps=time_ps,
+            counts=counts,
+            count_rate_hz=count_rate_hz,
+            binwidth_ps=binwidth_ps,
+        )

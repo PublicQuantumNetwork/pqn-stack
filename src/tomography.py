@@ -15,6 +15,14 @@ log_filename = f"tomography_noswitch_{int(time.time())}.csv"
 meter = PM100D("mymeter", "PM100D", "/dev/usbtmc1")
 meter.start()
 
+# TODO: what to set for board and pins
+polarimeter = ArduinoPolarimeter(sample_rate=10, average_width=10, board=None, pins=None)
+polarimeter.start()
+
+# TODO: does this work?
+rotator = SerialRotator(offset_degrees=0.0)
+rotator.start()
+
 def log_data(data):
     global log_filename
     headers = ["timestamp", "pm1_w", "pm1_ref_w", "pm1_total_w", "pax_wavelength_nm"]
@@ -28,9 +36,28 @@ def log_data(data):
 
         writer.writerow(data)
     
-for i in range(6000):
-    data = meter.read()
-    data["timestamp"] = str(time.time())
-    log_data(data)
+try:
+    # Repeat 6 times - one for each polarization
+    for i in range(6):
 
-    time.sleep(0.1)
+        # Repeat for 10 minutes
+        for j in range(6000):
+            data = meter.read()
+            data["timestamp"] = str(time.time())
+
+            # TODO: figure out data format and add it into data{}
+            print(polarimeter.read())
+            
+            log_data(data)
+
+            time.sleep(0.1)
+
+    # Rotate to next polarization
+    rotator.degrees((i+1)*60)
+
+except KeyboardInterrupt:
+    pass
+
+meter.close()
+polarimeter.close()
+rotator.close()

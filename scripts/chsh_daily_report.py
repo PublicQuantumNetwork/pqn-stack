@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-CHSH Daily Report Script
+CHSH Daily Report Script.
 
 Runs CHSH measurement and posts results to Slack.
 
@@ -10,13 +10,16 @@ Usage:
     uv run scripts/chsh_daily_report.py
 """
 
-import json
+import logging
 import sys
 import tomllib
+from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 
 def load_config() -> dict:
@@ -24,11 +27,11 @@ def load_config() -> dict:
     config_path = Path(__file__).parent.parent / "config.toml"
 
     if not config_path.exists():
-        print(f"❌ Error: config.toml not found at {config_path}")
-        print("Please create config.toml from configs/config_app_example.toml")
+        logger.error("config.toml not found at %s", config_path)
+        logger.error("Please create config.toml from configs/config_app_example.toml")
         sys.exit(1)
 
-    with open(config_path, "rb") as f:
+    with config_path.open("rb") as f:
         return tomllib.load(f)
 
 
@@ -37,15 +40,15 @@ def get_daily_report_config(config: dict) -> dict:
     daily_report_config = config.get("daily_report", {})
 
     if not daily_report_config:
-        print("❌ Error: [daily_report] section not found in config.toml")
-        print("Please add it following the example in configs/config_app_example.toml")
+        logger.error("[daily_report] section not found in config.toml")
+        logger.error("Please add it following the example in configs/config_app_example.toml")
         sys.exit(1)
 
     # Check required fields
     required_fields = ["slack_webhook_url", "follower_node_address"]
     for field in required_fields:
         if not daily_report_config.get(field):
-            print(f"❌ Error: {field} not set in config.toml [daily_report] section")
+            logger.error("%s not set in config.toml [daily_report] section", field)
             sys.exit(1)
 
     return daily_report_config
@@ -60,10 +63,10 @@ def run_chsh_measurement(config: dict) -> dict:
     follower_node_address = daily_report_config["follower_node_address"]
     basis = daily_report_config.get("basis", [0, 22.5])
 
-    print(f"🔬 Starting CHSH measurement at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"   Basis: {basis}")
-    print(f"   Follower: {follower_node_address}")
-    print(f"   TimeTagger: {timetagger_address}")
+    logger.info("Starting CHSH measurement at %s", datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S"))
+    logger.info("Basis: %s", basis)
+    logger.info("Follower: %s", follower_node_address)
+    logger.info("TimeTagger: %s", timetagger_address)
 
     try:
         with httpx.Client(timeout=600.0) as client:
@@ -73,21 +76,22 @@ def run_chsh_measurement(config: dict) -> dict:
                     "follower_node_address": follower_node_address,
                     "timetagger_address": timetagger_address,
                 },
-                json=basis
+                json=basis,
             )
             response.raise_for_status()
             return response.json()
 
-    except httpx.HTTPError as e:
-        print(f"❌ Failed to contact CHSH API: {e}")
+    except httpx.HTTPError:
+        logger.exception("Failed to contact CHSH API")
         sys.exit(1)
 
 
 def post_to_slack(webhook_url: str, chsh_data: dict, config: dict):
     """Post CHSH results to Slack."""
-    # Determine emoji based on Bell inequality violation (CHSH > 2) if chsh_value exists
+    # Determine emoji based on Bell inequality violation (CHSH > classical limit) if chsh_value exists
+    bell_inequality_classical_limit = 2
     chsh_value = chsh_data.get("chsh_value", 0)
-    emoji = ":sparkles:" if chsh_value > 2 else ":thinking_face:"
+    emoji = ":sparkles:" if chsh_value > bell_inequality_classical_limit else ":thinking_face:"
 
     daily_report_config = config.get("daily_report", {})
     basis = daily_report_config.get("basis", [0, 22.5])
@@ -114,91 +118,76 @@ def post_to_slack(webhook_url: str, chsh_data: dict, config: dict):
         else:
             formatted_value = str(value)
 
-        fields.append({
-            "type": "mrkdwn",
-            "text": f"*{field_name}:*\n`{formatted_value}`"
-        })
+        fields.append({"type": "mrkdwn", "text": f"*{field_name}:*\n`{formatted_value}`"})
 
     # Create sections with 2 fields each (Slack limit)
     sections = []
     for i in range(0, len(fields), 2):
-        section_fields = fields[i:i+2]
-        sections.append({
-            "type": "section",
-            "fields": section_fields
-        })
+        section_fields = fields[i : i + 2]
+        sections.append({"type": "section", "fields": section_fields})
 
     # Add configuration info section
-    sections.append({
-        "type": "section",
-        "fields": [
-            {
-                "type": "mrkdwn",
-                "text": f"*Basis:*\n`{basis}`"
-            },
-            {
-                "type": "mrkdwn",
-                "text": f"*Timestamp:*\n{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-            }
-        ]
-    })
+    sections.append(
+        {
+            "type": "section",
+            "fields": [
+                {"type": "mrkdwn", "text": f"*Basis:*\n`{basis}`"},
+                {"type": "mrkdwn", "text": f"*Timestamp:*\n{datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S')}"},
+            ],
+        }
+    )
 
     # Format Slack message using Block Kit
     slack_message = {
         "blocks": [
             {
                 "type": "header",
-                "text": {
-                    "type": "plain_text",
-                    "text": f"{emoji} CHSH Daily Measurement Report",
-                    "emoji": True
-                }
+                "text": {"type": "plain_text", "text": f"{emoji} CHSH Daily Measurement Report", "emoji": True},
             },
             *sections,
             {
                 "type": "context",
                 "elements": [
-                    {
-                        "type": "mrkdwn",
-                        "text": f"Follower: `{follower_address}` | TimeTagger: `{timetagger_address}`"
-                    }
-                ]
-            }
+                    {"type": "mrkdwn", "text": f"Follower: `{follower_address}` | TimeTagger: `{timetagger_address}`"}
+                ],
+            },
         ]
     }
 
-    print("📤 Posting to Slack...")
+    logger.info("Posting to Slack...")
 
     try:
         with httpx.Client() as client:
             response = client.post(webhook_url, json=slack_message)
 
             if response.text == "ok":
-                print("✅ Successfully posted to Slack")
+                logger.info("Successfully posted to Slack")
             else:
-                print(f"❌ Failed to post to Slack: {response.text}")
+                logger.error("Failed to post to Slack: %s", response.text)
                 sys.exit(1)
 
-    except httpx.HTTPError as e:
-        print(f"❌ Failed to post to Slack: {e}")
+    except httpx.HTTPError:
+        logger.exception("Failed to post to Slack")
         sys.exit(1)
 
 
 def post_error_to_slack(webhook_url: str, error_message: str):
     """Post error message to Slack."""
     slack_message = {
-        "text": f":x: CHSH Daily Report Failed\n*Error:* {error_message}\n*Time:* {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        "text": f":x: CHSH Daily Report Failed\n*Error:* {error_message}\n*Time:* {datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S')}"
     }
 
     try:
         with httpx.Client() as client:
             client.post(webhook_url, json=slack_message)
-    except Exception:
-        pass  # Silently fail if we can't post the error
+    except httpx.HTTPError:
+        logger.debug("Failed to post error notification to Slack")
 
 
 def main():
-    """Main entry point."""
+    """Execute the CHSH daily report."""
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+
     try:
         # Load configuration
         config = load_config()
@@ -208,16 +197,16 @@ def main():
         # Run CHSH measurement
         chsh_data = run_chsh_measurement(config)
 
-        print(f"✅ CHSH measurement completed")
-        print(f"   Value: {chsh_data['chsh_value']:.4f} ± {chsh_data['chsh_error']:.4f}")
+        logger.info("CHSH measurement completed")
+        logger.info("Value: %.4f ± %.4f", chsh_data["chsh_value"], chsh_data["chsh_error"])
 
         # Post to Slack
         post_to_slack(webhook_url, chsh_data, config)
 
-        print("✅ CHSH daily report completed successfully")
+        logger.info("CHSH daily report completed successfully")
 
     except Exception as e:
-        print(f"❌ Unexpected error: {e}")
+        logger.exception("Unexpected error")
 
         # Try to post error to Slack if possible
         try:
@@ -225,8 +214,8 @@ def main():
             daily_report_config = get_daily_report_config(config)
             webhook_url = daily_report_config["slack_webhook_url"]
             post_error_to_slack(webhook_url, str(e))
-        except Exception:
-            pass
+        except Exception:  # noqa: BLE001
+            logger.debug("Failed to post error notification to Slack")
 
         sys.exit(1)
 

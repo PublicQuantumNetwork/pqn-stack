@@ -51,7 +51,7 @@ class Settings(BaseSettings):
         toml_file="./config.toml",
         env_file=".env",
         env_file_encoding="utf-8",
-        extra="ignore"  # Allow extra fields in config.toml (e.g., daily_report)
+        extra="ignore",  # Allow extra fields in config.toml (e.g., daily_report)
     )
 
     @classmethod
@@ -108,7 +108,7 @@ class NodeState(BaseModel):
     # CHSH state
     chsh_request_basis: list[float] = [22.5, 67.5]
     chsh_progress_current: int = 0  # Current iteration in CHSH measurement
-    chsh_progress_total: int = 16  # Total iterations (2 basis × 2 follower × 2 angles × 2 perp)
+    chsh_progress_total: int = 16  # Total iterations (2 basis x 2 follower x 2 angles x 2 perp)
     chsh_running: bool = False  # Whether CHSH measurement is currently running
 
     # QKD state

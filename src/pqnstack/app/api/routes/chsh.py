@@ -27,6 +27,7 @@ router = APIRouter(prefix="/chsh", tags=["chsh"])
 @router.get("/progress")
 async def chsh_progress(state: StateDep) -> StreamingResponse:
     """SSE endpoint for streaming CHSH measurement progress to frontend."""
+
     async def event_generator():
         try:
             # Send initial connection event
@@ -41,7 +42,7 @@ async def chsh_progress(state: StateDep) -> StreamingResponse:
                     yield f"data: {json.dumps({'event': 'chsh_progress', 'current': state.chsh_progress_current, 'total': state.chsh_progress_total, 'running': state.chsh_running})}\n\n"
                     chsh_progress_event.clear()
                     event_sent = True
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     pass
 
                 # Send heartbeat if no event was sent to keep connection alive
@@ -60,8 +61,9 @@ async def chsh_progress(state: StateDep) -> StreamingResponse:
         headers={
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
-        }
+        },
     )
+
 
 # FIXME: Make the return of this function a dataclass
 async def _chsh(  # Complexity is high due to the nature of the CHSH experiment.
@@ -76,7 +78,7 @@ async def _chsh(  # Complexity is high due to the nature of the CHSH experiment.
     # Initialize progress tracking
     state.chsh_running = True
     state.chsh_progress_current = 0
-    state.chsh_progress_total = 16  # 2 basis × 2 follower × 2 angles × 2 perp
+    state.chsh_progress_total = 16  # 2 basis x 2 follower x 2 angles x 2 perp
     chsh_progress_event.set()
 
     logger.debug("Instantiating client")
@@ -178,7 +180,9 @@ async def chsh(
 ) -> dict[str, float | list[float]]:
     logger.info("Starting CHSH experiment with basis: %s", basis)
 
-    chsh_value, chsh_error, expectation_values, expectation_errors, expectation_values_sign_fixed = await _chsh(basis, follower_node_address, http_client, timetagger_address, state)
+    chsh_value, chsh_error, expectation_values, expectation_errors, expectation_values_sign_fixed = await _chsh(
+        basis, follower_node_address, http_client, timetagger_address, state
+    )
 
     return {
         "chsh_value": chsh_value,

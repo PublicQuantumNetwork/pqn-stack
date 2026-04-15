@@ -62,17 +62,11 @@ async def reset_coordination_state(state: StateDep, http_client: ClientDep) -> R
             logger.info("Notifying peer at %s about protocol cancellation", peer_address)
             await http_client.post(
                 f"http://{peer_address}/coordination/protocol_cancelled",
-                json={
-                    "reason": "Protocol cancelled by user",
-                    "cancelled_by_role": current_role.value
-                },
-                timeout=5.0  # Short timeout to avoid hanging
+                json={"reason": "Protocol cancelled by user", "cancelled_by_role": current_role.value},
+                timeout=5.0,  # Short timeout to avoid hanging
             )
-        except Exception as e:
-            logger.warning(
-                "Failed to notify peer about cancellation: %s. Proceeding with reset.",
-                str(e)
-            )
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Failed to notify peer about cancellation: %s. Proceeding with reset.", str(e))
 
     # Set local cancellation event to unblock any waiting operations
     protocol_cancelled_event.set()
@@ -106,11 +100,7 @@ async def protocol_cancelled(
     notification: ProtocolCancellationNotification,
 ) -> dict[str, str]:
     """Receive notification that peer node cancelled the protocol."""
-    logger.info(
-        "Received protocol cancellation from %s: %s",
-        notification.cancelled_by_role,
-        notification.reason
-    )
+    logger.info("Received protocol cancellation from %s: %s", notification.cancelled_by_role, notification.reason)
     protocol_cancelled_event.set()
 
     # Give waiting operations a chance to wake up and handle the cancellation
@@ -192,12 +182,9 @@ async def follow_requested(
     logger.debug("Asking user to accept follow request from %s (%s)", leaders_name, leaders_address)
 
     # Wait for EITHER user reply OR cancellation
-    done, pending = await asyncio.wait(
-        [
-            asyncio.create_task(user_replied_event.wait()),
-            asyncio.create_task(protocol_cancelled_event.wait())
-        ],
-        return_when=asyncio.FIRST_COMPLETED
+    _done, pending = await asyncio.wait(
+        [asyncio.create_task(user_replied_event.wait()), asyncio.create_task(protocol_cancelled_event.wait())],
+        return_when=asyncio.FIRST_COMPLETED,
     )
 
     # Cancel pending tasks
@@ -212,7 +199,6 @@ async def follow_requested(
         state.leaders_name = ""
         state.following_requested = False
         state.following_requested_user_response = None
-        # protocol_cancelled_event.clear()
         return FollowRequestResponse(accepted=False)
 
     user_replied_event.clear()  # Reset the event for the next change
@@ -285,9 +271,9 @@ async def follow_requested_alert(websocket: WebSocket, state: StateDep) -> None:
 @router.get("/state_events")
 async def state_events(state: StateDep) -> StreamingResponse:
     """SSE endpoint for streaming state change events to frontend."""
+
     async def event_generator():
         try:
-            last_role = state.role
 
             # Send initial connection event
             yield f"data: {json.dumps({'event': 'connected', 'role': state.role.value})}\n\n"
@@ -301,7 +287,7 @@ async def state_events(state: StateDep) -> StreamingResponse:
                     yield f"data: {json.dumps({'event': 'protocol_cancelled', 'reason': 'Protocol cancelled by peer or user'})}\n\n"
                     protocol_cancelled_event.clear()
                     event_sent = True
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     pass
 
                 # Send heartbeat if no event was sent to keep connection alive
@@ -320,5 +306,5 @@ async def state_events(state: StateDep) -> StreamingResponse:
         headers={
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
-        }
+        },
     )

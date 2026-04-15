@@ -302,10 +302,7 @@ async def _wait_for_follower_ready(state: NodeState, http_client: httpx.AsyncCli
         # Check if protocol was cancelled
         if protocol_cancelled_event.is_set():
             logger.warning("Protocol cancelled while waiting for follower ready")
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Protocol cancelled by peer or user"
-            )
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Protocol cancelled by peer or user")
 
         r = await http_client.get(f"http://{state.followers_address}/qkd/is_follower_ready")
 
@@ -325,7 +322,7 @@ async def _wait_for_follower_ready(state: NodeState, http_client: httpx.AsyncCli
         ready = r.json()
         if not ready:
             logger.info("Follower is not ready yet, waiting.")
-            await asyncio.sleep(0.4) # Make sure this is smaller than the protocol_cancelled event clear timer.
+            await asyncio.sleep(0.4)  # Make sure this is smaller than the protocol_cancelled event clear timer.
 
     logger.info("Follower is ready")
 
@@ -370,12 +367,12 @@ async def _submit_basis_list_follower(state: NodeState, basis_list: list[QKDEnco
     # don't wait for the event if the result is already set. This avoids deadlocks in case the result was set before this function is called.
     if state.qkd_n_matching_bits == -1:
         # Wait for EITHER result OR cancellation
-        done, pending = await asyncio.wait(
+        _done, pending = await asyncio.wait(
             [
                 asyncio.create_task(qkd_result_received_event.wait()),
-                asyncio.create_task(protocol_cancelled_event.wait())
+                asyncio.create_task(protocol_cancelled_event.wait()),
             ],
-            return_when=asyncio.FIRST_COMPLETED
+            return_when=asyncio.FIRST_COMPLETED,
         )
 
         # Cancel pending tasks
@@ -385,10 +382,7 @@ async def _submit_basis_list_follower(state: NodeState, basis_list: list[QKDEnco
         # Check if protocol was cancelled
         if protocol_cancelled_event.is_set():
             logger.warning("Protocol cancelled while waiting for QKD result")
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Protocol cancelled by peer or user"
-            )
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Protocol cancelled by peer or user")
 
     # Reassemble the QKDResult object from the state
     qkd_result = QKDResult(

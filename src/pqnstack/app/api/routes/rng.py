@@ -22,6 +22,7 @@ router = APIRouter(prefix="/rng", tags=["rng"])
 @router.get("/progress")
 async def rng_progress(state: StateDep) -> StreamingResponse:
     """SSE endpoint for streaming RNG fortune measurement progress to frontend."""
+
     async def event_generator():
         try:
             # Send initial connection event
@@ -36,7 +37,7 @@ async def rng_progress(state: StateDep) -> StreamingResponse:
                     yield f"data: {json.dumps({'event': 'rng_progress', 'current': state.rng_progress_current, 'total': state.rng_progress_total, 'running': state.rng_running})}\n\n"
                     rng_progress_event.clear()
                     event_sent = True
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     pass
 
                 # Send heartbeat if no event was sent to keep connection alive
@@ -55,7 +56,7 @@ async def rng_progress(state: StateDep) -> StreamingResponse:
         headers={
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
-        }
+        },
     )
 
 
@@ -97,7 +98,7 @@ async def singles_parity(
 
 
 @router.get("/fortune")
-async def fortune(
+async def fortune(  # noqa: PLR0913
     timetagger_address: str,
     integration_time_s: float,
     fortune_size: int,

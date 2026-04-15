@@ -43,6 +43,12 @@ class QKDSettings(BaseModel):
     measurement_config: MeasurementConfig = Field(default_factory=lambda: MeasurementConfig(integration_time_s=5))
 
 
+class GamesAvailability(BaseModel):
+    chsh: bool = True  # "Verify Quantum Link"
+    qf: bool = True  # "Quantum Fortune"
+    ssm: bool = True  # "Share a Secret Message"
+
+
 class Settings(BaseSettings):
     node_name: str = "node1"
     router_name: str = "router1"
@@ -54,6 +60,7 @@ class Settings(BaseSettings):
     timetagger: tuple[str, str] | None = None  # Name of the timetagger to use for the CHSH experiment.
     rotary_encoder_address: str = "/dev/ttyACM0"
     virtual_rotator: bool = False  # If True, use terminal input instead of hardware rotary encoder
+    games_availability: GamesAvailability = Field(default_factory=GamesAvailability)
 
     model_config = SettingsConfigDict(
         toml_file="./config.toml",

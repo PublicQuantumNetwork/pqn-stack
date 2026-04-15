@@ -741,6 +741,7 @@ webapp = [
     { name = "fastapi", extra = ["standard"] },
     { name = "httpx" },
     { name = "pydantic-settings" },
+    { name = "tomli-w" },
 ]
 
 [package.dev-dependencies]
@@ -761,6 +762,7 @@ requires-dist = [
     { name = "pyfirmata2", specifier = ">=2.5.0" },
     { name = "pyzmq", specifier = ">=26.2.0" },
     { name = "thorlabs-apt-device", specifier = ">=0.3.8" },
+    { name = "tomli-w", marker = "extra == 'webapp'", specifier = ">=1.0.0" },
     { name = "typer", specifier = ">=0.15.1" },
 ]
 provides-extras = ["webapp"]
@@ -1228,6 +1230,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/04/72/e046337437e882d232d77fd6d4b09bccf3c0f3a8689faa122f714f09d508/thorlabs_apt_device-0.3.8.tar.gz", hash = "sha256:1f51cc7b80ca63cf841d96f2172f420d53890cf049b33458e283dbe248eb22f9", size = 55078, upload-time = "2024-03-09T09:39:19.579Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/cc/38/60afff0deb2379c5feae251a5da9e9773c6ac8e2f09fbdac8d2980e28aa2/thorlabs_apt_device-0.3.8-py3-none-any.whl", hash = "sha256:84897581dc99e6f1ab774f07f9466d9137c94ac3dfa0fa59cdd305a4c9682872", size = 64631, upload-time = "2024-03-09T09:39:16.829Z" },
+]
+
+[[package]]
+name = "tomli-w"
+version = "1.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/19/75/241269d1da26b624c0d5e110e8149093c759b7a286138f4efd61a60e75fe/tomli_w-1.2.0.tar.gz", hash = "sha256:2dd14fac5a47c27be9cd4c976af5a12d87fb1f0b4512f81d69cce3b35ae25021", size = 7184, upload-time = "2025-01-15T12:07:24.262Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c7/18/c86eb8e0202e32dd3df50d43d7ff9854f8e0603945ff398974c1d91ac1ef/tomli_w-1.2.0-py3-none-any.whl", hash = "sha256:188306098d013b691fcadc011abd66727d3c414c571bb01b1a174ba8c983cf90", size = 6675, upload-time = "2025-01-15T12:07:22.074Z" },
 ]
 
 [[package]]

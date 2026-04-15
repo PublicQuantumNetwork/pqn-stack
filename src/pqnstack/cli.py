@@ -184,5 +184,41 @@ def start_router(
     router.start()
 
 
+@app.command()
+def toggle_game(
+    games: Annotated[list[str], typer.Argument(help="Games to toggle: chsh, qf, ssm")],
+    enable: Annotated[bool, typer.Option("--enable/--disable", help="Enable or disable the games")] = True,
+    config: Annotated[str, typer.Option(help="Path to config.toml")] = "./config.toml",
+) -> None:
+    """
+    Enable or disable one or more games in config.toml.
+
+    Changes take effect on the next server restart. Games: chsh (Verify Quantum Link), qf (Quantum Fortune), ssm (Share a Secret Message).
+    """
+    import tomllib
+
+    import tomli_w
+
+    valid_games = {"chsh", "qf", "ssm"}
+    invalid = [g for g in games if g not in valid_games]
+    if invalid:
+        msg = f"Game(s) must be one of: chsh, qf, ssm. Invalid: {invalid}"
+        raise InvalidNetworkConfigurationError(msg)
+
+    path = Path(config)
+    with path.open("rb") as f:
+        cfg = tomllib.load(f)
+
+    cfg.setdefault("games_availability", {})
+    for game in games:
+        cfg["games_availability"][game] = enable
+
+    with path.open("wb") as f:
+        tomli_w.dump(cfg, f)
+
+    status = "enabled" if enable else "disabled"
+    logger.info("Games %s %s in %s. Restart the server for changes to take effect.", games, status, path)
+
+
 if __name__ == "__main__":
     app()

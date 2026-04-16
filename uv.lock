@@ -733,6 +733,7 @@ dependencies = [
     { name = "pyfirmata2" },
     { name = "pyzmq" },
     { name = "thorlabs-apt-device" },
+    { name = "tomli-w" },
     { name = "typer" },
 ]
 
@@ -741,7 +742,6 @@ webapp = [
     { name = "fastapi", extra = ["standard"] },
     { name = "httpx" },
     { name = "pydantic-settings" },
-    { name = "tomli-w" },
 ]
 
 [package.dev-dependencies]
@@ -762,7 +762,7 @@ requires-dist = [
     { name = "pyfirmata2", specifier = ">=2.5.0" },
     { name = "pyzmq", specifier = ">=26.2.0" },
     { name = "thorlabs-apt-device", specifier = ">=0.3.8" },
-    { name = "tomli-w", marker = "extra == 'webapp'", specifier = ">=1.0.0" },
+    { name = "tomli-w", specifier = ">=1.0.0" },
     { name = "typer", specifier = ">=0.15.1" },
 ]
 provides-extras = ["webapp"]

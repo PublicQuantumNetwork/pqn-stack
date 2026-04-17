@@ -24,6 +24,9 @@ logger = logging.getLogger(__name__)
 
 app = typer.Typer(no_args_is_help=True, help="CLI for PQN-Stack.")
 
+daily_report_app = typer.Typer(no_args_is_help=True, help="Run and manage the daily health + Slack report.")
+app.add_typer(daily_report_app, name="daily-report")
+
 
 def _verify_instruments_config(instruments: list[dict[str, str]]) -> dict[str, dict[str, str]]:
     ins = {}
@@ -223,8 +226,8 @@ def toggle_game(
     logger.info("Games %s %s in %s. Restart the server for changes to take effect.", games, status, path)
 
 
-@app.command("daily-report")
-def daily_report() -> None:
+@daily_report_app.command("run")
+def daily_report_run() -> None:
     """
     Run the daily health + games report and post the result to Slack.
 
@@ -240,7 +243,7 @@ def daily_report() -> None:
     raise typer.Exit(code=run_daily_report(report_config))
 
 
-@app.command("daily-report-status")
+@daily_report_app.command("status")
 def daily_report_status() -> None:
     """Show whether the daily report cron job is active and its schedule."""
     job = get_daily_report_job()
@@ -250,10 +253,52 @@ def daily_report_status() -> None:
         typer.echo(f"Daily report is active. Schedule: {describe_schedule(job)}")
 
 
-@app.command("daily-report-schedule")
+_DOW_MAP = {
+    "monday": "1",
+    "tuesday": "2",
+    "wednesday": "3",
+    "thursday": "4",
+    "friday": "5",
+    "saturday": "6",
+    "sunday": "0",
+}
+
+
+def _prompt_hhmm() -> tuple[int, int]:
+    raw_time = typer.prompt("Time (HH:MM, 24-hour)")
+    try:
+        h_str, m_str = raw_time.strip().split(":")
+        hour, minute = int(h_str), int(m_str)
+    except ValueError:
+        typer.echo("Invalid time format. Use HH:MM (e.g. 09:00).", err=True)
+        raise typer.Exit(code=1)  # noqa: B904
+    if not (0 <= hour <= 23 and 0 <= minute <= 59):  # noqa: PLR2004
+        typer.echo("Hour must be 0-23 and minute 0-59.", err=True)
+        raise typer.Exit(code=1)
+    return hour, minute
+
+
+def _prompt_dow() -> str:
+    raw_day = typer.prompt("Day of week (monday-sunday)").strip().lower()
+    if raw_day not in _DOW_MAP:
+        typer.echo(f"Invalid day '{raw_day}'.", err=True)
+        raise typer.Exit(code=1)
+    return _DOW_MAP[raw_day]
+
+
+def _prompt_dom() -> str:
+    raw_dom = typer.prompt("Day of month (1-28)")
+    dom_int = int(raw_dom)
+    if not 1 <= dom_int <= 28:  # noqa: PLR2004
+        typer.echo("Day of month must be between 1 and 28.", err=True)
+        raise typer.Exit(code=1)
+    return str(dom_int)
+
+
+@daily_report_app.command("schedule")
 def daily_report_schedule() -> None:
     """Interactively schedule the daily report cron job."""
-    frequency = typer.prompt("At what frequency should the check run? (hourly/daily/weekly/monthly)").strip().lower()
+    frequency = typer.prompt("Frequency (hourly/daily/weekly/monthly)").strip().lower()
     valid = {"hourly", "daily", "weekly", "monthly"}
     if frequency not in valid:
         typer.echo(f"Invalid frequency '{frequency}'. Choose from: {', '.join(sorted(valid))}", err=True)
@@ -265,42 +310,17 @@ def daily_report_schedule() -> None:
     dom = "*"
 
     if frequency == "hourly":
-        raw_minute = typer.prompt("Minute past the hour (0–59)")
+        raw_minute = typer.prompt("Minute past the hour (0-59)")
         minute = int(raw_minute)
         if not 0 <= minute <= 59:  # noqa: PLR2004
             typer.echo("Minute must be between 0 and 59.", err=True)
             raise typer.Exit(code=1)
     else:
-        raw_time = typer.prompt("At what time should it run? (HH:MM, 24-hour)")
-        try:
-            h_str, m_str = raw_time.strip().split(":")
-            hour = int(h_str)
-            minute = int(m_str)
-        except ValueError:
-            typer.echo("Invalid time format. Use HH:MM (e.g. 09:00).", err=True)
-            raise typer.Exit(code=1)  # noqa: B904
-        if not (0 <= hour <= 23 and 0 <= minute <= 59):  # noqa: PLR2004
-            typer.echo("Hour must be 0–23 and minute 0–59.", err=True)
-            raise typer.Exit(code=1)
-
+        hour, minute = _prompt_hhmm()
         if frequency == "weekly":
-            _dow_map = {
-                "monday": "1", "tuesday": "2", "wednesday": "3",
-                "thursday": "4", "friday": "5", "saturday": "6", "sunday": "0",
-            }
-            raw_day = typer.prompt("Day of week (monday–sunday)").strip().lower()
-            if raw_day not in _dow_map:
-                typer.echo(f"Invalid day '{raw_day}'.", err=True)
-                raise typer.Exit(code=1)
-            dow = _dow_map[raw_day]
-
-        if frequency == "monthly":
-            raw_dom = typer.prompt("Day of month (1–28)")
-            dom_int = int(raw_dom)
-            if not 1 <= dom_int <= 28:  # noqa: PLR2004
-                typer.echo("Day of month must be between 1 and 28.", err=True)
-                raise typer.Exit(code=1)
-            dom = str(dom_int)
+            dow = _prompt_dow()
+        elif frequency == "monthly":
+            dom = _prompt_dom()
 
     try:
         set_daily_report_schedule(minute=minute, hour=hour, dow=dow, dom=dom)
@@ -313,7 +333,7 @@ def daily_report_schedule() -> None:
     typer.echo(f"Daily report scheduled. Schedule: {description}")
 
 
-@app.command("daily-report-unschedule")
+@daily_report_app.command("unschedule")
 def daily_report_unschedule() -> None:
     """Remove the daily report cron job."""
     removed = remove_daily_report_job()

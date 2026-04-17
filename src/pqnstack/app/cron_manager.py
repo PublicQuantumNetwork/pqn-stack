@@ -16,7 +16,7 @@ _DOW_NAMES = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", 
 
 
 def _read_crontab() -> list[str]:
-    result = subprocess.run(["crontab", "-l"], capture_output=True, text=True)  # noqa: S603, S607
+    result = subprocess.run(["crontab", "-l"], check=False, capture_output=True, text=True)  # noqa: S607
     if result.returncode != 0:
         return []
     return result.stdout.splitlines()
@@ -24,7 +24,7 @@ def _read_crontab() -> list[str]:
 
 def _write_crontab(lines: list[str]) -> None:
     content = "\n".join(lines) + "\n"
-    subprocess.run(["crontab", "-"], input=content, text=True, check=True)  # noqa: S603, S607
+    subprocess.run(["crontab", "-"], input=content, text=True, check=True)  # noqa: S607
 
 
 def get_daily_report_job() -> str | None:
@@ -66,8 +66,8 @@ def set_daily_report_schedule(minute: int, hour: int | str, dow: str, dom: str) 
         msg = "Could not find 'pqn' executable on PATH"
         raise RuntimeError(msg)
 
-    new_line = f"{minute} {hour} {dom} * {dow} {pqn} daily-report {CRON_TAG}"
-    lines = [l for l in _read_crontab() if not l.endswith(CRON_TAG)]
+    new_line = f"{minute} {hour} {dom} * {dow} {pqn} daily-report run {CRON_TAG}"
+    lines = [line for line in _read_crontab() if not line.endswith(CRON_TAG)]
     lines.append(new_line)
     _write_crontab(lines)
 
@@ -75,7 +75,7 @@ def set_daily_report_schedule(minute: int, hour: int | str, dow: str, dom: str) 
 def remove_daily_report_job() -> bool:
     """Remove the tagged cron entry. Returns True if an entry was removed."""
     lines = _read_crontab()
-    filtered = [l for l in lines if not l.endswith(CRON_TAG)]
+    filtered = [line for line in lines if not line.endswith(CRON_TAG)]
     if len(filtered) == len(lines):
         return False
     _write_crontab(filtered)

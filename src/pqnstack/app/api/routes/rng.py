@@ -14,6 +14,7 @@ from fastapi.responses import StreamingResponse
 from pqnstack.app.api.deps import ClientDep
 from pqnstack.app.api.deps import StateDep
 from pqnstack.app.core.config import rng_progress_event
+from pqnstack.app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -101,28 +102,35 @@ async def singles_parity(
 @router.get("/fortune")
 async def fortune(  # noqa: PLR0913
     timetagger_address: str,
-    integration_time_s: float,
-    fortune_size: int,
     http_client: ClientDep,
     state: StateDep,
-    channels: Annotated[list[int], Query()],
+    fortune_size: int | None = None,
+    integration_time_s: float = 1.0,
+    channels: Annotated[list[int] | None, Query()] = None,
 ) -> list[int]:
-    """Run singles parity `fortune_size` times and, per channel, interpret the result in bitstring as a decimal number."""
-    if fortune_size <= 0:
+    """Run singles parity `fortune_size` times and, per channel, interpret the result in bitstring as a decimal number.
+
+    `fortune_size` and `channels` default to the node's configured `rng_settings` when omitted.
+    """
+    resolved_fortune_size = fortune_size if fortune_size is not None else settings.rng_settings.fortune_size
+    if resolved_fortune_size <= 0:
         raise HTTPException(status_code=400, detail="fortune_size must be a positive integer")
+
+    resolved_channels = channels if channels is not None else settings.rng_settings.channels
+    resolved_integration_time_s = integration_time_s
 
     # Initialize progress tracking
     state.rng_running = True
     state.rng_progress_current = 0
-    state.rng_progress_total = fortune_size
+    state.rng_progress_total = resolved_fortune_size
     rng_progress_event.set()
 
     trials: list[list[int]] = []
-    for _ in range(fortune_size):
+    for _ in range(resolved_fortune_size):
         params: list[tuple[str, str | int | float | bool | None]] = [
             ("timetagger_address", timetagger_address),
-            ("integration_time_s", integration_time_s),
-            *[("channels", ch) for ch in channels],
+            ("integration_time_s", resolved_integration_time_s),
+            *[("channels", ch) for ch in resolved_channels],
         ]
 
         url = f"http://{timetagger_address}/rng/singles_parity"
@@ -142,8 +150,8 @@ async def fortune(  # noqa: PLR0913
 
     logger.info(
         "Fortune results (channels=%s, fortune_size=%d): %s",
-        channels,
-        fortune_size,
+        resolved_channels,
+        resolved_fortune_size,
         results,
     )
 

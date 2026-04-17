@@ -7,6 +7,8 @@ from typing import Annotated
 import tomli_w
 import typer
 
+from pqnstack.app.core.config import get_settings
+from pqnstack.app.daily_report import run_daily_report
 from pqnstack.base.errors import InvalidNetworkConfigurationError
 from pqnstack.network.instrument_provider import InstrumentProvider
 from pqnstack.network.router import Router
@@ -215,6 +217,23 @@ def toggle_game(
 
     status = "enabled" if enable else "disabled"
     logger.info("Games %s %s in %s. Restart the server for changes to take effect.", games, status, path)
+
+
+@app.command("daily-report")
+def daily_report() -> None:
+    """
+    Run the daily health + games report and post the result to Slack.
+
+    Reads the [daily_report] section from config.toml, probes hardware via the
+    running API (`/health`), exercises each enabled game (except SSM), and posts a
+    consolidated Slack digest. Exits non-zero if anything failed.
+    """
+    report_config = get_settings().daily_report
+    if report_config is None:
+        logger.error("[daily_report] section missing from config.toml")
+        raise typer.Exit(code=1)
+
+    raise typer.Exit(code=run_daily_report(report_config))
 
 
 if __name__ == "__main__":

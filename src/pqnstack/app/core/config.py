@@ -23,6 +23,13 @@ class DailyReportConfig(BaseModel):
     api_url: str = "http://localhost:8000"
     timetagger_address: str = "127.0.0.1:8000"
     basis: list[float] = Field(default_factory=lambda: [0.0, 22.5])
+    overall_timeout_s: int = 1800
+    per_game_timeout_s: int = 600
+
+
+class RNGSettings(BaseModel):
+    channels: list[int] = Field(default_factory=lambda: [1, 2])
+    fortune_size: int = 8
 
 
 class CHSHSettings(BaseModel):
@@ -56,7 +63,9 @@ class Settings(BaseSettings):
     router_port: int = 5555
     chsh_settings: CHSHSettings = CHSHSettings()
     qkd_settings: QKDSettings = QKDSettings()
+    rng_settings: RNGSettings = RNGSettings()
     bell_state: BellState = BellState.Phi_plus
+    daily_report: DailyReportConfig | None = None
     timetagger: tuple[str, str] | None = None  # Name of the timetagger to use for the CHSH experiment.
     rotary_encoder_address: str = "/dev/ttyACM0"
     virtual_rotator: bool = False  # If True, use terminal input instead of hardware rotary encoder

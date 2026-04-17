@@ -8,6 +8,10 @@ import tomli_w
 import typer
 
 from pqnstack.app.core.config import get_settings
+from pqnstack.app.cron_manager import describe_schedule
+from pqnstack.app.cron_manager import get_daily_report_job
+from pqnstack.app.cron_manager import remove_daily_report_job
+from pqnstack.app.cron_manager import set_daily_report_schedule
 from pqnstack.app.daily_report import run_daily_report
 from pqnstack.base.errors import InvalidNetworkConfigurationError
 from pqnstack.network.instrument_provider import InstrumentProvider
@@ -234,6 +238,89 @@ def daily_report() -> None:
         raise typer.Exit(code=1)
 
     raise typer.Exit(code=run_daily_report(report_config))
+
+
+@app.command("daily-report-status")
+def daily_report_status() -> None:
+    """Show whether the daily report cron job is active and its schedule."""
+    job = get_daily_report_job()
+    if job is None:
+        typer.echo("Daily report is not scheduled.")
+    else:
+        typer.echo(f"Daily report is active. Schedule: {describe_schedule(job)}")
+
+
+@app.command("daily-report-schedule")
+def daily_report_schedule() -> None:
+    """Interactively schedule the daily report cron job."""
+    frequency = typer.prompt("At what frequency should the check run? (hourly/daily/weekly/monthly)").strip().lower()
+    valid = {"hourly", "daily", "weekly", "monthly"}
+    if frequency not in valid:
+        typer.echo(f"Invalid frequency '{frequency}'. Choose from: {', '.join(sorted(valid))}", err=True)
+        raise typer.Exit(code=1)
+
+    minute: int
+    hour: int | str = "*"
+    dow = "*"
+    dom = "*"
+
+    if frequency == "hourly":
+        raw_minute = typer.prompt("Minute past the hour (0–59)")
+        minute = int(raw_minute)
+        if not 0 <= minute <= 59:  # noqa: PLR2004
+            typer.echo("Minute must be between 0 and 59.", err=True)
+            raise typer.Exit(code=1)
+    else:
+        raw_time = typer.prompt("At what time should it run? (HH:MM, 24-hour)")
+        try:
+            h_str, m_str = raw_time.strip().split(":")
+            hour = int(h_str)
+            minute = int(m_str)
+        except ValueError:
+            typer.echo("Invalid time format. Use HH:MM (e.g. 09:00).", err=True)
+            raise typer.Exit(code=1)  # noqa: B904
+        if not (0 <= hour <= 23 and 0 <= minute <= 59):  # noqa: PLR2004
+            typer.echo("Hour must be 0–23 and minute 0–59.", err=True)
+            raise typer.Exit(code=1)
+
+        if frequency == "weekly":
+            _dow_map = {
+                "monday": "1", "tuesday": "2", "wednesday": "3",
+                "thursday": "4", "friday": "5", "saturday": "6", "sunday": "0",
+            }
+            raw_day = typer.prompt("Day of week (monday–sunday)").strip().lower()
+            if raw_day not in _dow_map:
+                typer.echo(f"Invalid day '{raw_day}'.", err=True)
+                raise typer.Exit(code=1)
+            dow = _dow_map[raw_day]
+
+        if frequency == "monthly":
+            raw_dom = typer.prompt("Day of month (1–28)")
+            dom_int = int(raw_dom)
+            if not 1 <= dom_int <= 28:  # noqa: PLR2004
+                typer.echo("Day of month must be between 1 and 28.", err=True)
+                raise typer.Exit(code=1)
+            dom = str(dom_int)
+
+    try:
+        set_daily_report_schedule(minute=minute, hour=hour, dow=dow, dom=dom)
+    except RuntimeError as e:
+        typer.echo(str(e), err=True)
+        raise typer.Exit(code=1)  # noqa: B904
+
+    job = get_daily_report_job()
+    description = describe_schedule(job) if job else "unknown"
+    typer.echo(f"Daily report scheduled. Schedule: {description}")
+
+
+@app.command("daily-report-unschedule")
+def daily_report_unschedule() -> None:
+    """Remove the daily report cron job."""
+    removed = remove_daily_report_job()
+    if removed:
+        typer.echo("Daily report unscheduled.")
+    else:
+        typer.echo("Daily report was not scheduled.")
 
 
 if __name__ == "__main__":

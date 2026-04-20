@@ -6,12 +6,12 @@ from typing import Annotated
 import tomli_w
 import typer
 
-from pqnstack.app.core.config import get_settings
-from pqnstack.app.cron_manager import describe_schedule
-from pqnstack.app.cron_manager import get_daily_report_job
-from pqnstack.app.cron_manager import remove_daily_report_job
-from pqnstack.app.cron_manager import set_daily_report_schedule
-from pqnstack.app.daily_report import run_daily_report
+from pqn_node.core.config import get_settings
+from pqn_node.cron_manager import describe_schedule
+from pqn_node.cron_manager import get_daily_report_job
+from pqn_node.cron_manager import remove_daily_report_job
+from pqn_node.cron_manager import set_daily_report_schedule
+from pqn_node.daily_report import run_daily_report
 
 
 # TODO: check if this way of handling logging from a command line script is ok.
@@ -19,7 +19,7 @@ logging.basicConfig(level=logging.INFO)
 
 logger = logging.getLogger(__name__)
 
-app = typer.Typer(no_args_is_help=True, help="CLI for PQN-Stack.")
+app = typer.Typer(no_args_is_help=True, help="CLI for pqn-node.")
 
 daily_report_app = typer.Typer(no_args_is_help=True, help="Run and manage the daily health + Slack report.")
 app.add_typer(daily_report_app, name="daily-report")
@@ -40,7 +40,7 @@ def toggle_game(
     invalid = [g for g in games if g not in valid_games]
     if invalid:
         msg = f"Game(s) must be one of: chsh, qf, ssm. Invalid: {invalid}"
-        raise InvalidNetworkConfigurationError(msg)
+        raise typer.BadParameter(msg)
 
     path = Path(config)
     with path.open("rb") as f:

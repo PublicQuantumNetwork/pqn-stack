@@ -8,12 +8,12 @@ from fastapi import HTTPException
 from fastapi import Query
 from fastapi import status
 
-from pqnstack.app.core.config import settings
-from pqnstack.network.client import Client
-from pqnstack.pqn.protocols.measurement import MeasurementConfig
+from pqn_node.core.config import settings
+from pqn_hardware.network.client import Client
+from pqn_hardware.measurement import MeasurementConfig
 
 if TYPE_CHECKING:
-    from pqnstack.base.instrument import TimeTaggerInstrument
+    from pqn_hardware.instrument import TimeTaggerInstrument
 
 logger = logging.getLogger(__name__)
 

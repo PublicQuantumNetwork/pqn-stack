@@ -11,14 +11,14 @@ from fastapi import status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from pqnstack.app.api.deps import ClientDep
-from pqnstack.app.api.deps import StateDep
-from pqnstack.app.core.config import chsh_progress_event
-from pqnstack.app.core.config import settings
-from pqnstack.network.client import Client
+from pqn_node.api.deps import ClientDep
+from pqn_node.api.deps import StateDep
+from pqn_node.core.config import chsh_progress_event
+from pqn_node.core.config import settings
+from pqn_hardware.network.client import Client
 
 if TYPE_CHECKING:
-    from pqnstack.base.instrument import RotatorInstrument
+    from pqn_hardware.instrument import RotatorInstrument
 
 logger = logging.getLogger(__name__)
 

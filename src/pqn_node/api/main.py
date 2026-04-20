@@ -1,14 +1,14 @@
 from fastapi import APIRouter
 
-from pqnstack.app.api.routes import chsh
-from pqnstack.app.api.routes import coordination
-from pqnstack.app.api.routes import debug
-from pqnstack.app.api.routes import games
-from pqnstack.app.api.routes import health
-from pqnstack.app.api.routes import qkd
-from pqnstack.app.api.routes import rng
-from pqnstack.app.api.routes import serial
-from pqnstack.app.api.routes import timetagger
+from pqn_node.api.routes import chsh
+from pqn_node.api.routes import coordination
+from pqn_node.api.routes import debug
+from pqn_node.api.routes import games
+from pqn_node.api.routes import health
+from pqn_node.api.routes import qkd
+from pqn_node.api.routes import rng
+from pqn_node.api.routes import serial
+from pqn_node.api.routes import timetagger
 
 api_router = APIRouter()
 api_router.include_router(chsh.router)

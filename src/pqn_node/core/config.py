@@ -10,9 +10,9 @@ from pydantic_settings import PydanticBaseSettingsSource
 from pydantic_settings import SettingsConfigDict
 from pydantic_settings import TomlConfigSettingsSource
 
-from pqnstack.constants import BellState
-from pqnstack.constants import QKDEncodingBasis
-from pqnstack.pqn.protocols.measurement import MeasurementConfig
+from pqn_node.constants import BellState
+from pqn_node.constants import QKDEncodingBasis
+from pqn_hardware.measurement import MeasurementConfig
 
 logger = logging.getLogger(__name__)
 

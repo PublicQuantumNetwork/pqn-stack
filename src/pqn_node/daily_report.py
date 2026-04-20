@@ -1,6 +1,6 @@
 """Daily health + games report posted to Slack.
 
-Run via `pqn daily-report` (see pqnstack.cli). Loads `DailyReportConfig`, probes
+Run via `pqn-node daily-report` (see pqn_node.cli). Loads `DailyReportConfig`, probes
 hardware via `/health`, exercises each enabled game except SSM, and posts a
 single consolidated Slack digest.
 """
@@ -19,14 +19,14 @@ from typing import Any
 
 import httpx
 
-from pqnstack.app.api.routes.chsh import ChshResult
-from pqnstack.app.api.routes.health import ComponentStatus
-from pqnstack.app.api.routes.health import HealthStatus
+from pqn_node.api.routes.chsh import ChshResult
+from pqn_node.api.routes.health import ComponentStatus
+from pqn_node.api.routes.health import HealthStatus
 
 if TYPE_CHECKING:
     from types import FrameType
 
-    from pqnstack.app.core.config import DailyReportConfig
+    from pqn_node.core.config import DailyReportConfig
 
 logger = logging.getLogger(__name__)
 

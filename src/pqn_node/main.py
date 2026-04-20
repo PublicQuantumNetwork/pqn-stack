@@ -3,7 +3,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from pqnstack.app.api.main import api_router
+from pqn_node.api.main import api_router
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)

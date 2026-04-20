@@ -9,8 +9,8 @@ from fastapi import Query
 from pydantic import BaseModel
 from pydantic import Field
 
-from pqnstack.app.core.config import settings
-from pqnstack.network.client import Client
+from pqn_node.core.config import settings
+from pqn_hardware.network.client import Client
 
 logger = logging.getLogger(__name__)
 

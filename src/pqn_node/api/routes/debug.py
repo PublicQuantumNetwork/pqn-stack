@@ -1,9 +1,9 @@
 from fastapi import APIRouter
 
-from pqnstack.app.api.deps import StateDep
-from pqnstack.app.core.config import NodeState
-from pqnstack.app.core.config import Settings
-from pqnstack.app.core.config import settings
+from pqn_node.api.deps import StateDep
+from pqn_node.core.config import NodeState
+from pqn_node.core.config import Settings
+from pqn_node.core.config import settings
 
 router = APIRouter(prefix="/debug", tags=["debug"])
 

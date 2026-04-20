@@ -1,12 +1,13 @@
-# PQN Stack
+# pqn-node
 
-**Software stack for Public Quantum Network (PQN) nodes**
+**FastAPI node service for the Public Quantum Network (PQN)**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 
-A distributed node based approach to quantum networks. This repository hosts all the code necessary to make the backend of nodes of the PQN function. For the frontend, see [here](https://github.com/PublicQuantumNetwork/pqn-gui).
+Runs a PQN node: exposes the FastAPI routes used by the web UI, coordinates protocols between nodes, and orchestrates hardware through [`pqn-hardware`](https://github.com/PublicQuantumNetwork/pqn-hardware). Frontend lives in [pqn-gui](https://github.com/PublicQuantumNetwork/pqn-gui).
 
+Hardware drivers, ZMQ messaging, and instrument protocols were extracted into [`pqn-hardware`](https://github.com/PublicQuantumNetwork/pqn-hardware) so that hardware and node work can evolve independently; `pqn-node` pulls it in as a git-pinned dependency.
 
 <p align="center">
   <img src="docs/images/frontend_screenshot.png" alt="PQN Web Interface" width="800"/>
@@ -25,12 +26,12 @@ A distributed node based approach to quantum networks. This repository hosts all
   <em>PQN web interface for monitoring and controlling quantum network nodes</em>
 </p>
 
-Our Node is composed of multiple components. All components inside a node are part of an in internal intranet with no external world access except for quantum links to other hardware or the _Node API_.
+A Node's components share an internal intranet with no external access except for quantum links to other hardware or the _Node API_.
 
-* **Node API**: FastAPI based, handles communications with web-ui as well as Node to Node communication. Only component in a Node than can talk to other components and the outside world. Resides in [src/pqnstack/app/main.py](https://github.com/PublicQuantumNetwork/pqn-stack/blob/master/src/pqnstack/app/main.py). See the [FastAPI docs](https://fastapi.tiangolo.com/deployment/) for more options on how to run the API.
-* **Lightweight Web UI**: Designed for the general public to be able to interact with quantum networks. Resides in its own repository [here](https://github.com/PublicQuantumNetwork/pqn-gui).
-* **Router**: Routes messages between _Hardware Providers_, PQN developers and _Node APIs_. Uses ZMQ sockets to communicate between machines. Resides in [src/pqnstack/network/router.py](https://github.com/PublicQuantumNetwork/pqn-stack/blob/master/src/pqnstack/network/router.py).
-* **Hardware Provider**: Hosts hardware resources that are provided to whoever needs them inside a Node through the use of ProxyInstruments. Resides in [src/pqnstack/network/instrument_provider.py](https://github.com/PublicQuantumNetwork/pqn-stack/blob/master/src/pqnstack/network/instrument_provider.py).
+* **Node API** (this repo): FastAPI service that handles web-UI and node-to-node communication. The only component in a Node that can talk to other components and the outside world. Entry point: `src/pqn_node/main.py`. See the [FastAPI docs](https://fastapi.tiangolo.com/deployment/) for deployment options.
+* **Lightweight Web UI**: For the general public to interact with quantum networks. Lives at [pqn-gui](https://github.com/PublicQuantumNetwork/pqn-gui).
+* **Router** (in `pqn-hardware`): Routes ZMQ messages between _Hardware Providers_, developers, and _Node APIs_.
+* **Hardware Provider** (in `pqn-hardware`): Hosts hardware resources and exposes them through ProxyInstruments.
 
 ## Quick Start
 
@@ -45,40 +46,32 @@ Our Node is composed of multiple components. All components inside a node are pa
 
 ### Installation
 
-1. **Clone the repository**
+```bash
+git clone https://github.com/PublicQuantumNetwork/pqn-node.git
+cd pqn-node
+uv sync
+```
 
-   ```bash
-   git clone https://github.com/PublicQuantumNetwork/pqn-stack.git
-   cd pqn-stack
-   ```
-
-2. **Install dependencies**
-
-   To run the fastapi backend for node operations, use:
-   ```bash 
-   uv sync --extra webapp
-   ```
+`uv sync` fetches `pqn-hardware` at the pinned commit from its GitHub repo.
 
 ### Start a Node
 
-To fully start a PQN Node, you need to initialize 4 different processes:
+To fully start a PQN Node, four processes are typically needed:
 
-* **PQN API**
-* **Router**
-* **Hardware provider** (optional)
+* **PQN API** (this repo)
+* **Router** (from `pqn-hardware`)
+* **Hardware provider** (from `pqn-hardware`, optional)
 * **Web GUI** (optional)
 
 ### Set up the PQN API
 
-
-
 #### Config file
 
-Before starting a Node API, you need to set up a configuration file for the Node:
+Before starting a Node API, set up a configuration file:
 
 1. **Copy the example configuration:**
    ```bash
-   cp configs/config_app_example.toml config.toml
+   cp configs/config_example.toml config.toml
    ```
 
 > [!IMPORTANT]
@@ -87,55 +80,42 @@ Before starting a Node API, you need to set up a configuration file for the Node
 2. **Edit the configuration:**
    Open `config.toml` in your editor and replace the placeholder values with your actual settings (router addresses, instrument names, etc.).
 
-
 ### Configure Router and Hardware Provider
 
-For the first computer on the PQN, both a router and hardware provider are needed. For subsequent computers added to the same node, only a hardware provider is needed.
-
-Both the Router and Hardware Provider can be configured using a config file. (Alternatively you could use CLI flags for quick tests.)
-
-Create a TOML configuration file for the router and hardware provider (see example in [configs/config_messaging_example.toml](https://github.com/PublicQuantumNetwork/pqn-stack/blob/master/configs/config_messaging_example.toml)). The config file can contain settings for both router and provider:
-- Router settings go under `[router]`
-- Provider settings go under `[provider]` with instruments defined as `[[provider.instruments]]`
+Router and provider live in the `pqn-hardware` package. See [pqn-hardware's README](https://github.com/PublicQuantumNetwork/pqn-hardware#quick-start) for their config format. On the first computer on the PQN, both a router and a provider are needed; subsequent computers only need a provider.
 
 Start the router:
 
 ```bash
-uv run pqn start-router --config configs/config_messaging_example.toml
+uv run pqn-hw start-router --config configs/router_provider.toml
 ```
 
-Start the Hardware Provider:
+Start the hardware provider:
 
 ```bash
-uv run pqn start-provider --config configs/config_messaging_example.toml
-```
-
-**Alternative method using CLI flags:** - Pass configuration directly as command-line arguments
-
-Start the Router with CLI flags:
-```bash
-uv run pqn start-router --name router1 --host localhost --port 5555
-```
-
-Start the Instrument Provider with CLI flags:
-```bash
-uv run pqn start-provider \
-  --name provider1 \
-  --router-name router1 \
-  --instruments '{"dummy1": {"import": "pqnstack.pqn.drivers.dummies.DummyInstrument", "desc": "Test Instrument", "hw_address": "123456"}}'
+uv run pqn-hw start-provider --config configs/router_provider.toml
 ```
 
 ### Start the PQN API server
 
 ```bash
-uv run fastapi run src/pqnstack/app/main.py
+uv run fastapi run src/pqn_node/main.py
 ```
 
-To see the list of all the protocols that can be run, go to http://127.0.0.1:8000/docs.
+Browse protocols at http://127.0.0.1:8000/docs.
+
+### Daily report
+
+Run or schedule the Slack health-report digest:
+
+```bash
+uv run pqn-node daily-report run
+uv run pqn-node daily-report schedule
+```
 
 ### Install the Web GUI
 
-For instructions on how install and start the web GUI please see the repo where it lives at [https://github.com/PublicQuantumNetwork/pqn-gui](https://github.com/PublicQuantumNetwork/pqn-gui)
+See [pqn-gui](https://github.com/PublicQuantumNetwork/pqn-gui) for install and start instructions.
 
 ## Acknowledgements
 
@@ -143,4 +123,4 @@ The Public Quantum Network is supported in part by NSF Quantum Leap Challenge In
 
 ## Have questions?
 
-Feel free to contact the PQN team at publicquantumnetwork@gmail.com.
+Contact the PQN team at publicquantumnetwork@gmail.com.

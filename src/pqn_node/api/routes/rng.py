@@ -11,10 +11,10 @@ from fastapi import Query
 from fastapi import status
 from fastapi.responses import StreamingResponse
 
-from pqnstack.app.api.deps import ClientDep
-from pqnstack.app.api.deps import StateDep
-from pqnstack.app.core.config import rng_progress_event
-from pqnstack.app.core.config import settings
+from pqn_node.api.deps import ClientDep
+from pqn_node.api.deps import StateDep
+from pqn_node.core.config import rng_progress_event
+from pqn_node.core.config import settings
 
 logger = logging.getLogger(__name__)
 

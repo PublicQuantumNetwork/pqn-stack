@@ -5,10 +5,10 @@ from typing import cast
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from pqnstack.app.api.deps import SERDep
+from pqn_node.api.deps import SERDep
 
 if TYPE_CHECKING:
-    from pqnstack.pqn.drivers.rotaryencoder import MockRotaryEncoder
+    from pqn_hardware.drivers.rotaryencoder import MockRotaryEncoder
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/serial", tags=["measure"])

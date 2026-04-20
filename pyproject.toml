@@ -4,9 +4,9 @@ build-backend = "uv_build"
 
 
 [project]
-name = "pqnstack"
+name = "pqn-node"
 version = "0.2.0"
-description = "Illinois Computes work on software stack for PQN."
+description = "FastAPI node service for the Public Quantum Network."
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
@@ -16,19 +16,18 @@ authors = [
     { name = "Soroush Hoseini", email = "soroushhoseini0@gmail.com" },
 ]
 dependencies = [
-    "numpy>=2.3.5",
-    "pyfirmata2>=2.5.0",
-    "pyzmq>=26.2.0",
-    "thorlabs-apt-device>=0.3.8",
-    "tomli-w>=1.0.0",
-    "typer>=0.15.1",
+    "pqn-hardware @ git+https://github.com/PublicQuantumNetwork/pqn-hardware.git@6440be2830fddccb09b461caea023c84b7c3bea1",
     "fastapi[standard]>=0.115.14",
     "httpx>=0.28.1",
+    "pydantic>=2.0",
     "pydantic-settings>=2.10.1",
+    "pyserial>=3.5",
+    "tomli-w>=1.0.0",
+    "typer>=0.15.1",
 ]
 
 [project.scripts]
-pqn = "pqnstack.cli:app"
+pqn-node = "pqn_node.cli:app"
 
 
 [dependency-groups]

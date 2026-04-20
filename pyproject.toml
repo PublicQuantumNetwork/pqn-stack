@@ -22,17 +22,14 @@ dependencies = [
     "thorlabs-apt-device>=0.3.8",
     "tomli-w>=1.0.0",
     "typer>=0.15.1",
+    "fastapi[standard]>=0.115.14",
+    "httpx>=0.28.1",
+    "pydantic-settings>=2.10.1",
 ]
 
 [project.scripts]
 pqn = "pqnstack.cli:app"
 
-[project.optional-dependencies]
-webapp = [
-    "fastapi[standard]>=0.115.14",
-    "httpx>=0.28.1",
-    "pydantic-settings>=2.10.1",
-]
 
 [dependency-groups]
 dev = ["hypothesis", "mypy", "coverage", "pytest-randomly", "ruff"]

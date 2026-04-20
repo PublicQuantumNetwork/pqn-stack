@@ -166,7 +166,6 @@ async def _chsh(  # Complexity is high due to the nature of the CHSH experiment.
     expectation_values_sign_fixed = [
         x * y for x, y in zip(expectation_values, settings.chsh_settings.expectation_signs, strict=False)
     ]
-    logger.info("What are you settings? %s", settings.chsh_settings.expectation_signs)
 
     logger.info("After passing signed calculation: %s", expectation_values_sign_fixed)
     chsh_value = abs(sum(x for x in expectation_values_sign_fixed))

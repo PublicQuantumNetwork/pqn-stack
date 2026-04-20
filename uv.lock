@@ -729,19 +729,15 @@ name = "pqnstack"
 version = "0.2.0"
 source = { editable = "." }
 dependencies = [
+    { name = "fastapi", extra = ["standard"] },
+    { name = "httpx" },
     { name = "numpy" },
+    { name = "pydantic-settings" },
     { name = "pyfirmata2" },
     { name = "pyzmq" },
     { name = "thorlabs-apt-device" },
     { name = "tomli-w" },
     { name = "typer" },
-]
-
-[package.optional-dependencies]
-webapp = [
-    { name = "fastapi", extra = ["standard"] },
-    { name = "httpx" },
-    { name = "pydantic-settings" },
 ]
 
 [package.dev-dependencies]
@@ -755,17 +751,16 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "fastapi", extras = ["standard"], marker = "extra == 'webapp'", specifier = ">=0.115.14" },
-    { name = "httpx", marker = "extra == 'webapp'", specifier = ">=0.28.1" },
+    { name = "fastapi", extras = ["standard"], specifier = ">=0.115.14" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "numpy", specifier = ">=2.3.5" },
-    { name = "pydantic-settings", marker = "extra == 'webapp'", specifier = ">=2.10.1" },
+    { name = "pydantic-settings", specifier = ">=2.10.1" },
     { name = "pyfirmata2", specifier = ">=2.5.0" },
     { name = "pyzmq", specifier = ">=26.2.0" },
     { name = "thorlabs-apt-device", specifier = ">=0.3.8" },
     { name = "tomli-w", specifier = ">=1.0.0" },
     { name = "typer", specifier = ">=0.15.1" },
 ]
-provides-extras = ["webapp"]
 
 [package.metadata.requires-dev]
 dev = [

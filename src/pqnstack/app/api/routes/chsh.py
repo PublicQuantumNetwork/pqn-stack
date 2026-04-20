@@ -15,7 +15,6 @@ from pqnstack.app.api.deps import ClientDep
 from pqnstack.app.api.deps import StateDep
 from pqnstack.app.core.config import chsh_progress_event
 from pqnstack.app.core.config import settings
-from pqnstack.app.core.models import calculate_chsh_expectation_error
 from pqnstack.network.client import Client
 
 if TYPE_CHECKING:
@@ -213,3 +212,14 @@ async def request_angle_by_basis(index: int, state: StateDep, *, perp: bool = Fa
     hwp.move_to(angle / 2)
     logger.info("moving waveplate", extra={"angle": angle})
     return True
+
+
+def calculate_chsh_expectation_error(counts: list[int], dark_count: int = 0) -> float:
+    total_counts = sum(counts)
+    corrected_total = total_counts - 4 * dark_count
+    if corrected_total <= 0:
+        return 0
+    first_term = (total_counts**0.5) / corrected_total
+    expectation = abs(counts[0] + counts[3] - counts[1] - counts[2])
+    second_term = (expectation / corrected_total**2) * (total_counts + 4 * dark_count) ** 0.5
+    return float(first_term + second_term)

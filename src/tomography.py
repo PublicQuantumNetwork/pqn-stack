@@ -1,63 +1,80 @@
-import os
-import csv
+import datetime
 import time
-import logging
-from pqnstack.pqn.drivers.switch import Switch
-from pqnstack.pqn.drivers.polarimeter import ArduinoPolarimeter
-from pqnstack.pqn.drivers.powermeter import PM100D
-from pqnstack.pqn.drivers.rotator import SerialRotator
-logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
-logger = logging.getLogger(__name__)
+from dataclasses import dataclass
+from pqnstack.pqn.drivers.thorlabs_polarimeter import PAX1000IR2
+from pqnstack.pqn.drivers.rotator import RotatorInstrument
+from pqnstack.constants import DEFAULT_SETTINGS
+from pqnstack.constants import MeasurementBasis
+from pqnstack.pqn.protocols.measurement import MeasurementConfig
 
-log_filename = f"tomography_noswitch_{int(time.time())}.csv"
+_TOMOGRAPHY_STATES: list[str] = ["H", "V", "D", "A", "R", "L"]
 
-# Measure data without the switch in the equation
-meter = PM100D("mymeter", "PM100D", "/dev/usbtmc1")
-meter.start()
+TOMOGRAPHY_BASIS: MeasurementBasis = MeasurementBasis(
+    name="TOMOGRAPHY",
+    pairs=[(s, i) for s in _TOMOGRAPHY_STATES for i in _TOMOGRAPHY_STATES],
+    settings=DEFAULT_SETTINGS,
+)
 
-# TODO: what to set for board and pins
-polarimeter = ArduinoPolarimeter(sample_rate=10, average_width=10, board=None, pins=None)
-polarimeter.start()
 
-# TODO: does this work?
-rotator = SerialRotator(offset_degrees=0.0)
-rotator.start()
+@dataclass
+class Devices:
+    signal_hwp: RotatorInstrument
+    signal_qwp: RotatorInstrument
+    polarimeter: PAX1000IR2
 
-def log_data(data):
-    global log_filename
-    headers = ["timestamp", "pm1_w", "pm1_ref_w", "pm1_total_w", "pax_wavelength_nm"]
-    
-    with open(log_filename, mode="a", newline="", buffering=1) as file:
-        writer = csv.DictWriter(file, fieldnames=headers)
 
-        # Write header if new file
-        if file.tell() == 0:
-            writer.writeheader()
+@dataclass
+class TomographyValue:
+    timestamp: str
+    tomography_values: dict[str, dict[str, float]]
 
-        writer.writerow(data)
-    
-try:
-    # Repeat 6 times - one for each polarization
-    for i in range(6):
 
-        # Repeat for 10 minutes
-        for j in range(6000):
-            data = meter.read()
-            data["timestamp"] = str(time.time())
+def measure_tomography_raw(
+    devices: Devices,
+    config: MeasurementConfig,
+    sleepTime: int,
+) -> TomographyValue:
+    tomography_values = TomographyValue()
 
-            # TODO: figure out data format and add it into data{}
-            print(polarimeter.read())
-            
-            log_data(data)
+    for index, (signal_state, idler_state) in enumerate(TOMOGRAPHY_BASIS.pairs):
+        signal_angles: tuple[float, float] = TOMOGRAPHY_BASIS.settings[signal_state]
 
-            time.sleep(0.1)
+        devices.signal_hwp.move_to(signal_angles[0])
+        devices.signal_qwp.move_to(signal_angles[1])
 
-    # Rotate to next polarization
-    rotator.degrees((i+1)*60)
+        time.sleep(sleepTime)
 
-except KeyboardInterrupt:
-    pass
+        tomography_values.tomography_values.append(index, devices.polarimeter.read())
 
-meter.close()
-polarimeter.close()
-rotator.close()
+    current_time: str = datetime.datetime.now(datetime.UTC).isoformat()
+
+    return TomographyValue(
+        timestamp=current_time,
+        tomography_value=tomography_values,
+    )
+
+
+"""
+Example:
+if __name__ == "__main__":
+    from pqnstack.network.client import Client
+
+    client = Client(host="172.30.63.109", timeout=30000)
+
+    idler_hwp = client.get_device("pqn_test3", "idler_hwp")
+    idler_qwp = client.get_device("pqn_test3", "idler_qwp")
+    signal_hwp = client.get_device("pqn_test3", "signal_hwp")
+    signal_qwp = client.get_device("pqn_test3", "signal_qwp")
+    timetagger = client.get_device("mini_pc", "tagger")
+
+    devices = Devices(
+        idler_hwp=idler_hwp,
+        idler_qwp=idler_qwp,
+        signal_hwp=signal_hwp,
+        signal_qwp=signal_qwp,
+        timetagger=timetagger,
+    )
+
+    config = MeasurementConfig(channel1=1, channel2=2, binwidth=1_000, duration=0.5)
+    result = measure_tomography_raw(devices, config)
+"""

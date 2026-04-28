@@ -2,33 +2,34 @@ import os
 import csv
 import time
 import logging
-import tomography
+from tomography import Devices
+from pqnstack.network.client import Client
 from pqnstack.pqn.drivers.switch import Switch
-from pqnstack.pqn.drivers.thorlabs_polarimeter import PAX1000IR2
 from pqnstack.pqn.drivers.powermeter import PM100D
 from pqnstack.pqn.drivers.rotator import RotatorInstrument
+from pqnstack.pqn.drivers.thorlabs_polarimeter import PAX1000IR2
+
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
-log_filename = f"tomography_noswitch_{int(time.time())}.csv"
+# Output filename
+# TODO: need to specify which run we are in somewhere
+log_filename = f"tomography_{int(time.time())}.csv"
+
+# TODO: What is this?
+# client = Client(host="172.30.63.109", timeout=30000)
+# signal_hwp = client.get_device("pqn_test3", "signal_hwp")
+# signal_qwp = client.get_device("pqn_test3", "signal_qwp")
 
 # Measure data without the switch in the equation
-meter = PM100D("mymeter", "PM100D", "/dev/usbtmc1")
-meter.start()
+meter = PM100D("mymeter", "PM100D", "/dev/usbtmc0")
+# meter.start()
+
+# TODO: what to set for board and pins?
+polarimeter = PAX1000IR2("?", "?", "/dev/?")
+# polarimeter.start()
 
 switch = Switch("192.168.0.1", 8008, "admin", "root")
-
-# TODO: what to set for board and pins
-polarimeter = PAX1000IR2("?", "?", "/dev/?")
-polarimeter.start()
-
-# TODO: does this work?
-signal_hwp = SerialRotator(offset_degrees=0.0)
-signal_hwp.start()
-signal_qwp = SerialRotator(offset_degrees=0.0)
-signal_qwp.start()
-
-
 
 def log_data(data):
     global log_filename
@@ -84,7 +85,11 @@ Measures 1 sample, then rotates, repeat for 10 minutes
 def run_three(input_port, output_port):
     global meter, switch, polarimeter, rotator
 
-
+    devices = Devices(
+        signal_hwp=signal_hwp,
+        signal_qwp=signal_qwp,
+        timetagger=timetagger
+    )
 
     # # Remove all patches
     # for i in range(8):
@@ -125,11 +130,14 @@ def run_five():
     pass # TODO
 
 try:
+    pass
     #run_one_two(1, 9)
-    run_three(1, 9)
+    #run_three(1, 9)
 except KeyboardInterrupt:
     pass
 
-meter.close()
-polarimeter.close()
-rotator.close()
+if (meter):
+    meter.close()
+
+if (polarimeter):
+    polarimeter.close()

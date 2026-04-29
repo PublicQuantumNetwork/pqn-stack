@@ -7,10 +7,10 @@ from fastapi import APIRouter
 from fastapi import HTTPException
 from fastapi import Query
 from fastapi import status
+from pqn_hardware.measurement import MeasurementConfig
+from pqn_hardware.network.client import Client
 
 from pqn_node.core.config import settings
-from pqn_hardware.network.client import Client
-from pqn_hardware.measurement import MeasurementConfig
 
 if TYPE_CHECKING:
     from pqn_hardware.instrument import TimeTaggerInstrument

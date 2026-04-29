@@ -4,15 +4,15 @@ from typing import Annotated
 
 import httpx
 from fastapi import Depends
+from pqn_hardware.drivers.rotaryencoder import MockRotaryEncoder
+from pqn_hardware.drivers.rotaryencoder import RotaryEncoderInstrument
+from pqn_hardware.drivers.rotaryencoder import SerialRotaryEncoder
+from pqn_hardware.network.client import Client
 
 from pqn_node.core.config import NodeState
 from pqn_node.core.config import get_state
 from pqn_node.core.config import logger
 from pqn_node.core.config import settings
-from pqn_hardware.network.client import Client
-from pqn_hardware.drivers.rotaryencoder import MockRotaryEncoder
-from pqn_hardware.drivers.rotaryencoder import RotaryEncoderInstrument
-from pqn_hardware.drivers.rotaryencoder import SerialRotaryEncoder
 
 
 async def get_http_client() -> AsyncGenerator[httpx.AsyncClient, None]:

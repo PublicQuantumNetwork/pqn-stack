@@ -9,18 +9,18 @@ import httpx
 from fastapi import APIRouter
 from fastapi import HTTPException
 from fastapi import status
+from pqn_hardware.network.client import Client
 from pydantic import BaseModel
 
 from pqn_node.api.deps import ClientDep
 from pqn_node.api.deps import StateDep
+from pqn_node.constants import BasisBool
+from pqn_node.constants import QKDEncodingBasis
 from pqn_node.core.config import NodeRole
 from pqn_node.core.config import NodeState
 from pqn_node.core.config import protocol_cancelled_event
 from pqn_node.core.config import qkd_result_received_event
 from pqn_node.core.config import settings
-from pqn_node.constants import BasisBool
-from pqn_node.constants import QKDEncodingBasis
-from pqn_hardware.network.client import Client
 
 if TYPE_CHECKING:
     from pqn_hardware.instrument import RotatorInstrument

@@ -9,13 +9,13 @@ from fastapi import APIRouter
 from fastapi import HTTPException
 from fastapi import status
 from fastapi.responses import StreamingResponse
+from pqn_hardware.network.client import Client
 from pydantic import BaseModel
 
 from pqn_node.api.deps import ClientDep
 from pqn_node.api.deps import StateDep
 from pqn_node.core.config import chsh_progress_event
 from pqn_node.core.config import settings
-from pqn_hardware.network.client import Client
 
 if TYPE_CHECKING:
     from pqn_hardware.instrument import RotatorInstrument

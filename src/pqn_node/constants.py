@@ -33,4 +33,3 @@ class BellState(Enum):
 
     Phi_plus = 0
     Psi_plus = 1
-

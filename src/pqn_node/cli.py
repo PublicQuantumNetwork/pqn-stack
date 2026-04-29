@@ -13,7 +13,6 @@ from pqn_node.cron_manager import remove_daily_report_job
 from pqn_node.cron_manager import set_daily_report_schedule
 from pqn_node.daily_report import run_daily_report
 
-
 # TODO: check if this way of handling logging from a command line script is ok.
 logging.basicConfig(level=logging.INFO)
 

@@ -6,11 +6,11 @@ import httpx
 import serial
 from fastapi import APIRouter
 from fastapi import Query
+from pqn_hardware.network.client import Client
 from pydantic import BaseModel
 from pydantic import Field
 
 from pqn_node.core.config import settings
-from pqn_hardware.network.client import Client
 
 logger = logging.getLogger(__name__)
 

@@ -3,6 +3,7 @@ import logging
 from enum import Enum
 from functools import lru_cache
 
+from pqn_hardware.measurement import MeasurementConfig
 from pydantic import BaseModel
 from pydantic import Field
 from pydantic_settings import BaseSettings
@@ -12,7 +13,6 @@ from pydantic_settings import TomlConfigSettingsSource
 
 from pqn_node.constants import BellState
 from pqn_node.constants import QKDEncodingBasis
-from pqn_hardware.measurement import MeasurementConfig
 
 logger = logging.getLogger(__name__)
 

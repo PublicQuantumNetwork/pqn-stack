@@ -21,6 +21,12 @@ class SwitchInfo(InstrumentInfo):
     software_version: str = None
 
 class Switch(Instrument):
+    # A name given to the device by the user
+    _name: str
+
+    # A description given to the device by the user
+    _desc: str
+
     # The IP address used to connect to the switch's management interface
     _ip_address: str
 
@@ -34,22 +40,30 @@ class Switch(Instrument):
     _password: str
 
     """
-    Initializes variables and performs a connection test
+    Initializes variables
 
     Args:
+        name:       A name given to the device by the user
+        desc:       A description given to the device by the user
         ip_address: The IP address used to connect to the switch's management interface
         port:       The port number used to connect to the switch's management interface
         username:   The username used to log into the switch
         password:   The password used to log into the switch
     """
-    def __init__(self, ip_address: str = "192.168.0.1", port: int = 8008, username: str = "admin", password: str = "root") -> None:
+    def __init__(self, name: str = "", desc: str = "", ip_address: str = "192.168.0.1", port: int = 8008, username: str = "admin", password: str = "root") -> None:
 
         # Initialize variables
+        self._name = name
+        self._desc = desc
         self._ip_address = ip_address
         self._port = port
         self._username = username
         self._password = password
 
+    """
+    Performs a connection test
+    """
+    def start(self):
         logger.info("Performing connection test")
 
         # Connection test
@@ -105,9 +119,8 @@ class Switch(Instrument):
 
     def info(self) -> SwitchInfo:
         response = self._http_request("GET", "/api/data/optical-switch:product-information")
-        # TODO: What is the convention for the name and desc fields?
         # TODO: what info to include in hw_status?
-        return SwitchInfo("TODO", "TODO", self._ip_address + ":" + str(self._port), None, response.data["optical-switch:product-information"]["serial-number"], response.data["optical-switch:product-information"]["model-name"], response.data["optical-switch:product-information"]["software-version"])
+        return SwitchInfo(self._name, self._desc, self._ip_address + ":" + str(self._port), None, response.data["optical-switch:product-information"]["serial-number"], response.data["optical-switch:product-information"]["model-name"], response.data["optical-switch:product-information"]["software-version"])
     
     def get_egress(self, ingress: int) -> int:
         response = self._http_request("GET", "/api/data/optical-switch:cross-connects/pair=" + str(ingress))

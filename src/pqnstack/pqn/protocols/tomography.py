@@ -35,6 +35,7 @@ class TomographyValue:
 def measure_tomography_raw(
     devices: Devices,
     config: MeasurementConfig,
+    sleepTime: int,
 ) -> TomographyValue:
     tomography_counts: list[int] = []
 
@@ -47,7 +48,7 @@ def measure_tomography_raw(
         devices.idler_hwp.move_to(idler_angles[0])
         devices.idler_qwp.move_to(idler_angles[1])
 
-        time.sleep(3)
+        time.sleep(sleepTime)
 
         coincidence = devices.timetagger.measure_correlation(
             config.channel1,

@@ -1,7 +1,10 @@
 import os
+import re
 import csv
 import time
 import logging
+import pandas as pd
+import matplotlib.pyplot as plt
 from pqnstack.network.client import Client
 from pqnstack.pqn.drivers.switch import Switch
 from pqnstack.constants import DEFAULT_SETTINGS
@@ -9,6 +12,8 @@ from pqnstack.pqn.drivers.powermeter import PM100D
 from tomography import Devices, measure_tomography_raw
 from pqnstack.pqn.drivers.rotator import SerialRotator
 from pqnstack.pqn.drivers.thorlabs_polarimeter import PAX1000IR2
+
+OUTPUT_DIRECTORY = "data"
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
@@ -34,9 +39,7 @@ qwp = SerialRotator(name='qwp', desc='polarization meas setup', hw_address="/dev
 qwp.start()
 
 # Appends data to the CSV data file
-def record_data(data):
-    global log_filename
-    
+def record_data(data, log_filename):
     # TODO: change this to match new data format
     headers = ["timestamp", "pax_azimuth_deg", "pax_ellipticity_deg", "pax_theta_deg", "pax_eta_deg", "pax_dop", "pax_power_w", "pax_wavelength_nm"]
 
@@ -53,13 +56,55 @@ def record_data(data):
         # Append row
         writer.writerow(data)
 
+# Generates a data plot of the specified CSV file
+def plot_data(filename):
+    # Set theme
+    plt.style.use("seaborn-v0_8-white")
+
+    # Set font size
+    plt.rcParams.update({
+        "axes.labelsize": 9,
+        "xtick.labelsize": 8,
+        "ytick.labelsize": 8,
+        "axes.titlesize": 14,
+    })
+
+    # Read CSV into dataframe
+    df = pd.read_csv(filename)
+
+    # Offset timestamp column so the first record occurs at t=0
+    df["time_from_zero"] = df["timestamp"] - df["timestamp"].iloc[0]
+
+    fig, ax1 = plt.subplots(figsize=(10, 5))
+    ax1.plot(df["time_from_zero"], df["pax_ellipticity_deg"], color="blue", label="Ellipticity (°)",
+            marker="o", markersize=3, linewidth=1)
+    ax1.set_xlabel("Time (s)")
+    ax1.set_ylabel("Ellipticity (°)", color="blue")
+    ax1.tick_params(axis="y", labelcolor="blue")
+    ax1.grid(True, which="major", linestyle="--", linewidth=0.5, alpha=0.7)
+
+    ax2 = ax1.twinx()
+    ax2.plot(df["time_from_zero"], df["pax_azimuth_deg"], color="green", label="Azimuth (°)",
+            marker="s", markersize=3, linewidth=1)
+    ax2.set_ylabel("Azimuth (°)", color="green")
+    ax2.tick_params(axis="y", labelcolor="green")
+
+    # Set title using filename
+    match = re.search(r"R(\d+)_([A-Z]+)", filename)
+    run_num = match.group(1)
+    light   = match.group(2)
+    plt.title(f"Tomography Data - Run {run_num}, {light} Light")
+
+    # Save to PNG
+    plt.savefig(filename.replace(".csv", ".png"), dpi=150, bbox_inches="tight")
+
 """
 RUN 1
 Measure stability of H input over a 10min period
 Repeat for V, D, L, A, R
 """
 def run_one(input_port, output_port):
-    global switch, polarimeter, hwp, qwp, log_filename
+    global switch, polarimeter, hwp, qwp, OUTPUT_DIRECTORY
 
     # Remove all existing patches
     logger.info("Removing existing patches")
@@ -72,7 +117,7 @@ def run_one(input_port, output_port):
 
     for state in DEFAULT_SETTINGS:
         # Output filename
-        log_filename = f"tomography_{int(time.time())}_R1_{state}.csv"
+        log_filename = f"{OUTPUT_DIRECTORY}/tomography_{int(time.time())}_R1_{state}.csv"
 
         # Move HWP and QWP to desired angles
         logger.info(f"Moving rotators to {state} polarization")
@@ -84,10 +129,12 @@ def run_one(input_port, output_port):
             data = polarimeter.read()
             data["timestamp"] = str(time.time())
             print(data)
-            record_data(data)
+            record_data(data, log_filename)
             time.sleep(10)
 
         logger.info(f"Done recording data from {state} polarization")
+        plot_data(log_filename)
+        logger.info("Generated data plot")
 
 """
 RUN 2
@@ -95,9 +142,7 @@ Gather tomography data over 1 hour
 EO converter goes to switch input port, switch output goes to meter
 """
 def run_two(input_port, output_port):
-    global switch, polarimeter, hwp, qwp, log_filename
-
-    log_filename += "_R2.csv"
+    global switch, polarimeter, hwp, qwp
 
     # Remove all patches
     for i in range(8):
@@ -125,9 +170,7 @@ RUN 3
 Measures 1 sample, then rotates, repeat for 10 minutes
 """
 def run_three(input_port, output_port):
-    global switch, polarimeter, hwp, qwp, log_filename
-
-    log_filename += "_R3.csv"
+    global switch, polarimeter, hwp, qwp
 
     devices = Devices(
         hwp=hwp,
@@ -145,10 +188,6 @@ RUN 4
 Measure crosstalk
 """
 def run_four():
-    global log_filename
-
-    log_filename += "_R4.csv"
-    
     pass # TODO
 
 """
@@ -156,10 +195,6 @@ RUN 5
 Measure extinction ratio
 """
 def run_five():
-    global log_filename
-
-    log_filename += "_R5.csv"
-
     pass # TODO
 
 try:

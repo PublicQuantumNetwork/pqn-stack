@@ -4,6 +4,7 @@ import csv
 import time
 import logging
 import pandas as pd
+from datetime import datetime
 import matplotlib.pyplot as plt
 from pqnstack.network.client import Client
 from pqnstack.pqn.drivers.switch import Switch
@@ -13,7 +14,7 @@ from tomography import Devices, measure_tomography_raw
 from pqnstack.pqn.drivers.rotator import SerialRotator
 from pqnstack.pqn.drivers.thorlabs_polarimeter import PAX1000IR2
 
-OUTPUT_DIRECTORY = "data"
+OUTPUT_DIRECTORY = "../data"
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
@@ -98,6 +99,13 @@ def plot_data(filename):
     # Save to PNG
     plt.savefig(filename.replace(".csv", ".png"), dpi=150, bbox_inches="tight")
 
+# Returns a timestamp in the format "UNIXTIMESTAMP_YYYY-MM-DD_HH-MM-SS" to use in filenames
+def get_timestamp():
+    now = datetime.now()
+    unix_ts = int(now.timestamp())
+    readable = now.strftime("%Y-%m-%d_%H-%M-%S")
+    return f"{unix_ts}_{readable}"
+
 """
 RUN 1
 Measure stability of H input over a 10min period
@@ -117,7 +125,7 @@ def run_one(input_port, output_port):
 
     for state in DEFAULT_SETTINGS:
         # Output filename
-        log_filename = f"{OUTPUT_DIRECTORY}/tomography_{int(time.time())}_R1_{state}.csv"
+        log_filename = f"{OUTPUT_DIRECTORY}/{get_timestamp()}_R1_{state}.csv"
 
         # Move HWP and QWP to desired angles
         logger.info(f"Moving rotators to {state} polarization")
@@ -128,7 +136,6 @@ def run_one(input_port, output_port):
         for i in range(60):
             data = polarimeter.read()
             data["timestamp"] = str(time.time())
-            print(data)
             record_data(data, log_filename)
             time.sleep(10)
 
@@ -138,8 +145,9 @@ def run_one(input_port, output_port):
 
 """
 RUN 2
-Gather tomography data over 1 hour
-EO converter goes to switch input port, switch output goes to meter
+Measure H, V, D, L, A, then R
+Wait 10 seconds
+Repeat whole process 40 times
 """
 def run_two(input_port, output_port):
     global switch, polarimeter, hwp, qwp
@@ -161,7 +169,7 @@ def run_two(input_port, output_port):
         time.sleep(1)
 
         data = meter.read()
-        data["timestamp"] = str(time.time())
+        #data["timestamp"] = str(time.time())
         print(polarimeter.read()) # TODO: figure out data format and add it into data{}
         record_data(data)
 

@@ -2,7 +2,7 @@ import re
 import matplotlib.pyplot as plt
 import pandas as pd
 
-filename = "data/tomography_1777660455_R1_H.csv"
+filename = "data/tomography_1777663471_R1_L.csv"
 
 plt.style.use("seaborn-v0_8-white")  # no grid at all by default
 

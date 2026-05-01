@@ -169,4 +169,5 @@ cython_debug/
 
 config.toml
 
-src/data
+data/
+src/data/

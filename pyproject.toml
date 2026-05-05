@@ -16,10 +16,12 @@ authors = [
     { name = "Soroush Hoseini", email = "soroushhoseini0@gmail.com" },
 ]
 dependencies = [
+    "geckodriver-autoinstaller>=0.1.0",
     "numpy>=2.3.5",
     "pyfirmata2>=2.5.0",
     "pyzmq>=26.2.0",
     "requests>=2.33.1",
+    "selenium>=4.43.0",
     "thorlabs-apt-device>=0.3.8",
     "typer>=0.15.1",
 ]

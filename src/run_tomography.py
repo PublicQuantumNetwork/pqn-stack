@@ -16,7 +16,7 @@ from pqnstack.pqn.drivers.thorlabs_polarimeter import PAX1000IR2
 
 OUTPUT_DIRECTORY = "../data"
 INPUT_PORT = 1
-OUTPUT_PORT = 9
+OUTPUT_PORT = 10
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
@@ -43,7 +43,6 @@ qwp.start()
 
 # Appends data to the CSV data file
 def record_data(data, log_filename):
-    # TODO: change this to match new data format
     headers = ["timestamp", "polarization", "pax_azimuth_deg", "pax_ellipticity_deg", "pax_theta_deg", "pax_eta_deg", "pax_dop", "pax_power_w", "pax_wavelength_nm"]
 
     # Check if file exists
@@ -65,11 +64,6 @@ def plot_data(
     run,
     state=None
 ):
-    if (run == 1):
-        title = f"Tomography Data - Run 1, {state} Light"
-    elif (run == 2):
-        title = f"Tomography Data - Run 2, "
-
     # Set theme
     plt.style.use("seaborn-v0_8-white")
 
@@ -87,24 +81,30 @@ def plot_data(
     # Offset timestamp column so the first record occurs at t=0
     df["time_from_zero"] = df["timestamp"] - df["timestamp"].iloc[0]
 
-    fig, ax1 = plt.subplots(figsize=(10, 5))
-    ax1.plot(df["time_from_zero"], df["pax_ellipticity_deg"], color="blue", label="Ellipticity (°)",
-            marker="o", markersize=3, linewidth=1)
-    ax1.set_xlabel("Time (s)")
-    ax1.set_ylabel("Ellipticity (°)", color="blue")
-    ax1.tick_params(axis="y", labelcolor="blue")
-    ax1.grid(True, which="major", linestyle="--", linewidth=0.5, alpha=0.7)
+    if (run == 1):
+        plt.title(f"Tomography Data - Run 1, {state} Light")
+    elif (run == 2):
+        # Split df into 6 dataframes, one for each polarization
+        dfs = {pol: df[df['polarization'] == pol] for pol in DEFAULT_SETTINGS}
+        
+        for state in DEFAULT_SETTINGS:
+            plt.title(f"Tomography Data - Run 2, {state} Light, In {INPUT_PORT} / Out {OUTPUT_PORT}")
 
-    ax2 = ax1.twinx()
-    ax2.plot(df["time_from_zero"], df["pax_azimuth_deg"], color="green", label="Azimuth (°)",
-            marker="s", markersize=3, linewidth=1)
-    ax2.set_ylabel("Azimuth (°)", color="green")
-    ax2.tick_params(axis="y", labelcolor="green")
+            fig, ax1 = plt.subplots(figsize=(10, 5))
+            ax1.set_xlabel("Time (s)")
+            ax1.set_ylabel("Ellipticity (°)", color="blue")
+            ax1.tick_params(axis="y", labelcolor="blue")
+            ax1.grid(True, which="major", linestyle="--", linewidth=0.5, alpha=0.7)
+            ax1.plot(dfs[state]["time_from_zero"], dfs[state]["pax_ellipticity_deg"], color="blue", label="Ellipticity (°)", marker="o", markersize=3, linewidth=1)
 
-    plt.title(title)
 
-    # Save to PNG
-    plt.savefig(filename.replace(".csv", ".png"), dpi=150, bbox_inches="tight")
+            ax2 = ax1.twinx()
+            ax2.set_ylabel("Azimuth (°)", color="green")
+            ax2.tick_params(axis="y", labelcolor="green")
+            ax2.plot(dfs[state]["time_from_zero"], dfs[state]["pax_azimuth_deg"], color="green", label="Azimuth (°)", marker="s", markersize=3, linewidth=1)
+
+            # Save to PNG
+            plt.savefig(filename.replace(".csv", f"_{state}.png"), dpi=150, bbox_inches="tight")
 
 # Returns a timestamp in the format "UNIXTIMESTAMP_YYYY-MM-DD_HH-MM-SS" to use in filenames
 def get_timestamp():
@@ -139,7 +139,6 @@ def run_one():
             time.sleep(10)
 
         logger.info(f"Done recording data from {state} polarization")
-        plot_data(log_filename, 1, state=state)
         logger.info("Generated data plot")
 
 """
@@ -148,13 +147,13 @@ Measure H, V, D, L, A, then R
 Wait 10 seconds
 Repeat whole process 40 times
 """
-def run_two(duration):
+def run_two():
     global switch, polarimeter, hwp, qwp, OUTPUT_DIRECTORY
 
     # Output filename
     log_filename = f"{OUTPUT_DIRECTORY}/{get_timestamp()}_R2_I{INPUT_PORT}-O{OUTPUT_PORT}.csv"
 
-    for i in range(int(duration*60/16)):
+    for i in range(112):
         for state in DEFAULT_SETTINGS:
 
             # Move HWP and QWP to desired angles
@@ -171,41 +170,19 @@ def run_two(duration):
         logger.info("Completed single tomography, wait 10s")
         time.sleep(10)
 
-    plot_data(log_filename, 2)
     logger.info("Generated data plot")
 
-"""
-RUN 3
-Measures 1 sample, then rotates, repeat for 10 minutes
-"""
-def run_three(input_port, output_port):
-    global switch, polarimeter, hwp, qwp
-
-    devices = Devices(
-        hwp=hwp,
-        qwp=qwp,
-        timetagger=timetagger
-    )
-    config = MeasurementConfig(channel1=1, channel2=2, binwidth=1_000, duration=0.5)
-
-    for i in range(200):
-        # TODO: figure out data format and log it
-        print(measure_tomography_raw(devices, config, 3))
-    pass # TODO
-
 try:
-    # # Remove all existing patches
-    # logger.info("Removing existing patches")
-    # for i in range(8):
-    #     switch.remove_patch(i+1)
+    # Remove all existing patches
+    logger.info("Removing existing patches")
+    for i in range(8):
+        switch.remove_patch(i+1)
 
-    # # Add a new patch from INPUT_PORT to OUTPUT_PORT
-    # logger.info("Creating new patch")
-    # switch.add_patch(INPUT_PORT, OUTPUT_PORT)
+    # Add a new patch from INPUT_PORT to OUTPUT_PORT
+    logger.info("Creating new patch")
+    switch.add_patch(INPUT_PORT, OUTPUT_PORT)
 
-    # run_two(30)
-
-    plot_data("1777665237_2026-05-01_14-53-57_R2.csv")
+    run_two()
 except KeyboardInterrupt:
     logger.warning("Received KeyboardInterrupt - halting")
 

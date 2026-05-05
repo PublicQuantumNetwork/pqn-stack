@@ -59,11 +59,7 @@ def record_data(data, log_filename):
         writer.writerow(data)
 
 # Generates a data plot of the specified CSV file
-def plot_data(
-    filename,
-    run,
-    state=None
-):
+def plot_data(filename, run):
     # Set theme
     plt.style.use("seaborn-v0_8-white")
 
@@ -88,8 +84,6 @@ def plot_data(
         dfs = {pol: df[df['polarization'] == pol] for pol in DEFAULT_SETTINGS}
         
         for state in DEFAULT_SETTINGS:
-            plt.title(f"Tomography Data - Run 2, {state} Light, In {INPUT_PORT} / Out {OUTPUT_PORT}")
-
             fig, ax1 = plt.subplots(figsize=(10, 5))
             ax1.set_xlabel("Time (s)")
             ax1.set_ylabel("Ellipticity (°)", color="blue")
@@ -97,11 +91,12 @@ def plot_data(
             ax1.grid(True, which="major", linestyle="--", linewidth=0.5, alpha=0.7)
             ax1.plot(dfs[state]["time_from_zero"], dfs[state]["pax_ellipticity_deg"], color="blue", label="Ellipticity (°)", marker="o", markersize=3, linewidth=1)
 
-
             ax2 = ax1.twinx()
             ax2.set_ylabel("Azimuth (°)", color="green")
             ax2.tick_params(axis="y", labelcolor="green")
             ax2.plot(dfs[state]["time_from_zero"], dfs[state]["pax_azimuth_deg"], color="green", label="Azimuth (°)", marker="s", markersize=3, linewidth=1)
+
+            plt.title(f"Tomography Data - Run 2, {state} Light, In {INPUT_PORT} / Out {OUTPUT_PORT}")
 
             # Save to PNG
             plt.savefig(filename.replace(".csv", f"_{state}.png"), dpi=150, bbox_inches="tight")
@@ -183,14 +178,18 @@ try:
     switch.add_patch(INPUT_PORT, OUTPUT_PORT)
 
     run_two()
+
+    # INPUT_PORT=1
+    # OUTPUT_PORT=9
+    # plot_data("../data/1777665237_2026-05-01_14-53-57_R2.csv", 2)
 except KeyboardInterrupt:
     logger.warning("Received KeyboardInterrupt - halting")
 
-if (polarimeter):
-    polarimeter.close()
+# if (polarimeter):
+#     polarimeter.close()
 
-# Move HWP and QWP to desired angles
-logger.info("Resetting rotators")
-hwp.move_to(0)
-qwp.move_to(0)
-time.sleep(1)
+# # Move HWP and QWP to desired angles
+# logger.info("Resetting rotators")
+# hwp.move_to(0)
+# qwp.move_to(0)
+# time.sleep(1)

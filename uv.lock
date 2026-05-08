@@ -725,17 +725,29 @@ wheels = [
 ]
 
 [[package]]
-name = "pqnstack"
+name = "pqn-hardware"
+version = "0.2.0"
+source = { git = "https://github.com/PublicQuantumNetwork/pqn-hardware.git?rev=6440be2830fddccb09b461caea023c84b7c3bea1#6440be2830fddccb09b461caea023c84b7c3bea1" }
+dependencies = [
+    { name = "numpy" },
+    { name = "pydantic" },
+    { name = "pyfirmata2" },
+    { name = "pyzmq" },
+    { name = "thorlabs-apt-device" },
+    { name = "typer" },
+]
+
+[[package]]
+name = "pqn-node"
 version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi", extra = ["standard"] },
     { name = "httpx" },
-    { name = "numpy" },
+    { name = "pqn-hardware" },
+    { name = "pydantic" },
     { name = "pydantic-settings" },
-    { name = "pyfirmata2" },
-    { name = "pyzmq" },
-    { name = "thorlabs-apt-device" },
+    { name = "pyserial" },
     { name = "tomli-w" },
     { name = "typer" },
 ]
@@ -753,11 +765,10 @@ dev = [
 requires-dist = [
     { name = "fastapi", extras = ["standard"], specifier = ">=0.115.14" },
     { name = "httpx", specifier = ">=0.28.1" },
-    { name = "numpy", specifier = ">=2.3.5" },
+    { name = "pqn-hardware", git = "https://github.com/PublicQuantumNetwork/pqn-hardware.git?rev=6440be2830fddccb09b461caea023c84b7c3bea1" },
+    { name = "pydantic", specifier = ">=2.0" },
     { name = "pydantic-settings", specifier = ">=2.10.1" },
-    { name = "pyfirmata2", specifier = ">=2.5.0" },
-    { name = "pyzmq", specifier = ">=26.2.0" },
-    { name = "thorlabs-apt-device", specifier = ">=0.3.8" },
+    { name = "pyserial", specifier = ">=3.5" },
     { name = "tomli-w", specifier = ">=1.0.0" },
     { name = "typer", specifier = ">=0.15.1" },
 ]

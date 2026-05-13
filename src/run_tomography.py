@@ -4,7 +4,7 @@ import csv
 import time
 import logging
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 from pqnstack.network.client import Client
 from pqnstack.pqn.drivers.switch import Switch
@@ -16,7 +16,7 @@ from pqnstack.pqn.drivers.thorlabs_polarimeter import PAX1000IR2
 
 OUTPUT_DIRECTORY = "../data"
 INPUT_PORT = 1
-OUTPUT_PORT = 10
+OUTPUT_PORT = 16
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
@@ -138,17 +138,17 @@ def run_one():
 
 """
 RUN 2
-Measure H, V, D, L, A, then R
-Wait 10 seconds
-Repeat whole process 40 times
+Measure H, V, D, L, A, then R. Wait 10 seconds, then repeat.
+Runs for approximately {duration} minutes
 """
-def run_two():
+def run_two(duration):
     global switch, polarimeter, hwp, qwp, OUTPUT_DIRECTORY
 
     # Output filename
     log_filename = f"{OUTPUT_DIRECTORY}/{get_timestamp()}_R2_I{INPUT_PORT}-O{OUTPUT_PORT}.csv"
 
-    for i in range(112):
+    count = int(duration*60/16)
+    for i in range(count):
         for state in DEFAULT_SETTINGS:
 
             # Move HWP and QWP to desired angles
@@ -162,9 +162,12 @@ def run_two():
             data["polarization"] = state
             record_data(data, log_filename)
 
-        logger.info("Completed single tomography, wait 10s")
+        remaining_seconds = (count - i) * 16
+
+        logger.info(f"({(i+1)}/{count}) Completed single tomography, waiting 10s. Estimated time remaining: {str(timedelta(seconds=(count - i) * 16))[2:]}.")
         time.sleep(10)
 
+    plot_data(log_filename, 2)
     logger.info("Generated data plot")
 
 try:
@@ -177,7 +180,7 @@ try:
     logger.info("Creating new patch")
     switch.add_patch(INPUT_PORT, OUTPUT_PORT)
 
-    run_two()
+    # run_two(30)
 
     # INPUT_PORT=1
     # OUTPUT_PORT=9
